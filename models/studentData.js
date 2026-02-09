@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 const studentSchema = new Schema({
-  rollNo: { type: Number, required: true },
+  rollNo: { type: Number, required: true, unique:true },
   password:{type:String},
   name: { type: String, required: true },
   fatherName: { type: String, required: true },
