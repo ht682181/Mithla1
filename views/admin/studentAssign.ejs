@@ -1,163 +1,191 @@
-<% layout("/layouts/boilerplate") -%> 
+<%- layout("/layouts/boilerplate") -%>
 
-<div class="container"> 
-  
-  
-  
-    <div class="text-center mb-5">
-      <h1 class="fw-bold text-primary">👩‍🏫 Assigning Student Management</h1>
+<div class="container my-5">
+
+  <!-- ===== PAGE HEADER ===== -->
+  <div class="text-center mb-4">
+    <h1 class="fw-bold text-primary">👩‍🏫 Assigning Student Management</h1>
+    <p class="text-muted">Bulk assign subjects to students easily</p>
+  </div>
+
+  <!-- ===== TOP ACTION BUTTONS ===== -->
+  <div class="d-flex gap-3 mb-4 justify-content-start ms-3">
+    <a href="/add/studentData"
+       class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold">
+      <i class="fa-solid fa-plus me-2"></i>Add Student
+    </a>
+
+    <a href="/show/student"
+       class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold">
+      <i class="fa-solid fa-eye me-2"></i>Show Student Data
+    </a>
+  </div>
+
+  <!-- ===== MAIN CARD ===== -->
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+      <div class="card shadow-lg rounded-4">
+        <div class="card-body p-4">
+
+          <h4 class="fw-bold text-center mb-4">📘 Assign Subjects to Students</h4>
+
+          <form action="/assign/student/subject" method="post" novalidate class="needs-validation">
+
+            <!-- ===== CLASS & SEMESTER ===== -->
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Class</label>
+                <select name="data[class]" id="class" class="form-select  shadow-sm" required>
+                  <option value="">Choose class & year</option>
+                  <% for(let data of classData){ %>
+                    <option value="<%= data.class %>"><%= data.class %></option>
+                  <% } %>
+                </select>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Semester</label>
+                <input name="data[semester]" id="semester" class="form-control  shadow-sm"
+                       placeholder="Enter semester" list="option" required>
+                <datalist id="option">
+                  <% for(let i=1;i<=8;i++){ %>
+                    <option value="<%= i %>"></option>
+                  <% } %>
+                </datalist>
+              </div>
+            </div>
+
+            <!-- ===== SUBJECTS ===== -->
+            <div class="mt-4">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="fw-semibold">📚 Subjects</label>
+                <div class="form-check">
+                  <input type="checkbox" id="selectAllSubjects" class="form-check-input">
+                  <label class="form-check-label">Select All</label>
+                </div>
+              </div>
+
+              <div id="subject-container"
+                   class="border rounded-3 p-3 bg-light"
+                   style="max-height:220px; overflow-y:auto;">
+                <p class="text-muted text-center mb-0">Select class & semester to load subjects</p>
+              </div>
+            </div>
+
+            <!-- ===== STUDENTS ===== -->
+            <div class="mt-4">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="fw-semibold">👨‍🎓 Students</label>
+                <div class="form-check">
+                  <input type="checkbox" id="selectAllStudents" class="form-check-input">
+                  <label class="form-check-label">Select All</label>
+                </div>
+              </div>
+
+              <div class="d-flex fw-bold border-bottom pb-1 mb-2">
+                <div class="col-6">Name</div>
+                <div class="col-6">Father Name</div>
+              </div>
+
+              <div id="student-container"
+                   class="border rounded-3 p-2 bg-light"
+                   style="max-height:220px; overflow-y:auto;">
+                <p class="text-muted text-center mb-0">Select class & semester to load students</p>
+              </div>
+            </div>
+
+            <!-- ===== SUBMIT ===== -->
+            <div class="text-center mt-4">
+              <button class="btn btn-primary px-5 py-2 rounded-pill shadow">
+                ✅ Assign Subjects
+              </button>
+            </div>
+
+          </form>
+
+        </div>
+      </div>
     </div>
+  </div>
+</div>
 
-     <a href= "/add/studentData" 
-   class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 mt-2 mb-0 ms-5"
-   style="transition:0.3s; font-size:15px;">
-   <i class="fa-solid fa-plus"></i> Add Student
-</a>
- <a href= "/show/student" 
-   class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 m-4"
-   style="transition:0.3s; font-size:15px;">
-   <i class="fa-solid fa-plus"></i> Show Student Data
-</a>
+<script>
+async function loadData() {
+  let className = document.getElementById("class").value;
+  let semester = document.getElementById("semester").value;
+  if (!className || !semester) return;
 
-  <div class="row mt-3">     
-    <div class="col-lg-10 mx-auto login-box p-4">       
-      <form action="/assign/student/subject" method="post" novalidate class="needs-validation">         
-        <div class="text-center">           
-          <h4 class="fw-bold">Assign Subjects to Students</h4>         
-        </div>                                
+  try {
+    // ===== SUBJECTS =====
+    let resSub = await fetch(`/get-subjects/${className}/${semester}`);
+    let subjects = await resSub.json();
+    let subContainer = document.getElementById("subject-container");
+    subContainer.innerHTML = "";
 
-        <!-- Class -->
-        <div class="mb-2 mt-3">   
-          <label for="class" class="form-label">Class</label>   
-          <select name="data[class]" class="form-control" id="class" required>     
-            <option value="">Choose class & year</option>     
-            <% for(let data of classData){ %>       
-              <option value="<%= data.class %>"><%= data.class %></option>     
-            <% } %>   
-          </select> 
-        </div>  
-
-        <!-- Semester -->
-        <div class="mb-2">   
-          <label for="semester" class="form-label">Semester</label>   
-          <input name="data[semester]" class="form-control" id="semester" placeholder="Enter semester" required list="option">   
-          <datalist id="option">      
-            <% for(let i=1; i<=8; i++){ %>       
-              <option value="<%= i %>"></option>     
-            <% } %>   
-          </datalist> 
-        </div>  
-
-        <!-- Subject -->
-        <div class="mb-2 mt-3">   
-          <label class="form-label">Subjects</label>   
-          <div id="subject-container" class="border rounded p-2" style="max-height:200px; overflow-y:auto;"></div>   
-          <div class="form-check mt-2">     
-            <input type="checkbox" id="selectAllSubjects" class="form-check-input">     
-            <label for="selectAllSubjects" class="form-check-label">Select All Subjects</label>   
-          </div> 
-        </div>  
-
-        <!-- Students -->
-        <div class="mb-2 mt-3">   
-          <label class="form-label">Students</label>   
-          <div class="d-flex fw-bold border-bottom mb-2 p-1">
-            <div class="col-6">Name</div>
-            <div class="col-6">Father Name</div>
-          </div>
-          <div id="student-container" class="border rounded p-2" style="max-height:200px; overflow-y:auto;"></div>   
-          <div class="form-check mt-2">     
-            <input type="checkbox" id="selectAllStudents" class="form-check-input">     
-            <label for="selectAllStudents" class="form-check-label">Select All Students</label>   
-          </div> 
-        </div>          
-
-        <div class="text-center mt-3">           
-          <button class="col-6 btn btn-primary">Submit</button>         
-        </div>       
-      </form>     
-    </div>   
-  </div> 
-</div>  
-
-<script>   
-async function loadData() {     
-  let className = document.getElementById("class").value;     
-  let semester = document.getElementById("semester").value;      
-  if (!className || !semester) return;      
-
-  try {       
-    // Subjects       
-    let resSub = await fetch(`/get-subjects/${className}/${semester}`);       
-    let subjects = await resSub.json();        
-
-    let subContainer = document.getElementById("subject-container");       
-    subContainer.innerHTML = "";        
-
-    subjects.forEach((sub, i) => {         
-      let div = document.createElement("div");         
-      div.classList.add("form-check");         
-
-      let subjectData = JSON.stringify({
+    subjects.forEach((sub, i) => {
+      let subjectData = encodeURIComponent(JSON.stringify({
         name: sub.name,
         code: sub.code,
         maxMarks: sub.maxMarks,
         minMarks: sub.minMarks,
         subjectType: sub.subjectType
-      });
+      }));
 
-      div.innerHTML = `           
-        <input class="form-check-input subject-checkbox"                   
-               type="checkbox"                   
-               name="data[subjects][]"                   
-               value='${subjectData}'                   
-               id="subject${i}">           
-        <label class="form-check-label" for="subject${i}">
-          ${sub.name} (code:${sub.code}, Max: ${sub.maxMarks}, Min: ${sub.minMarks}, Type: ${sub.subjectType})
-        </label>         
-      `;         
-      subContainer.appendChild(div);       
-    });        
+      subContainer.innerHTML += `
+        <div class="form-check border-bottom py-1">
+          <input class="form-check-input subject-checkbox"
+                 type="checkbox"
+                 name="data[subjects][]"
+                 value="${subjectData}"
+                 id="subject${i}">
+          <label class="form-check-label" for="subject${i}">
+            <strong>${sub.name}</strong>
+            <small class="text-muted">
+              (Code:${sub.code}, Max:${sub.maxMarks}, Min:${sub.minMarks}, ${sub.subjectType})
+            </small>
+          </label>
+        </div>
+      `;
+    });
 
-    // Students       
-    let resStu = await fetch(`/get-students/${className}/${semester}`);       
-    let students = await resStu.json();        
+    // ===== STUDENTS =====
+    let resStu = await fetch(`/get-students/${className}/${semester}`);
+    let students = await resStu.json();
+    let stuContainer = document.getElementById("student-container");
+    stuContainer.innerHTML = "";
 
-    let stuContainer = document.getElementById("student-container");       
-    stuContainer.innerHTML = "";        
+    students.forEach((stu, i) => {
+      stuContainer.innerHTML += `
+        <div class="form-check d-flex align-items-center border-bottom py-1">
+          <input class="form-check-input student-checkbox me-2"
+                 type="checkbox"
+                 name="data[students][]"
+                 value="${stu._id}"
+                 id="student${i}">
+          <label class="form-check-label w-100 d-flex">
+            <span class="col-6">${stu.name}</span>
+            <span class="col-6">${stu.fatherName}</span>
+          </label>
+        </div>
+      `;
+    });
 
-    students.forEach((stu, i) => {         
-      let div = document.createElement("div");         
-      div.classList.add("form-check", "d-flex", "align-items-center", "border-bottom", "py-1");         
-      div.innerHTML = `           
-        <input class="form-check-input student-checkbox me-2"                   
-               type="checkbox"                   
-               name="data[students][]"                   
-               value="${stu._id}"                   
-               id="student${i}">           
-        <label class="form-check-label w-100 d-flex justify-content-between" for="student${i}">
-          <span class="col-6">${stu.name}</span>
-          <span class="col-6">${stu.fatherName}</span>
-        </label>         
-      `;         
-      stuContainer.appendChild(div);       
-    });      
+  } catch (err) {
+    console.error("Error loading data", err);
+  }
+}
 
-  } catch (err) {       
-    console.error("Error fetching data", err);     
-  }   
-}    
+document.getElementById("class").addEventListener("change", loadData);
+document.getElementById("semester").addEventListener("change", loadData);
 
-document.getElementById("class").addEventListener("change", loadData);   
-document.getElementById("semester").addEventListener("change", loadData);    
+document.getElementById("selectAllSubjects").addEventListener("change", e => {
+  document.querySelectorAll(".subject-checkbox").forEach(cb => cb.checked = e.target.checked);
+});
 
-document.getElementById("selectAllSubjects").addEventListener("change", function() {     
-  document.querySelectorAll(".subject-checkbox").forEach(cb => cb.checked = this.checked);   
-});    
-
-document.getElementById("selectAllStudents").addEventListener("change", function() {     
-  document.querySelectorAll(".student-checkbox").forEach(cb => cb.checked = this.checked);   
-});    
+document.getElementById("selectAllStudents").addEventListener("change", e => {
+  document.querySelectorAll(".student-checkbox").forEach(cb => cb.checked = e.target.checked);
+  
+});
 
 document.querySelector("form").addEventListener("submit", function(e) {     
   if(document.querySelectorAll(".subject-checkbox:checked").length === 0 || 
@@ -165,5 +193,7 @@ document.querySelector("form").addEventListener("submit", function(e) {
     e.preventDefault();       
     alert("Please select at least one subject and one student!");     
   }   
-});  
+});
+
+
 </script>
