@@ -1625,51 +1625,58 @@ app.post(
     try {
       let { students, subjects } = req.body.data;
 
-      // Validation
       if (!students || !subjects) {
         req.flash("error", "Students and subjects are missing!");
         return res.redirect("/assign/student/subject");
       }
 
-      // Ensure arrays
       if (!Array.isArray(students)) students = [students];
       if (!Array.isArray(subjects)) subjects = [subjects];
 
-      // Convert JSON string → object
-      subjects = subjects.map((s) => {
-        try {
-          return JSON.parse(s);
-        } catch (err) {
-          return s; // fallback agar already object ho
-        }
+      // ✅ decode + parse
+      subjects = subjects.map(s =>
+        typeof s === "string" ? JSON.parse(decodeURIComponent(s)) : s
+      );
+
+      // 🔥 Get all selected students
+      const studentDocs = await Student.find(
+        { _id: { $in: students } },
+        { subject: 1 }
+      );
+
+      // 🔥 Collect existing subject codes
+      const existingCodes = new Set();
+      studentDocs.forEach(stu => {
+        stu.subject.forEach(sub => existingCodes.add(sub.code));
       });
 
-      // Assign subjects to each student
-      for (let stuId of students) {
-        const student = await Student.findById(stuId);
+      // 🔥 Filter only NEW subjects
+      const newSubjects = subjects.filter(
+        sub => !existingCodes.has(sub.code)
+      );
 
-        // filter out subjects that already exist
-        const newSubjects = subjects.filter(
-          (subj) => !student.subject.some((s) => s.name === subj.name),
-        );
-
-        if (newSubjects.length > 0) {
-          await Student.findByIdAndUpdate(
-            stuId,
-            { $push: { subject: { $each: newSubjects } } }, // add only filtered ones
-            { new: true },
-          );
-        }
+      if (newSubjects.length === 0) {
+        req.flash("info", "All selected subjects are already assigned 😄");
+        return res.redirect("/assign/student/subject");
       }
+
+      // ✅ Assign only non-duplicate subjects
+      await Student.updateMany(
+        { _id: { $in: students } },
+        {
+          $push: { subject: { $each: newSubjects } }
+        }
+      );
 
       req.flash("success", "Subjects assigned successfully ✅");
       res.redirect("/assign/student/subject");
+
     } catch (err) {
-      console.error("Error in assigning subjects:", err);
+      console.error("🔥 Assign Subject Error:", err);
       req.flash("error", "Something went wrong!");
       res.redirect("/assign/student/subject");
     }
-  }),
+  })
 );
 
 //------------------------------------- Admin Attendance status ----------------------------------------------//
