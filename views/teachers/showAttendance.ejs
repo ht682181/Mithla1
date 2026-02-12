@@ -102,6 +102,20 @@
       <% } %>
     </tr>
   <% } %>
+<tr class="table-info fw-bold border-top">
+  <td colspan="2" class="text-end text-primary">
+    Total Present →
+  </td>
+
+  <% for (let i = 0; i < 6; i++) { %>
+    <td>
+      <span class="badge bg-primary">
+        <%= periodCounts[i] %> / <%= totalStudents %>
+      </span>
+    </td>
+  <% } %>
+</tr>
+
 
 </tbody>
 
