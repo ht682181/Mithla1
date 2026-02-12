@@ -262,209 +262,6 @@ app.get("/student/attendance/login", (req, res) => {
   res.render("users/login.ejs");
 });
 
-// app.post(
-//   "/student/attendance/login",
-//   WrapAsync(async (req, res) => {
-//     try {
-//       const { role, username, password } = req.body;
-//       const studentPassword = process.env.STUDENT_PASSWORD;
-//       const adminUsername = process.env.ADMIN_USERNAME;
-//       const adminPassword = process.env.ADMIN_PASSWORD;
-//       const adminRole = process.env.ROLE_1;
-//       const teacherRole = process.env.ROLE_2;
-//       const studentRole = process.env.ROLE_3;
-
-//       req.session.adminVerified = false;
-
-//       // ===== Admin Login =====
-//       if (adminRole === role) {
-//         if (adminUsername === username && adminPassword === password) {
-//           req.session.adminVerified = true;
-//           req.flash("success", "Login successfully");
-//           return res.redirect("/admin/student/attendance");
-//         } else {
-//           req.flash("error", "Admin credentials incorrect");
-//           return res.redirect("/student/attendance/login");
-//         }
-//       }
-
-//       // ===== Teacher Login =====
-//       if (teacherRole === role) {
-//         return res.redirect(307, "/login/modal"); // preserves POST body
-//       }
-
-//       // ===== Student Login =====
-//       if (studentRole === role && studentPassword === password) {
-//         const newStudent = await Student.findOne({ rollNo: username });
-
-//         if (!newStudent) {
-//           req.flash("error", "Student not found for this username");
-//           return res.redirect("/student/attendance/login");
-//         }
-
-//         req.session.rollNo = username;
-//         req.session.otpVerified = false;
-
-//         // Generate OTP
-//         let otp = "";
-//         for (let i = 0; i < 6; i++) {
-//           otp += Math.floor(Math.random() * 10);
-//         }
-
-//         const newOtp = new OTP({
-//           userId: newStudent._id,
-//           otp,
-//         });
-//         await newOtp.save();
-
-//         // Send email
-//         const transporter = nodemailer.createTransport({
-//           host: "smtp.gmail.com",
-//           port: 587,
-//           secure: false,
-//           auth: {
-//             user: process.env.EMAIL_USER,
-//             pass: process.env.EMAIL_PASS,
-//           },
-//         });
-
-//         await transporter.sendMail({
-//           from: process.env.EMAIL_USER,
-//           to: newStudent.email,
-//           subject: "Attendance Verification Code",
-//           text: `Dear Student,\nYour verification code is ${otp}. Please enter it within 30 seconds. Keep it confidential.`,
-//         });
-
-//         return res.redirect("/otp");
-//       }
-
-//       // ===== Invalid Role =====
-//       req.flash("error", "Role not matched");
-//       return res.redirect("/student/attendance/login");
-
-//     } catch (err) {
-//       console.error("Login Error:", err);
-//       req.flash("error", "Something went wrong, please try again");
-//       return res.redirect("/student/attendance/login");
-//     }
-//   })
-// );
-
-// const SibApiV3Sdk = require("sib-api-v3-sdk");
-
-// app.post(
-//   "/student/attendance/login",
-//   WrapAsync(async (req, res) => {
-//     try {
-//       const { role, username, password } = req.body;
-
-//       const studentPassword = process.env.STUDENT_PASSWORD;
-//       const adminUsername = process.env.ADMIN_USERNAME;
-//       const adminPassword = process.env.ADMIN_PASSWORD;
-//       const adminRole = process.env.ROLE_1;
-//       const teacherRole = process.env.ROLE_2;
-//       const studentRole = process.env.ROLE_3;
-
-//       req.session.adminVerified = false;
-
-//       // ================= ADMIN LOGIN =================
-//       if (adminRole === role) {
-//         if (adminUsername === username && adminPassword === password) {
-//           req.session.adminVerified = true;
-//           req.flash("success", "Login successfully");
-//           return res.redirect("/admin/student/attendance");
-//         } else {
-//           req.flash("error", "Incorrect password");
-//           return res.redirect("/student/attendance/login");
-//         }
-//       }
-
-//       // ================= TEACHER LOGIN =================
-//       if (teacherRole === role) {
-//         return res.redirect(307, "/login/modal");
-//       }
-
-//       // ================= STUDENT LOGIN =================
-//       if (studentRole === role && studentPassword === password) {
-//         const newStudent = await Student.findOne({ rollNo: username });
-
-//         if (!newStudent) {
-//           req.flash("error", "Student not found for this username");
-//           return res.redirect("/student/attendance/login");
-//         }
-
-//         req.session.rollNo = username;
-//         req.session.email = newStudent.email;
-//         req.session.otpVerified = false;
-
-//         // ================= OTP GENERATE =================
-//         let otp = "";
-//         for (let i = 0; i < 6; i++) {
-//           otp += Math.floor(Math.random() * 10);
-//         }
-
-//         const newOtp = new OTP({
-//           userId: newStudent._id,
-//           otp,
-//           createdAt: new Date(),
-//         });
-
-//         await newOtp.save();
-
-//         // ================= BREVO API SETUP =================
-//         const client = SibApiV3Sdk.ApiClient.instance;
-//         const apiKey = client.authentications["api-key"];
-//         apiKey.apiKey = process.env.BREVO_API_KEY;
-
-//         const tranEmailApi = new SibApiV3Sdk.TransactionalEmailsApi();
-
-//         const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-
-//         sendSmtpEmail.subject = "Attendance Verification Code";
-//         sendSmtpEmail.htmlContent = `
-//           <h2>Attendance OTP</h2>
-//           <p>Your verification code is:</p>
-//           <h1 style="letter-spacing:5px;">${otp}</h1>
-//           <p>This OTP is valid for 30 seconds.</p>
-//         `;
-
-//         sendSmtpEmail.sender = {
-//           name: "Attendance System",
-//           email: process.env.EMAIL_USER, // ⚠️ MUST be verified in Brevo
-//         };
-
-//         sendSmtpEmail.to = [
-//           {
-//             email: newStudent.email,
-//             name: newStudent.name || "Student",
-//           },
-//         ];
-
-//         // ================= SEND OTP =================
-//         try {
-//           const result = await tranEmailApi.sendTransacEmail(sendSmtpEmail);
-//           // console.log("OTP Email Sent:", result.messageId);
-//         } catch (mailErr) {
-//           console.error("Brevo Mail Error:", mailErr);
-//           req.flash("error", "OTP sending failed");
-//           return res.redirect("/student/attendance/login");
-//         }
-
-//         return res.redirect("/otp");
-//       }
-
-//       // ================= INVALID ROLE =================
-//       req.flash("error", "Role not matched");
-//       return res.redirect("/student/attendance/login");
-//     } catch (err) {
-//       console.error("Login Error:", err);
-//       req.flash("error", "Something went wrong, please try again");
-//       return res.redirect("/student/attendance/login");
-//     }
-//   }),
-// );
-
-// const SibApiV3Sdk = require("sib-api-v3-sdk");
 
 app.post(
   "/student/attendance/login",
@@ -593,44 +390,6 @@ app.get("/add/teacherData", verifiedAny, (req, res) => {
 });
 
 
-// app.post(
-//   "/add/teacherData",
-//   verifiedAny,
-//   upload.single("data[image]"),
-//   validateTeacher,
-//   WrapAsync(async (req, res, next) => {
-
-//     try {
-//       const { data } = req.body;
-
-//       const newTeacher = new Teacher(data);
-
-//       // ✅ IMAGE OPTIONAL (safe)
-//       if (req.file) {
-//         newTeacher.image = {
-//           url: req.file.path,
-//           filename: req.file.filename
-//         };
-//       }
-
-//       const registerUser = await Teacher.register(newTeacher, data.password);
-
-//       req.login(registerUser, (err) => {
-//         if (err) return next(err);
-
-//        if (!req.session.adminVerified) {
-//                 req.session.adminVerified = true;
-//               }
-//               req.flash("success", "Add Teacher successfully");
-//               res.redirect("/add/teacherData");
-//             });
-
-//     } catch (e) {
-//       req.flash("error", e.message);
-//       return res.redirect("/add/teacherData");
-//     }
-//   })
-// );
 
 
 app.post(
@@ -1818,135 +1577,6 @@ app.post(
   }),
 );
 
-// app.get(
-//   "/show/today/status/attendance/pdf",
-//   verifiedAny,
-//   WrapAsync(async (req, res) => {
-//     const { class: className, semester, section, date } = req.query;
-
-//     const d = new Date(date);
-//     const start = new Date(d.setHours(0, 0, 0, 0));
-//     const end = new Date(d.setHours(23, 59, 59, 999));
-
-//     const students = await Student.find({
-//       class: className,
-//       semester,
-//       section,
-//     }).sort({ rollNo: 1 });
-
-//     const attendance = await Attendance.find({
-//       date: { $gte: start, $lte: end },
-//     });
-
-//     // 🔥 PERIOD DATA
-//     const periodMap = {};
-//     attendance.forEach((a) => {
-//       if (!periodMap[a.period]) {
-//         periodMap[a.period] = {
-//           teacher: a.teacherName || "-",
-//           subject: a.subject || "-",
-//           unit: a.unit || "-",
-//           description: a.description || "-",
-//         };
-//       }
-//     });
-
-//     const doc = new PDFDocument({ margin: 30, size: "A4" });
-
-//     res.setHeader("Content-Type", "application/pdf");
-//     res.setHeader(
-//       "Content-Disposition",
-//       `attachment; filename=Daily_Attendance_${className}.pdf`,
-//     );
-
-//     doc.pipe(res);
-
-//     // ===== HEADER =====
-//     doc.fontSize(16).text("Daily Attendance Report", { align: "center" });
-//     doc.moveDown(0.5);
-//     doc
-//       .fontSize(10)
-//       .text(`Date: ${new Date(date).toDateString()}`)
-//       .text(
-//         `Class: ${className} | Semester: ${semester} | Section: ${section}`,
-//       );
-//     doc.moveDown();
-
-//     // ===== STUDENT TABLE =====
-//     const table = {
-//       headers: ["Adm No", "Name", "Father", "I", "II", "III", "IV", "V", "VI"],
-//       rows: students.map((stu) => {
-//         const row = [stu.rollNo, stu.name, stu.fatherName];
-
-//         for (let p = 1; p <= 6; p++) {
-//           const rec = attendance.find(
-//             (a) =>
-//               a.studentId.toString() === stu._id.toString() && a.period === p,
-//           );
-//           row.push(rec ? (rec.status === "Present" ? "P" : "A") : "-");
-//         }
-//         return row;
-//       }),
-//     };
-
-//     doc.table(table, {
-//       width: 520,
-//       columnsSize: [60, 80, 90, 40, 40, 40, 40, 40, 40],
-//     });
-
-//     doc.moveDown(1.5);
-
-//     // ===== EXTRA INFO ROWS =====
-//     const extraTable = {
-//       headers: ["", "I", "II", "III", "IV", "V", "VI"],
-//       rows: [
-//         [
-//           "Teacher",
-//           periodMap[1]?.teacher || "-",
-//           periodMap[2]?.teacher || "-",
-//           periodMap[3]?.teacher || "-",
-//           periodMap[4]?.teacher || "-",
-//           periodMap[5]?.teacher || "-",
-//           periodMap[6]?.teacher || "-",
-//         ],
-//         [
-//           "Subject",
-//           periodMap[1]?.subject || "-",
-//           periodMap[2]?.subject || "-",
-//           periodMap[3]?.subject || "-",
-//           periodMap[4]?.subject || "-",
-//           periodMap[5]?.subject || "-",
-//           periodMap[6]?.subject || "-",
-//         ],
-//         [
-//           "Unit",
-//           periodMap[1]?.unit || "-",
-//           periodMap[2]?.unit || "-",
-//           periodMap[3]?.unit || "-",
-//           periodMap[4]?.unit || "-",
-//           periodMap[5]?.unit || "-",
-//           periodMap[6]?.unit || "-",
-//         ],
-//         [
-//           "Description",
-//           periodMap[1]?.description || "-",
-//           periodMap[2]?.description || "-",
-//           periodMap[3]?.description || "-",
-//           periodMap[4]?.description || "-",
-//           periodMap[5]?.description || "-",
-//           periodMap[6]?.description || "-",
-//         ],
-//       ],
-//     };
-
-//     doc.table(extraTable, {
-//       width: 520,
-//       columnsSize: [90, 70, 70, 70, 70, 70, 70],
-//     });
-
-//     doc.end();
-//   }),
-// );
 
 app.get(
   "/show/today/status/attendance/pdf",
@@ -3015,6 +2645,7 @@ app.get(
   }),
 );
 
+
 app.post(
   "/teacher/show/status",
   isLoggedIn,
@@ -3045,11 +2676,33 @@ app.post(
         section: data.section,
       },
     });
+
     dupDatas = dupDatas.filter((d) => d.studentId);
 
-    return res.render("teachers/showStatus.ejs", { datas, dupDatas });
-  }),
+    // ✅ Total Students
+    const totalStudents = datas.length;
+
+    // ✅ Period Wise Present Count
+    let periodWiseData = {};
+
+    dupDatas.forEach((record) => {
+      if (record.status === "Present") {   // 👈 status field check
+        if (!periodWiseData[record.period]) {
+          periodWiseData[record.period] = 0;
+        }
+        periodWiseData[record.period]++;
+      }
+    });
+
+    return res.render("teachers/showStatus.ejs", {
+      datas,
+      dupDatas,
+      periodWiseData,
+      totalStudents,
+    });
+  })
 );
+
 
 // take attendance
 
@@ -3652,7 +3305,7 @@ app.get(
     });
 
     if (datas.length === 0) {
-      req.flash("error", "No students found  something is wrong");
+      req.flash("error", "No students found something is wrong");
       return res.redirect("/add/student/attendance");
     }
 
@@ -3667,8 +3320,37 @@ app.get(
 
     dupDatas = dupDatas.filter((d) => d.studentId);
 
-    return res.render("teachers/showAttendance.ejs", { datas, dupDatas });
-  }),
+    // 🔥 NEW LOGIC ADDED HERE
+    const totalStudents = datas.length;
+
+    let periodCounts = [0, 0, 0, 0, 0, 0];
+
+    datas.forEach((data) => {
+      let dup = dupDatas.find(
+        (d) =>
+          d.studentId &&
+          d.studentId._id.toString() === data._id.toString()
+      );
+
+      if (dup && dup.attendance) {
+        for (let i = 0; i < 6; i++) {
+          if (
+            dup.attendance[i] &&
+            dup.attendance[i].status === "Present"
+          ) {
+            periodCounts[i]++;
+          }
+        }
+      }
+    });
+
+    return res.render("teachers/showAttendance.ejs", {
+      datas,
+      dupDatas,
+      periodCounts,     // ✅ send to EJS
+      totalStudents,    // ✅ send to EJS
+    });
+  })
 );
 
 // logout teacher
