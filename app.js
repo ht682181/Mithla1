@@ -2815,6 +2815,28 @@ app.post(
       return res.redirect("/add/student/attendance");
     }
 
+// 🔥 Step 2: Sequence check
+const currentPeriod = parseInt(period);
+
+if (currentPeriod > 1) {
+  const previousPeriod = currentPeriod - 1;
+
+  const previousAttendance = await AttendenceDuplicate.findOne({
+    "attendance.periods": previousPeriod,
+    "attendance.class": classes,
+    "attendance.section": section,
+    "attendance.semester": semester,
+  });
+
+  if (!previousAttendance) {
+    req.flash(
+      "error",
+      `⚠️ You must complete Period ${previousPeriod} attendance first!`
+    );
+    return res.redirect("/add/student/attendance");
+  }
+}
+    
     try {
       // 🔹 Step 2: Save attendance for each student
       const ops = Object.entries(students).map(async ([studentId, status]) => {
