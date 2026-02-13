@@ -1,0 +1,112 @@
+<%- layout("/layouts/boilerplate") -%>
+
+  <div class="container mt-5">
+
+    
+<!-- link -->
+    <a href="/show/student"
+      class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 m-4"
+      style="transition:0.3s; font-size:15px;">
+      <i class="fa-solid fa-plus"></i> Show Student Data
+    </a>
+
+    <div class="card shadow-lg rounded-4 p-4">
+      <h3 class="text-center text-primary fw-bold mb-4">
+        🎓 Update Student Class & Semester
+      </h3>
+
+      <form id="updateForm" action="/student/update/class/semester" method="POST" novalidate class="needs-validation">
+
+        <div class="row g-4">
+
+          <!-- Current Class -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Current Class</label>
+            <select name="data[currentClass]" class="form-select shadow-sm" required>
+              <option value="">Choose current class</option>
+              <% for(let data of classData){ %>
+                <option value="<%= data.class %>">
+                  <%= data.class %>
+                </option>
+                <% } %>
+            </select>
+          </div>
+
+          <!-- Current Semester -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Current Semester</label>
+            <select name="data[currentSemester]" class="form-select shadow-sm" required>
+              <option value="">Choose semester</option>
+              <% for(let i=1;i<=8;i++){ %>
+                <option value="<%= i %>">
+                  <%= i %>
+                </option>
+                <% } %>
+            </select>
+          </div>
+
+          <!-- New Class -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">New Class</label>
+            <select name="data[newClass]" class="form-select shadow-sm" required>
+              <option value="">Choose new class</option>
+              <% for(let data of classData){ %>
+                <option value="<%= data.class %>">
+                  <%= data.class %>
+                </option>
+                <% } %>
+            </select>
+          </div>
+
+          <!-- New Semester -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">New Semester</label>
+            <select name="data[newSemester]" class="form-select shadow-sm" required>
+              <option value="">Choose semester</option>
+              <% for(let i=1;i<=8;i++){ %>
+                <option value="<%= i %>">
+                  <%= i %>
+                </option>
+                <% } %>
+            </select>
+          </div>
+
+        </div>
+
+        <div class="text-center mt-4">
+          <button type="submit" class="btn btn-success px-5 py-2 rounded-pill fw-semibold shadow">
+            🔄 Update Students
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+
+  <!-- SweetAlert2 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <script>
+    const form = document.getElementById("updateForm");
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      Swal.fire({
+        title: "Are you sure?",
+        text: "All students from the selected current class and semester will be moved to the new class and semester.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#198754",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Yes, Update",
+        cancelButtonText: "Cancel",
+        reverseButtons: true
+      }).then((result) => {
+        if (result.isConfirmed) {
+          form.submit();
+        }
+      });
+    });
+  </script>
