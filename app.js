@@ -2549,6 +2549,40 @@ app.delete(
   }),
 );
 
+//   Student updation class semester 
+
+app.get(
+  "/student/update/class/semester",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    let classData = await Class.find({});
+    res.render("admin/updateStudentClass&Semester.ejs",{classData});
+  }),
+);
+
+app.post("/student/update/class/semester", verifiedAny, async (req, res) => {
+  const { currentClass, currentSemester, newClass, newSemester } = req.body.data;
+
+  const result = await Student.updateMany(
+    { class: currentClass, semester: currentSemester },
+    { $set: { class: newClass, semester: newSemester } }
+  );
+
+  if (result.matchedCount === 0) {
+    req.flash("error", "No students found for the selected class and semester.");
+    return res.redirect("/student/update/class/semester");
+  }
+
+  req.flash(
+    "success",
+    `${result.modifiedCount} students updated successfully!`
+  );
+
+  res.redirect("/student/update/class/semester");
+});
+
+
+
 // ---------------------------------------------------- Admin folder closed------------------------------------------------------------------
 
 // -------------------------------------------------- teachers folders starts -----------------------------------------------------
