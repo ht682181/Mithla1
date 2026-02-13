@@ -2563,6 +2563,22 @@ app.get(
 app.post("/student/update/class/semester", verifiedAny, async (req, res) => {
   const { currentClass, currentSemester, newClass, newSemester } = req.body.data;
 
+  // 🔴 Check if any field is missing
+  if (!currentClass || !currentSemester || !newClass || !newSemester) {
+    req.flash("error", "All fields are required.");
+    return res.redirect("/student/update/class/semester");
+  }
+
+  // 🔴 Prevent same class & semester update
+  if (
+    currentClass === newClass &&
+    currentSemester == newSemester
+  ) {
+    req.flash("error", "Current and new class/semester cannot be the same.");
+    return res.redirect("/student/update/class/semester");
+  }
+
+
   const result = await Student.updateMany(
     { class: currentClass, semester: currentSemester },
     { $set: { class: newClass, semester: newSemester } }
