@@ -1,0 +1,111 @@
+<%- layout("/layouts/boilerplate") -%>
+
+<div class="container mt-5">
+
+    
+    <h3 class="text-center text-danger fw-bold mb-4">
+      🗑 Delete Students Subjects (Class & Semester Wise)
+    </h3>
+
+  <!-- Top Action Button -->
+<div class="text-center mb-4">
+  <a href="/show/student"
+    class="btn btn-outline-dark px-4 py-2 rounded-pill fw-semibold shadow-sm d-inline-flex align-items-center gap-2 action-btn">
+    <i class="fa-solid fa-users"></i>
+    View Student Records
+  </a>
+</div>
+
+
+  <!-- Card -->
+  <div class="card shadow-lg rounded-4 border-0 p-5">
+
+
+    <p class="text-center  mb-5">
+      This action will permanently remove all assigned subjects 
+      from selected class & semester students.
+    </p>
+
+    <form id="updateForm" action="/student/subject/delete" method="POST" class="needs-validation">
+
+      <div class="row justify-content-center g-4">
+
+        <!-- Select Class -->
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Select Class</label>
+          <select name="data[currentClass]" class="form-select shadow-sm rounded-3" required>
+            <option value="">Choose class</option>
+            <% for(let data of classData){ %>
+              <option value="<%= data.class %>">
+                <%= data.class %>
+              </option>
+            <% } %>
+          </select>
+        </div>
+
+        <!-- Select Semester -->
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Select Semester</label>
+          <select name="data[currentSemester]" class="form-select shadow-sm rounded-3" required>
+            <option value="">Choose semester</option>
+            <% for(let i=1;i<=8;i++){ %>
+              <option value="<%= i %>"><%= i %></option>
+            <% } %>
+          </select>
+        </div>
+
+      </div>
+
+      <!-- Submit Button -->
+      <div class="text-center mt-5">
+        <button type="submit"
+          class="btn btn-danger px-5 py-2 rounded-pill fw-semibold shadow-sm"
+          style="transition:0.3s;">
+          🚨 Delete Subjects
+        </button>
+      </div>
+
+    </form>
+
+  </div>
+</div>
+
+
+<!-- SweetAlert2 CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+  const form = document.getElementById("updateForm");
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    Swal.fire({
+      title: "Are you sure?",
+      text: "All subjects of selected class & semester students will be permanently deleted.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc3545",
+      cancelButtonColor: "#6c757d",
+      confirmButtonText: "Yes, Delete",
+      cancelButtonText: "Cancel",
+      reverseButtons: true
+    }).then((result) => {
+      if (result.isConfirmed) {
+        form.submit();
+      }
+    });
+  });
+</script>
+
+
+<style>
+  .btn-danger:hover {
+    transform: scale(1.05);
+  }
+
+  .card {
+    max-width: 850px;
+    margin: auto;
+  }
+</style>
