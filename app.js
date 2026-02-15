@@ -2597,6 +2597,60 @@ app.post("/student/update/class/semester", verifiedAny, async (req, res) => {
   res.redirect("/student/update/class/semester");
 });
 
+// delete students subject in bulk
+
+app.get(
+  "/student/subject/delete",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    let classData = await Class.find({});
+    res.render("admin/deleteStudentSubject.ejs",{classData});
+  }),
+);
+
+
+app.post(
+  "/student/subject/delete",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    try {
+      const { currentClass, currentSemester } = req.body.data;
+
+      if (!currentClass || !currentSemester) {
+        req.flash("error", "Class and Semester are required!");
+        return res.redirect("/student/subject/delete");
+      }
+
+      const result = await Student.updateMany(
+        {
+          class: currentClass,
+          semester: currentSemester, // ✅ string match
+        },
+        {
+          $set: { subject: [] },
+        }
+      );
+
+     if (result.matchedCount === 0) {
+    req.flash("error", "No students found for the selected class and semester.");
+    return res.redirect("/student/subject/delete");
+  }
+
+  req.flash(
+    "success",
+    `${result.modifiedCount} students' subjects cleared successfully`
+  );
+
+  res.redirect("/student/subject/delete");
+    } catch (err) {
+      console.error("Subject Delete Error:", err);
+      req.flash("error", "Something went wrong!");
+      return res.redirect("/student/subject/delete");
+    }
+  })
+);
+
+
 
 
 // ---------------------------------------------------- Admin folder closed------------------------------------------------------------------
