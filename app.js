@@ -3148,6 +3148,144 @@ app.get("/get-subjects", isLoggedIn, async (req, res) => {
 
 //////////////////////////
 
+// app.post(
+//   "/update/student/attendance",
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const { data } = req.body;
+//     const { class: className, semester, section, subject } = data;
+
+//     // ===== Save session =====
+//     req.session.class = className;
+//     req.session.semester = semester;
+//     req.session.section = section;
+//     req.session.subject = subject;
+
+//     // ===== Teacher check =====
+//     const teacher = await Teacher.findById(req.user._id);
+//     if (!teacher) {
+//       req.flash("error", "Teacher not found");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     const classObj = teacher.class?.find((c) => c.className === className);
+//     const semObj = classObj?.semesters?.find((s) => s.semester === semester);
+//     const secObj = semObj?.sections?.find((s) => s.section === section);
+
+//     if (!classObj || !semObj || !secObj) {
+//       req.flash("error", "Class / Semester / Section not assigned to you");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     // ===== Find attendance records =====
+//     const records = await AttendenceDuplicate.find({
+//       attendance: {
+//         $elemMatch: {
+//           teacherId: req.user._id,
+//           class: className,
+//           semester,
+//           section,
+//           subject,
+//         },
+//       },
+//     });
+
+//     if (!records.length) {
+//       req.flash("error", "No attendance found for update");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     // ===== Filter valid (within 24 hours) =====
+//     const now = new Date();
+//     const validAttendances = records.flatMap((r) =>
+//       r.attendance.filter(
+//         (att) =>
+//           att.teacherId.toString() === req.user._id.toString() &&
+//           att.class === className &&
+//           att.semester === semester &&
+//           att.section === section &&
+//           att.subject?.toLowerCase() === subject.toLowerCase() &&
+//           (now - new Date(att.date)) / (1000 * 60 * 60) <= 24,
+//       ),
+//     );
+
+//     if (!validAttendances.length) {
+//       req.flash("error", "Update allowed only within 24 hours");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     // ===== Latest attendance for period/unit/description =====
+//     const latest = validAttendances.sort(
+//       (a, b) => new Date(b.date) - new Date(a.date),
+//     )[0];
+
+//     const currentAttendance = {
+//       periods: latest.periods,
+//       unit: latest.unit,
+//       description: latest.description,
+//       date: latest.date,
+//     };
+
+//     // ===== Fetch students =====
+//     const students = await Student.find({
+//       class: className,
+//       semester,
+//       section,
+//     });
+
+//     if (!students.length) {
+//       req.flash("error", "No students found");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     // ===== Build status map =====
+//     const statusMap = {};
+//     for (const record of records) {
+//       const att = record.attendance.find(
+//         (a) =>
+//           a.teacherId.toString() === req.user._id.toString() &&
+//           a.class === className &&
+//           a.semester === semester &&
+//           a.section === section &&
+//           a.subject?.toLowerCase() === subject.toLowerCase(),
+//       );
+
+//       if (att) {
+//         statusMap[record.studentId.toString()] = att.status || "Not marked";
+//       }
+//     }
+
+//     const studentsWithStatus = students.map((stu) => ({
+//       ...stu.toObject(),
+//       attendanceToday: statusMap[stu._id.toString()] || "Not marked",
+//     }));
+
+//     // ===== Subject permission =====
+//     const studentSubjects = students.flatMap((s) =>
+//       s.subject.map((sub) => (typeof sub === "string" ? sub : sub.name)),
+//     );
+
+//     const teacherSubjects = secObj.subjects || [];
+//     const commonSubjects = teacherSubjects.filter((sub) =>
+//       studentSubjects.includes(sub),
+//     );
+
+//     if (!commonSubjects.includes(subject)) {
+//       req.flash("error", "You are not allowed for this subject");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     // ===== Render =====
+//     res.render("teachers/updateAttenPage.ejs", {
+//       students: studentsWithStatus,
+//       subject,
+//       commonSubjects,
+//       currentAttendance,
+//     });
+//   }),
+// );
+
+
 app.post(
   "/update/student/attendance",
   isLoggedIn,
@@ -3155,11 +3293,20 @@ app.post(
     const { data } = req.body;
     const { class: className, semester, section, subject } = data;
 
-    // ===== Save session =====
-    req.session.class = className;
-    req.session.semester = semester;
-    req.session.section = section;
-    req.session.subject = subject;
+    // 🔥 Normalizer (future proof)
+    const normalize = (str) =>
+      str?.toString().trim().toLowerCase().replace(/\s+/g, " ");
+
+    const cleanClass = className.trim();
+    const cleanSemester = semester.trim();
+    const cleanSection = section.trim();
+    const cleanSubject = subject.trim();
+
+    // ===== Save session (cleaned) =====
+    req.session.class = cleanClass;
+    req.session.semester = cleanSemester;
+    req.session.section = cleanSection;
+    req.session.subject = cleanSubject;
 
     // ===== Teacher check =====
     const teacher = await Teacher.findById(req.user._id);
@@ -3168,9 +3315,15 @@ app.post(
       return res.redirect("/update/student/attendance");
     }
 
-    const classObj = teacher.class?.find((c) => c.className === className);
-    const semObj = classObj?.semesters?.find((s) => s.semester === semester);
-    const secObj = semObj?.sections?.find((s) => s.section === section);
+    const classObj = teacher.class?.find(
+      (c) => normalize(c.className) === normalize(cleanClass)
+    );
+    const semObj = classObj?.semesters?.find(
+      (s) => normalize(s.semester) === normalize(cleanSemester)
+    );
+    const secObj = semObj?.sections?.find(
+      (s) => normalize(s.section) === normalize(cleanSection)
+    );
 
     if (!classObj || !semObj || !secObj) {
       req.flash("error", "Class / Semester / Section not assigned to you");
@@ -3182,10 +3335,10 @@ app.post(
       attendance: {
         $elemMatch: {
           teacherId: req.user._id,
-          class: className,
-          semester,
-          section,
-          subject,
+          class: cleanClass,
+          semester: cleanSemester,
+          section: cleanSection,
+          subject: cleanSubject,
         },
       },
     });
@@ -3197,16 +3350,21 @@ app.post(
 
     // ===== Filter valid (within 24 hours) =====
     const now = new Date();
+
     const validAttendances = records.flatMap((r) =>
-      r.attendance.filter(
-        (att) =>
+      r.attendance.filter((att) => {
+        const hoursDiff =
+          (now - new Date(att.date)) / (1000 * 60 * 60);
+
+        return (
           att.teacherId.toString() === req.user._id.toString() &&
-          att.class === className &&
-          att.semester === semester &&
-          att.section === section &&
-          att.subject?.toLowerCase() === subject.toLowerCase() &&
-          (now - new Date(att.date)) / (1000 * 60 * 60) <= 24,
-      ),
+          normalize(att.class) === normalize(cleanClass) &&
+          normalize(att.semester) === normalize(cleanSemester) &&
+          normalize(att.section) === normalize(cleanSection) &&
+          normalize(att.subject) === normalize(cleanSubject) &&
+          hoursDiff <= 24
+        );
+      })
     );
 
     if (!validAttendances.length) {
@@ -3214,9 +3372,9 @@ app.post(
       return res.redirect("/update/student/attendance");
     }
 
-    // ===== Latest attendance for period/unit/description =====
+    // ===== Latest attendance =====
     const latest = validAttendances.sort(
-      (a, b) => new Date(b.date) - new Date(a.date),
+      (a, b) => new Date(b.date) - new Date(a.date)
     )[0];
 
     const currentAttendance = {
@@ -3228,9 +3386,9 @@ app.post(
 
     // ===== Fetch students =====
     const students = await Student.find({
-      class: className,
-      semester,
-      section,
+      class: cleanClass,
+      semester: cleanSemester,
+      section: cleanSection,
     });
 
     if (!students.length) {
@@ -3240,37 +3398,44 @@ app.post(
 
     // ===== Build status map =====
     const statusMap = {};
+
     for (const record of records) {
       const att = record.attendance.find(
         (a) =>
           a.teacherId.toString() === req.user._id.toString() &&
-          a.class === className &&
-          a.semester === semester &&
-          a.section === section &&
-          a.subject?.toLowerCase() === subject.toLowerCase(),
+          normalize(a.class) === normalize(cleanClass) &&
+          normalize(a.semester) === normalize(cleanSemester) &&
+          normalize(a.section) === normalize(cleanSection) &&
+          normalize(a.subject) === normalize(cleanSubject)
       );
 
       if (att) {
-        statusMap[record.studentId.toString()] = att.status || "Not marked";
+        statusMap[record.studentId.toString()] =
+          att.status || "Not marked";
       }
     }
 
     const studentsWithStatus = students.map((stu) => ({
       ...stu.toObject(),
-      attendanceToday: statusMap[stu._id.toString()] || "Not marked",
+      attendanceToday:
+        statusMap[stu._id.toString()] || "Not marked",
     }));
 
     // ===== Subject permission =====
     const studentSubjects = students.flatMap((s) =>
-      s.subject.map((sub) => (typeof sub === "string" ? sub : sub.name)),
+      s.subject.map((sub) =>
+        typeof sub === "string" ? sub.trim() : sub.name.trim()
+      )
     );
 
-    const teacherSubjects = secObj.subjects || [];
+    const teacherSubjects =
+      secObj.subjects?.map((sub) => sub.trim()) || [];
+
     const commonSubjects = teacherSubjects.filter((sub) =>
-      studentSubjects.includes(sub),
+      studentSubjects.includes(sub)
     );
 
-    if (!commonSubjects.includes(subject)) {
+    if (!commonSubjects.includes(cleanSubject)) {
       req.flash("error", "You are not allowed for this subject");
       return res.redirect("/update/student/attendance");
     }
@@ -3278,11 +3443,11 @@ app.post(
     // ===== Render =====
     res.render("teachers/updateAttenPage.ejs", {
       students: studentsWithStatus,
-      subject,
+      subject: cleanSubject,
       commonSubjects,
       currentAttendance,
     });
-  }),
+  })
 );
 
 // POST: update all attendance
