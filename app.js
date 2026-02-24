@@ -3451,127 +3451,279 @@ app.post(
 );
 
 // POST: update all attendance
+// app.post(
+//   "/attendance/updateAll",
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const { students, period, unit, description, subject } = req.body;
+//     const section = req.session.section;
+//     const classes = req.session.class;
+//     const semester = req.session.semester;
+
+//     try {
+//       const now = new Date();
+//       const todayStart = new Date(now.setHours(0, 0, 0, 0));
+
+//       let updatedCount = 0;
+//       let deniedCount = 0;
+//       let notFoundCount = 0;
+
+//       for (const [studentId, status] of Object.entries(students)) {
+//         // 🔹 1. Find duplicate tracker
+//         const dup = await AttendenceDuplicate.findOne({ studentId });
+//         if (!dup) {
+//           notFoundCount++;
+//           continue;
+//         }
+
+//         // 🔹 2. Find correct attendance entry
+//         const record = dup.attendance.find(
+//           (a) =>
+//             a.periods == period &&
+//             a.class === classes &&
+//             a.section === section &&
+//             a.semester === semester &&
+//             a.subject === subject,
+//         );
+
+//         if (!record) {
+//           notFoundCount++;
+//           continue;
+//         }
+
+//         // 🔹 3. 24 hour rule
+//         const createdTime = record.createdAt || record.date;
+//         const diffHours =
+//           (Date.now() - new Date(createdTime)) / (1000 * 60 * 60);
+
+//         if (diffHours > 24) {
+//           deniedCount++;
+//           continue;
+//         }
+
+//         // 🔹 4. Update AttendenceDuplicate (ARRAY FILTER SAFE)
+//         await AttendenceDuplicate.updateOne(
+//           { studentId },
+//           {
+//             $set: {
+//               "attendance.$[elem].status": status,
+//               "attendance.$[elem].unit": unit,
+//               "attendance.$[elem].description": description,
+//               "attendance.$[elem].updatedAt": new Date(),
+//             },
+//           },
+//           {
+//             arrayFilters: [
+//               {
+//                 "elem.periods": period,
+//                 "elem.class": classes,
+//                 "elem.section": section,
+//                 "elem.semester": semester,
+//                 "elem.subject": subject,
+//               },
+//             ],
+//           },
+//         );
+
+//         // 🔹 5. Update Attendance collection (ObjectId based)
+//         const updated = await Attendance.findOneAndUpdate(
+//           {
+//             studentId: studentId, // ✅ CORRECT FIELD
+//             period: Number(period),
+//             subject,
+//             date: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }, // today
+//           },
+//           {
+//             $set: {
+//               status,
+//               unit,
+//               description,
+//               date: new Date(),
+//             },
+//           },
+//           { upsert: false }, // ❌ upsert FALSE (update only)
+//         );
+
+//         if (!updated) {
+//           notFoundCount++;
+//           continue;
+//         }
+
+//         updatedCount++;
+//       }
+
+//       // 🔹 FLASH MESSAGES
+//       if (updatedCount)
+//         req.flash(
+//           "success",
+//           `✅ ${updatedCount} attendance updated successfully`,
+//         );
+
+//       if (deniedCount)
+//         req.flash("error", `⚠️ ${deniedCount} records older than 24 hours`);
+
+//       if (notFoundCount)
+//         req.flash("info", `ℹ️ ${notFoundCount} records not found`);
+
+//       return res.redirect("/add/student/attendance");
+//     } catch (err) {
+//       console.error("❌ UPDATE ERROR:", err);
+//       req.flash("error", "Something went wrong while updating attendance");
+//       return res.redirect("/add/student/attendance");
+//     }
+//   }),
+// );
+
+
+
 app.post(
   "/attendance/updateAll",
   isLoggedIn,
   WrapAsync(async (req, res) => {
     const { students, period, unit, description, subject } = req.body;
+
     const section = req.session.section;
     const classes = req.session.class;
     const semester = req.session.semester;
+    const teacherName = req.session.teacherName;
 
     try {
-      const now = new Date();
-      const todayStart = new Date(now.setHours(0, 0, 0, 0));
-
-      let updatedCount = 0;
-      let deniedCount = 0;
-      let notFoundCount = 0;
+      const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+      let processedCount = 0;
 
       for (const [studentId, status] of Object.entries(students)) {
-        // 🔹 1. Find duplicate tracker
-        const dup = await AttendenceDuplicate.findOne({ studentId });
+
+        // ===============================
+        // 🔹 1. HANDLE AttendenceDuplicate
+        // ===============================
+
+        let dup = await AttendenceDuplicate.findOne({ studentId });
+
         if (!dup) {
-          notFoundCount++;
-          continue;
-        }
-
-        // 🔹 2. Find correct attendance entry
-        const record = dup.attendance.find(
-          (a) =>
-            a.periods == period &&
-            a.class === classes &&
-            a.section === section &&
-            a.semester === semester &&
-            a.subject === subject,
-        );
-
-        if (!record) {
-          notFoundCount++;
-          continue;
-        }
-
-        // 🔹 3. 24 hour rule
-        const createdTime = record.createdAt || record.date;
-        const diffHours =
-          (Date.now() - new Date(createdTime)) / (1000 * 60 * 60);
-
-        if (diffHours > 24) {
-          deniedCount++;
-          continue;
-        }
-
-        // 🔹 4. Update AttendenceDuplicate (ARRAY FILTER SAFE)
-        await AttendenceDuplicate.updateOne(
-          { studentId },
-          {
-            $set: {
-              "attendance.$[elem].status": status,
-              "attendance.$[elem].unit": unit,
-              "attendance.$[elem].description": description,
-              "attendance.$[elem].updatedAt": new Date(),
-            },
-          },
-          {
-            arrayFilters: [
+          // Create new duplicate tracker
+          await AttendenceDuplicate.create({
+            studentId,
+            attendance: [
               {
-                "elem.periods": period,
-                "elem.class": classes,
-                "elem.section": section,
-                "elem.semester": semester,
-                "elem.subject": subject,
+                periods: period,
+                class: classes,
+                section,
+                semester,
+                subject,
+                status,
+                unit,
+                description,
+                teacherId:req.user._id,
+                teacherName,
+                createdAt: new Date(),
+                updatedAt: new Date(),
               },
             ],
-          },
-        );
+          });
+        } else {
+          // Check existing inside array
+          const record = dup.attendance.find(
+            (a) =>
+              a.periods == period &&
+              a.class === classes &&
+              a.section === section &&
+              a.semester === semester &&
+              a.subject === subject
+          );
 
-        // 🔹 5. Update Attendance collection (ObjectId based)
-        const updated = await Attendance.findOneAndUpdate(
+          if (record) {
+            // Update existing entry
+            await AttendenceDuplicate.updateOne(
+              { studentId },
+              {
+                $set: {
+                  "attendance.$[elem].status": status,
+                  "attendance.$[elem].unit": unit,
+                  "attendance.$[elem].description": description,
+                  "attendance.$[elem].updatedAt": new Date(),
+                },
+              },
+              {
+                arrayFilters: [
+                  {
+                    "elem.periods": period,
+                    "elem.class": classes,
+                    "elem.section": section,
+                    "elem.semester": semester,
+                    "elem.subject": subject,
+                  },
+                ],
+              }
+            );
+          } else {
+            // Push new (no duplicate)
+            await AttendenceDuplicate.updateOne(
+              { studentId },
+              {
+                $push: {
+                  attendance: {
+                    periods: period,
+                    class: classes,
+                    section,
+                    semester,
+                    subject,
+                    status,
+                    unit,
+                    description,
+                     teacherId:req.user._id,
+                      teacherName,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                  },
+                },
+              }
+            );
+          }
+        }
+
+        // ===============================
+        // 🔹 2. HANDLE Attendance Collection
+        // ===============================
+
+        await Attendance.findOneAndUpdate(
           {
-            studentId: studentId, // ✅ CORRECT FIELD
+            studentId,
             period: Number(period),
             subject,
-            date: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }, // today
+            date: { $gte: todayStart }, // today only
           },
           {
             $set: {
               status,
               unit,
               description,
+              teacherName,
+              class: classes,
+              section,
+              semester,
               date: new Date(),
             },
           },
-          { upsert: false }, // ❌ upsert FALSE (update only)
+          {
+            upsert: true, // ✅ create if not exists
+            new: true,
+          }
         );
 
-        if (!updated) {
-          notFoundCount++;
-          continue;
-        }
-
-        updatedCount++;
+        processedCount++;
       }
 
-      // 🔹 FLASH MESSAGES
-      if (updatedCount)
-        req.flash(
-          "success",
-          `✅ ${updatedCount} attendance updated successfully`,
-        );
-
-      if (deniedCount)
-        req.flash("error", `⚠️ ${deniedCount} records older than 24 hours`);
-
-      if (notFoundCount)
-        req.flash("info", `ℹ️ ${notFoundCount} records not found`);
+      if (processedCount)
+        req.flash("success", `✅ ${processedCount} attendance processed`);
 
       return res.redirect("/add/student/attendance");
+
     } catch (err) {
       console.error("❌ UPDATE ERROR:", err);
-      req.flash("error", "Something went wrong while updating attendance");
+      req.flash("error", "Something went wrong while processing attendance");
       return res.redirect("/add/student/attendance");
     }
-  }),
+  })
 );
 
 // show attendance route
