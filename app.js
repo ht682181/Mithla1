@@ -3451,437 +3451,136 @@ app.post(
 );
 
 // POST: update all attendance
-// app.post(
-//   "/attendance/updateAll",
-//   isLoggedIn,
-//   WrapAsync(async (req, res) => {
-//     const { students, period, unit, description, subject } = req.body;
-//     const section = req.session.section;
-//     const classes = req.session.class;
-//     const semester = req.session.semester;
-
-//     try {
-//       const now = new Date();
-//       const todayStart = new Date(now.setHours(0, 0, 0, 0));
-
-//       let updatedCount = 0;
-//       let deniedCount = 0;
-//       let notFoundCount = 0;
-
-//       for (const [studentId, status] of Object.entries(students)) {
-//         // 🔹 1. Find duplicate tracker
-//         const dup = await AttendenceDuplicate.findOne({ studentId });
-//         if (!dup) {
-//           notFoundCount++;
-//           continue;
-//         }
-
-//         // 🔹 2. Find correct attendance entry
-//         const record = dup.attendance.find(
-//           (a) =>
-//             a.periods == period &&
-//             a.class === classes &&
-//             a.section === section &&
-//             a.semester === semester &&
-//             a.subject === subject,
-//         );
-
-//         if (!record) {
-//           notFoundCount++;
-//           continue;
-//         }
-
-//         // 🔹 3. 24 hour rule
-//         const createdTime = record.createdAt || record.date;
-//         const diffHours =
-//           (Date.now() - new Date(createdTime)) / (1000 * 60 * 60);
-
-//         if (diffHours > 24) {
-//           deniedCount++;
-//           continue;
-//         }
-
-//         // 🔹 4. Update AttendenceDuplicate (ARRAY FILTER SAFE)
-//         await AttendenceDuplicate.updateOne(
-//           { studentId },
-//           {
-//             $set: {
-//               "attendance.$[elem].status": status,
-//               "attendance.$[elem].unit": unit,
-//               "attendance.$[elem].description": description,
-//               "attendance.$[elem].updatedAt": new Date(),
-//             },
-//           },
-//           {
-//             arrayFilters: [
-//               {
-//                 "elem.periods": period,
-//                 "elem.class": classes,
-//                 "elem.section": section,
-//                 "elem.semester": semester,
-//                 "elem.subject": subject,
-//               },
-//             ],
-//           },
-//         );
-
-//         // 🔹 5. Update Attendance collection (ObjectId based)
-//         const updated = await Attendance.findOneAndUpdate(
-//           {
-//             studentId: studentId, // ✅ CORRECT FIELD
-//             period: Number(period),
-//             subject,
-//             date: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }, // today
-//           },
-//           {
-//             $set: {
-//               status,
-//               unit,
-//               description,
-//               date: new Date(),
-//             },
-//           },
-//           { upsert: false }, // ❌ upsert FALSE (update only)
-//         );
-
-//         if (!updated) {
-//           notFoundCount++;
-//           continue;
-//         }
-
-//         updatedCount++;
-//       }
-
-//       // 🔹 FLASH MESSAGES
-//       if (updatedCount)
-//         req.flash(
-//           "success",
-//           `✅ ${updatedCount} attendance updated successfully`,
-//         );
-
-//       if (deniedCount)
-//         req.flash("error", `⚠️ ${deniedCount} records older than 24 hours`);
-
-//       if (notFoundCount)
-//         req.flash("info", `ℹ️ ${notFoundCount} records not found`);
-
-//       return res.redirect("/add/student/attendance");
-//     } catch (err) {
-//       console.error("❌ UPDATE ERROR:", err);
-//       req.flash("error", "Something went wrong while updating attendance");
-//       return res.redirect("/add/student/attendance");
-//     }
-//   }),
-// );
-
-
-
-// app.post(
-//   "/attendance/updateAll",
-//   isLoggedIn,
-//   WrapAsync(async (req, res) => {
-//     const { students, period, unit, description, subject } = req.body;
-
-//     const section = req.session.section;
-//     const classes = req.session.class;
-//     const semester = req.session.semester;
-//     const teacherName = req.session.teacherName;
-
-//     try {
-//       const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
-//       let processedCount = 0;
-
-//       for (const [studentId, status] of Object.entries(students)) {
-
-//         // ===============================
-//         // 🔹 1. HANDLE AttendenceDuplicate
-//         // ===============================
-
-//         let dup = await AttendenceDuplicate.findOne({ studentId });
-
-//         if (!dup) {
-//           // Create new duplicate tracker
-//           await AttendenceDuplicate.create({
-//             studentId,
-//             attendance: [
-//               {
-//                 periods: period,
-//                 class: classes,
-//                 section,
-//                 semester,
-//                 subject,
-//                 status,
-//                 unit,
-//                 description,
-//                 teacherId:req.user._id,
-//                 teacherName,
-//                 createdAt: new Date(),
-//                 updatedAt: new Date(),
-//               },
-//             ],
-//           });
-//         } else {
-//           // Check existing inside array
-//           const record = dup.attendance.find(
-//             (a) =>
-//               a.periods == period &&
-//               a.class === classes &&
-//               a.section === section &&
-//               a.semester === semester &&
-//               a.subject === subject
-//           );
-
-//           if (record) {
-//             // Update existing entry
-//             await AttendenceDuplicate.updateOne(
-//               { studentId },
-//               {
-//                 $set: {
-//                   "attendance.$[elem].status": status,
-//                   "attendance.$[elem].unit": unit,
-//                   "attendance.$[elem].description": description,
-//                   "attendance.$[elem].updatedAt": new Date(),
-//                 },
-//               },
-//               {
-//                 arrayFilters: [
-//                   {
-//                     "elem.periods": period,
-//                     "elem.class": classes,
-//                     "elem.section": section,
-//                     "elem.semester": semester,
-//                     "elem.subject": subject,
-//                   },
-//                 ],
-//               }
-//             );
-//           } else {
-//             // Push new (no duplicate)
-//             await AttendenceDuplicate.updateOne(
-//               { studentId },
-//               {
-//                 $push: {
-//                   attendance: {
-//                     periods: period,
-//                     class: classes,
-//                     section,
-//                     semester,
-//                     subject,
-//                     status,
-//                     unit,
-//                     description,
-//                      teacherId:req.user._id,
-//                       teacherName,
-//                     createdAt: new Date(),
-//                     updatedAt: new Date(),
-//                   },
-//                 },
-//               }
-//             );
-//           }
-//         }
-
-//         // ===============================
-//         // 🔹 2. HANDLE Attendance Collection
-//         // ===============================
-
-//         await Attendance.findOneAndUpdate(
-//           {
-//             studentId,
-//             period: Number(period),
-//             subject,
-//             date: { $gte: todayStart }, // today only
-//           },
-//           {
-//             $set: {
-//               status,
-//               unit,
-//               description,
-//               teacherName,
-//               class: classes,
-//               section,
-//               semester,
-//               date: new Date(),
-//             },
-//           },
-//           {
-//             upsert: true, // ✅ create if not exists
-//             new: true,
-//           }
-//         );
-
-//         processedCount++;
-//       }
-
-//       if (processedCount)
-//         req.flash("success", `✅ ${processedCount} attendance processed`);
-
-//       return res.redirect("/add/student/attendance");
-
-//     } catch (err) {
-//       console.error("❌ UPDATE ERROR:", err);
-//       req.flash("error", "Something went wrong while processing attendance");
-//       return res.redirect("/add/student/attendance");
-//     }
-//   })
-// );
-
 
 app.post(
   "/attendance/updateAll",
-  isLoggedIn,
   WrapAsync(async (req, res) => {
-    const { students = {}, period, unit, description, subject } = req.body;
+    const { students, period, unit, description, subject } = req.body;
 
     const section = req.session.section;
     const classes = req.session.class;
     const semester = req.session.semester;
     const teacherName = req.session.teacherName;
+    const now = new Date();
 
     try {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      // 🔥 1️⃣ Get ALL students of class
-      const allStudents = await Student.find({
-        class: classes,
-        section,
-        semester,
-      });
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
 
-      let processedCount = 0;
+      let updatedCount = 0;
 
-      // 🔥 2️⃣ Loop on ALL students (not only form students)
-      for (const student of allStudents) {
-        const studentId = student._id.toString();
+      for (const [id, status] of Object.entries(students)) {
 
-        // If status came from form use it, otherwise keep default Absent
-        const status = students[studentId] || "Absent";
+        /* =========================================================
+           🔹 1️⃣ ATTENDENCE DUPLICATE CHECK
+        ========================================================== */
 
-        // ===============================
-        // 🔹 HANDLE AttendenceDuplicate
-        // ===============================
+        const duplicateDoc = await AttendenceDuplicate.findOne({
+          studentId: id
+        });
 
-        let dup = await AttendenceDuplicate.findOne({ studentId });
+        if (duplicateDoc) {
 
-        if (!dup) {
-          await AttendenceDuplicate.create({
-            studentId,
-            attendance: [
-              {
-                periods: period,
-                class: classes,
-                section,
-                semester,
-                subject,
-                status,
-                unit,
-                description,
-                teacherId: req.user._id,
-                teacherName,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              },
-            ],
-          });
-        } else {
-          const record = dup.attendance.find(
-            (a) =>
-              a.periods == period &&
-              a.class === classes &&
-              a.section === section &&
-              a.semester === semester &&
-              a.subject === subject
+          const existingEntry = duplicateDoc.attendance.find(a =>
+            a.periods == period &&
+            a.class === classes &&
+            a.section === section &&
+            a.semester === semester &&
+            a.subject === subject
           );
 
-          if (record) {
-            await AttendenceDuplicate.updateOne(
-              { studentId },
-              {
-                $set: {
-                  "attendance.$[elem].status": status,
-                  "attendance.$[elem].unit": unit,
-                  "attendance.$[elem].description": description,
-                  "attendance.$[elem].updatedAt": new Date(),
-                },
-              },
-              {
-                arrayFilters: [
-                  {
-                    "elem.periods": period,
-                    "elem.class": classes,
-                    "elem.section": section,
-                    "elem.semester": semester,
-                    "elem.subject": subject,
-                  },
-                ],
-              }
-            );
+          if (existingEntry) {
+            // 🔄 Update existing
+            existingEntry.status = status;
+            existingEntry.unit = unit;
+            existingEntry.description = description;
+            existingEntry.updatedAt = now;
+
           } else {
-            await AttendenceDuplicate.updateOne(
-              { studentId },
-              {
-                $push: {
-                  attendance: {
-                    periods: period,
-                    class: classes,
-                    section,
-                    semester,
-                    subject,
-                    status,
-                    unit,
-                    description,
-                    teacherId: req.user._id,
-                    teacherName,
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                  },
-                },
-              }
-            );
-          }
-        }
-
-        // ===============================
-        // 🔹 HANDLE Attendance Collection
-        // ===============================
-
-        await Attendance.findOneAndUpdate(
-          {
-            studentId,
-            period: Number(period),
-            subject,
-            date: { $gte: todayStart },
-          },
-          {
-            $set: {
-              status,
-              unit,
-              description,
-              teacherName,
+            // ➕ Create new entry inside attendance array
+            duplicateDoc.attendance.push({
+              periods: period,
               class: classes,
               section,
               semester,
-              date: new Date(),
-            },
-          },
-          {
-            upsert: true,
-            new: true,
+              subject,
+              status,
+              unit,
+              description,
+                teacherId:req.user._id,
+              teacherName:teacherName,
+              createdAt: now,
+              updatedAt: now,
+            });
           }
-        );
 
-        processedCount++;
+          await duplicateDoc.save();
+
+        } else {
+          // 🆕 Create whole document
+          await AttendenceDuplicate.create({
+            studentId: id,
+            attendance: [{
+              periods: period,
+              class: classes,
+              section,
+              semester,
+              subject,
+              status,
+              unit,
+              description,
+               teacherId:req.user._id,
+              teacherName:teacherName,
+              createdAt: now,
+              updatedAt: now,
+            }]
+          });
+        }
+
+        /* =========================================================
+           🔹 2️⃣ ATTENDANCE COLLECTION CHECK
+        ========================================================== */
+
+      const attendanceDoc = await Attendance.findOne({
+  studentId: id,
+  period: period,
+  subject: subject,
+  date: { $gte: todayStart, $lte: todayEnd },
+});
+
+if (attendanceDoc) {
+  attendanceDoc.status = status;
+  attendanceDoc.unit = unit;
+  attendanceDoc.description = description;
+  attendanceDoc.updatedAt = now;
+  await attendanceDoc.save();
+} else {
+  await Attendance.create({
+    studentId: id,
+    period,
+    subject,
+    status,
+    unit,
+    description,
+    teacherName:teacherName,
+    date: now,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+        updatedCount++;
       }
 
-      if (processedCount) {
-        req.flash("success", `✅ ${processedCount} students updated successfully`);
-      }
-
+      req.flash("success", `✅ ${updatedCount} students processed successfully!`);
       return res.redirect("/add/student/attendance");
+
     } catch (err) {
-      console.error("❌ UPDATE ERROR:", err);
-      req.flash("error", "Something went wrong while processing attendance");
+      console.error("❌ Error updating attendance:", err);
+      req.flash("error", "Something went wrong!");
       return res.redirect("/add/student/attendance");
     }
   })
