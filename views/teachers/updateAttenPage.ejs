@@ -260,28 +260,66 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Done
   document.getElementById("doneBtn").addEventListener("click", async () => {
-    const period = parseInt(document.getElementById("period").value, 10);
-    const unit = document.getElementById("unit").value.trim();
-    const description = document.getElementById("description").value.trim();
-    const subject = document.getElementById("subject").value.trim();
 
-    if(!period || period < 1 || period > 6){ alert("Enter valid period 1-6"); return; }
-    if(!unit){ alert("Unit is required"); return; }
-    if(!description){ alert("Description is required"); return; }
-    if(!subject){ alert("Select a subject"); return; }
+  const period = parseInt(document.getElementById("period").value, 10);
+  const unit = document.getElementById("unit").value.trim();
+  const description = document.getElementById("description").value.trim();
+  const subject = document.getElementById("subject").value.trim();
 
-    const allMarked = Array.from(document.querySelectorAll(".status")).every(s => s.textContent.trim());
-    if(!allMarked){ alert("Mark all students first!"); return; }
+  if(!period || period < 1 || period > 6){ 
+    alert("Enter valid period 1-6"); 
+    return; 
+  }
 
-    try {
-      await fetch("/attendance/updateAll", {
-        method: "POST",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify({ students: studentsData, period, unit, description, subject })
-      });
-      window.location.href = "/student/attendance/record";
-    } catch(err){ console.error(err); }
+  if(!unit){ 
+    alert("Unit is required"); 
+    return; 
+  }
+
+  if(!description){ 
+    alert("Description is required"); 
+    return; 
+  }
+
+  if(!subject){ 
+    alert("Select a subject"); 
+    return; 
+  }
+
+  // 🔥 IMPORTANT FIX: collect all students from table
+  const studentsData = {};
+
+  document.querySelectorAll("#studentTableBody tr").forEach(row => {
+    const btn = row.querySelector(".mark-btn");
+    const studentId = btn.dataset.id;
+    const status = row.querySelector(".status").textContent.trim();
+
+    if(status){
+      studentsData[studentId] = status;
+    }
   });
+
+  if(Object.keys(studentsData).length === 0){
+    alert("Mark all students first!");
+    return;
+  }
+
+  try {
+    const res = await fetch("/attendance/updateAll", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ students: studentsData, period, unit, description, subject })
+    });
+
+    const result = await res.text();
+    console.log(result);
+
+    window.location.href = "/student/attendance/record";
+
+  } catch(err){ 
+    console.error(err); 
+  }
+});
 });
 </script>
 <script>
