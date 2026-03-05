@@ -1,144 +1,201 @@
 <% layout("layouts/boilerplateTeacher") %>
-
 <div class="container mt-4">
+  <div class="card shadow p-4 rounded-4">
 
-  <!-- Header -->
-  <% if (dupDatas.length > 0 && dupDatas[0].attendance.length > 0) { %>
-    <div class="text-center mb-4">
-      <h4 class="fw-bold text-primary">📅 Attendance Date: <%= dupDatas[0].attendance[dupDatas[0].attendance.length - 1].date.toDateString() %></h4>
-      <p class="text-muted">Attendance for 6 periods</p>
-    </div>
-  <% } %>
+    <!-- HEADER -->
+    <h3 class="mb-3 text-center fw-bold">
+      Date: <%= today.toDateString() %>
+    </h3>
 
-  <div class="container my-5 text-center">
-  <% if (!dupDatas.length || !dupDatas[0]?.studentId) { %>
-    <div class="alert alert-warning">
-      Data not available.
-    </div>
-  <% } else { %>
-    <% const student = dupDatas[0].studentId; %>
-    <div class="d-flex justify-content-center gap-3 flex-wrap">
-      <div>
-        Class: <span class="badge bg-primary fs-6"><%= student.class %></span>
-      </div>
-      <div>
-        Semester: <span class="badge bg-success fs-6"><%= student.semester %></span>
-      </div>
-      <div>
-        Section: <span class="badge bg-warning text-dark fs-6"><%= student.section %></span>
+    <!-- CLASS INFO -->
+    <div class="container my-3 mb-5 text-center">
+      <div class="d-flex justify-content-center gap-3 flex-wrap">
+        <div>Class:
+          <span class="badge bg-primary fs-6"><%= students[0]?.class %></span>
+        </div>
+        <div>Semester:
+          <span class="badge bg-success fs-6"><%= students[0]?.semester %></span>
+        </div>
+        <div>Section:
+          <span class="badge bg-warning text-dark fs-6"><%= students[0]?.section %></span>
+        </div>
       </div>
     </div>
-  <% } %>
-</div>
 
+   
 
-  
+    <!-- ================= SUMMARY LOGIC ================= -->
+    <%
+      const attendedStudentSet = new Set(
+        attendance.map(a => a.studentId._id.toString())
+      );
 
-  <!-- Table Card -->
-  <div class="card shadow-lg rounded-4 border-0">
-    <div class="card-body p-3">
-      <div class="table-responsive">
-        <table class="table table-hover table-striped align-middle mb-0 text-center">
-          <thead class="table-dark rounded-3">
-            <tr>
-              <th class="text-start">Name</th>
-              <th class="text-start">fatherName</th>
-              <th>I</th>
-              <th>II</th>
-              <th>III</th>
-              <th>IV</th>
-              <th>V</th>
-              <th>VI</th>
-            </tr>
-          </thead>
-         <tbody>
+      const presentSet = new Set(
+        attendance
+          .filter(a => a.status === "Present")
+          .map(a => a.studentId._id.toString())
+      );
 
-  <% 
-    // 👇 teacher row ke liye reference (sirf ek baar)
-    const teacherRef = dupDatas.find(d => d.attendance && d.attendance.length);
-  %>
-
-  <!-- ===== STUDENTS ATTENDANCE ===== -->
-  <% for (let data of datas) { %>
-
-    <% 
-      let dup = dupDatas.find(
-        d => d.studentId && d.studentId._id.toString() === data._id.toString()
-      ); 
+      const isAttendanceTaken = attendance.length > 0;
     %>
 
-    <tr class="align-middle text-center">
-      <td class="fw-bold text-start">
-        <i class="fa-solid fa-user me-2 text-primary"></i><%= data.name %>
-      </td>
-      <td class="text-start"><%= data.fatherName %></td>
+    <% if(!isAttendanceTaken){ %>
+      <div class="alert alert-warning text-center fw-semibold">
+        ⚠️ Attendance not taken for this date
+      </div>
+    <% } %>
 
-      <% for (let i = 0; i < 6; i++) { %>
-        <% if (dup && dup.attendance[i]) { %>
-          <td>
-            <span class="badge <%= dup.attendance[i].status === 'Present' ? 'bg-success' : 'bg-danger' %>">
-              <%= dup.attendance[i].status === 'Present' ? 'Present' : 'Absent' %>
-            </span>
-          </td>
-        <% } else { %>
-          <td class="text-muted">-</td>
-        <% } %>
-      <% } %>
-    </tr>
+    <!-- SUMMARY -->
+    <div class="row text-center mb-4">
+      <div class="col-md-4">
+        <div class="card bg-primary text-white shadow">
+          <div class="card-body">
+            <h6>Total Students</h6>
+            <h3><%= students.length %></h3>
+          </div>
+        </div>
+      </div>
 
-  <% } %>
+      <div class="col-md-4">
+        <div class="card bg-success text-white shadow">
+          <div class="card-body">
+            <h6>Present Students</h6>
+            <h3><%= isAttendanceTaken ? presentSet.size : 0 %></h3>
+          </div>
+        </div>
+      </div>
 
-  <!-- ===== SINGLE TEACHER ROW (ONLY ONCE) ===== -->
-  <% if (teacherRef) { %>
-    <tr class="bg-light text-center border-top">
-      <td colspan="2" class="fw-semibold text-end text-muted">
-        Teacher →
-      </td>
-
-      <% for (let i = 0; i < 6; i++) { %>
-        <td class="small fw-semibold text-primary">
-          <%= teacherRef.attendance[i]?.teacherName || "-" %>
-        </td>
-      <% } %>
-    </tr>
-  <% } %>
-<tr class="table-info fw-bold border-top">
-  <td colspan="2" class="text-end text-primary">
-    Total Present →
-  </td>
-
-  <% for (let i = 0; i < 6; i++) { %>
-    <td>
-      <span class="badge bg-primary">
-        <%= periodCounts[i] %> / <%= totalStudents %>
-      </span>
-    </td>
-  <% } %>
-</tr>
-
-
-</tbody>
-
-        </table>
+      <div class="col-md-4">
+        <div class="card bg-danger text-white shadow">
+          <div class="card-body">
+            <h6>Absent Students</h6>
+            <h3>
+              <%= isAttendanceTaken
+                ? (attendedStudentSet.size - presentSet.size)
+                : 0 %>
+            </h3>
+          </div>
+        </div>
       </div>
     </div>
+
+    <!-- ================= TABLE ================= -->
+    <div class="table-responsive">
+      <table class="table table-bordered text-center align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>Admin No</th>
+            <th>Name</th>
+            <th>Father Name</th>
+            <th>I</th>
+            <th>II</th>
+            <th>III</th>
+            <th>IV</th>
+            <th>V</th>
+            <th>VI</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <!-- STUDENT ROWS -->
+          <% students.forEach(stu => { %>
+            <tr>
+              <td><%= stu.rollNo %></td>
+              <td class="text-start"><%= stu.name %></td>
+              <td class="text-start"><%= stu.fatherName %></td>
+
+              <% for(let p = 1; p <= 6; p++){ 
+                let rec = attendance.find(a =>
+                  a.studentId._id.toString() === stu._id.toString() &&
+                  a.period === p
+                );
+              %>
+                <td>
+                  <% if(rec){ %>
+                    <span class="badge <%= rec.status === 'Present' ? 'bg-success' : 'bg-danger' %>">
+                      <%= rec.status === 'Present' ? 'P' : 'A' %>
+                    </span>
+                  <% } else { %>
+                    <span class="text-muted">-</span>
+                  <% } %>
+                </td>
+              <% } %>
+            </tr>
+          <% }) %>
+
+            <!-- PERIOD SUMMARY -->
+<tr class="table-light fw-semibold text-center">
+  <td colspan="3">Summary</td>
+
+  <% for(let p = 1; p <= 6; p++){ 
+    let presentCount = attendance.filter(a => 
+      a.period === p && a.status === "Present"
+    ).length;
+
+    let absentCount = attendance.filter(a => 
+      a.period === p && a.status === "Absent"
+    ).length;
+  %>
+
+  <td>
+    <div class="d-flex flex-column align-items-center gap-1">
+      <span class="badge bg-success px-2 py-1">
+        P: <%= presentCount %>
+      </span>
+
+      <span class="badge bg-danger px-2 py-1">
+        A: <%= absentCount %>
+      </span>
+    </div>
+  </td>
+
+  <% } %>
+
+</tr>
+
+          <!-- TEACHER -->
+          <tr class="table-light fw-semibold">
+            <td colspan="3">Teacher</td>
+            <% for(let p = 1; p <= 6; p++){ 
+              let rec = attendance.find(a => a.period === p);
+            %>
+              <td><%= rec?.teacherName || "-" %></td>
+            <% } %>
+          </tr>
+
+          <!-- SUBJECT -->
+          <tr class="table-light fw-semibold">
+            <td colspan="3">Subject</td>
+            <% for(let p = 1; p <= 6; p++){ 
+              let rec = attendance.find(a => a.period === p);
+            %>
+              <td><%= rec?.subject || "-" %></td>
+            <% } %>
+          </tr>
+
+          <!-- UNIT -->
+          <tr class="table-light">
+            <td colspan="3">Unit</td>
+            <% for(let p = 1; p <= 6; p++){ 
+              let rec = attendance.find(a => a.period === p);
+            %>
+              <td><%= rec?.unit || "-" %></td>
+            <% } %>
+          </tr>
+
+          <!-- DESCRIPTION -->
+          <tr class="table-light">
+            <td colspan="3">Description</td>
+            <% for(let p = 1; p <= 6; p++){ 
+              let rec = attendance.find(a => a.period === p);
+            %>
+              <td class="small"><%= rec?.description || "-" %></td>
+            <% } %>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+
   </div>
 </div>
-
-<!-- Script for coloring badges (optional fallback) -->
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const statusCells = document.querySelectorAll(".status");
-
-    statusCells.forEach(cell => {
-      const text = cell.textContent.trim();
-      if(text === "Present"){
-        cell.style.color = "#fff";
-      } else if(text === "Absent"){
-        cell.style.color = "#fff";
-      } else {
-        cell.style.color = "#6c757d";
-      }
-    });
-  });
-</script>
