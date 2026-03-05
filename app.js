@@ -1588,13 +1588,18 @@ app.get(
     const start = new Date(d.setHours(0, 0, 0, 0));
     const end = new Date(d.setHours(23, 59, 59, 999));
 
+    // ===== STUDENTS =====
     const students = await Student.find({
       class: className,
       semester,
       section,
     }).sort({ rollNo: 1 });
 
+    const studentIds = students.map((s) => s._id);
+
+    // ===== ATTENDANCE (ONLY THESE STUDENTS) =====
     const attendance = await Attendance.find({
+      studentId: { $in: studentIds },
       date: { $gte: start, $lte: end },
     });
 
@@ -1616,7 +1621,7 @@ app.get(
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=Daily_Attendance_${className}.pdf`,
+      `attachment; filename=Daily_Attendance_${className}.pdf`
     );
 
     doc.pipe(res);
@@ -1635,11 +1640,10 @@ app.get(
       .text(`Class    : ${className}`)
       .text(`Semester : ${semester}`)
       .text(`Section  : ${section}`)
-      .text(`Date     :${new Date(date).toDateString()}`);
+      .text(`Date     : ${new Date(date).toDateString()}`);
 
     doc.moveDown(0.6);
 
-    // divider
     doc.moveTo(30, doc.y).lineTo(565, doc.y).stroke();
     doc.moveDown(1);
 
@@ -1662,10 +1666,12 @@ app.get(
         for (let p = 1; p <= 6; p++) {
           const rec = attendance.find(
             (a) =>
-              a.studentId.toString() === stu._id.toString() && a.period === p,
+              a.studentId.toString() === stu._id.toString() &&
+              a.period === p
           );
           row.push(rec ? (rec.status === "Present" ? "P" : "A") : "-");
         }
+
         return row;
       }),
     };
@@ -1682,8 +1688,9 @@ app.get(
       },
     });
 
-    // ================= GAP + TITLE =================
+    // ================= GAP =================
     doc.moveDown(1.4);
+
     doc
       .font("Helvetica-Bold")
       .fontSize(12)
@@ -1748,6 +1755,7 @@ app.get(
 
     // ================= FOOTER =================
     doc.moveDown(1.5);
+
     doc
       .fontSize(9)
       .fillColor("gray")
@@ -1757,7 +1765,7 @@ app.get(
       .fillColor("black");
 
     doc.end();
-  }),
+  })
 );
 
 app.post(
@@ -2749,7 +2757,6 @@ app.get(
   }),
 );
 
-
 app.post(
   "/teacher/show/status",
   isLoggedIn,
@@ -2761,51 +2768,46 @@ app.post(
       return res.redirect("/teacher/show/status");
     }
 
-    const datas = await Student.find({
+    const students = await Student.find({
       class: data.class,
       semester: data.semester,
       section: data.section,
     });
 
-    if (datas.length === 0) {
+    if (students.length === 0) {
       req.flash("error", "No students datas found");
       return res.redirect("/teacher/show/status");
     }
 
-    let dupDatas = await AttendenceDuplicate.find().populate({
+    // 🔹 TODAY RANGE
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // 🔹 TODAY ATTENDANCE ONLY
+    let attendance = await Attendance.find({
+      date: { $gte: startOfDay, $lte: endOfDay },
+    }).populate({
       path: "studentId",
       match: {
-        class: data.class,
-        semester: data.semester,
-        section: data.section,
+        class:data.class,
+        semester:data.semester,
+        section:data.section,
       },
     });
 
-    dupDatas = dupDatas.filter((d) => d.studentId);
+    attendance = attendance.filter((a) => a.studentId);
 
-    // ✅ Total Students
-    const totalStudents = datas.length;
-
-    // ✅ Period Wise Present Count
-    let periodWiseData = {};
-
-    dupDatas.forEach((record) => {
-      if (record.status === "Present") {   // 👈 status field check
-        if (!periodWiseData[record.period]) {
-          periodWiseData[record.period] = 0;
-        }
-        periodWiseData[record.period]++;
-      }
+    res.render("teachers/showStatus.ejs", {
+      students,
+      attendance,
+      today: new Date(),
     });
-
-    return res.render("teachers/showStatus.ejs", {
-      datas,
-      dupDatas,
-      periodWiseData,
-      totalStudents,
-    });
-  })
+  }),
 );
+
 
 
 // take attendance
@@ -3590,61 +3592,46 @@ app.get(
       return res.redirect("/add/student/attendance");
     }
 
-    const datas = await Student.find({
+    // 🔹 Students
+    const students = await Student.find({
       class: classes,
       semester: semester,
       section: section,
     });
 
-    if (datas.length === 0) {
-      req.flash("error", "No students found something is wrong");
-      return res.redirect("/add/student/attendance");
+    if (!students.length) {
+      req.flash("error", "No students found");
+     return res.redirect("/add/student/attendance");
     }
 
-    let dupDatas = await AttendenceDuplicate.find().populate({
+    // 🔹 TODAY RANGE
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // 🔹 TODAY ATTENDANCE ONLY
+    let attendance = await Attendance.find({
+      date: { $gte: startOfDay, $lte: endOfDay },
+    }).populate({
       path: "studentId",
       match: {
-        class: classes,
-        semester: semester,
-        section: section,
+        class:classes,
+        semester:semester,
+        section:section,
       },
     });
 
-    dupDatas = dupDatas.filter((d) => d.studentId);
+    attendance = attendance.filter((a) => a.studentId);
 
-    // 🔥 NEW LOGIC ADDED HERE
-    const totalStudents = datas.length;
-
-    let periodCounts = [0, 0, 0, 0, 0, 0];
-
-    datas.forEach((data) => {
-      let dup = dupDatas.find(
-        (d) =>
-          d.studentId &&
-          d.studentId._id.toString() === data._id.toString()
-      );
-
-      if (dup && dup.attendance) {
-        for (let i = 0; i < 6; i++) {
-          if (
-            dup.attendance[i] &&
-            dup.attendance[i].status === "Present"
-          ) {
-            periodCounts[i]++;
-          }
-        }
-      }
+    res.render("teachers/showAttendance.ejs", {
+      students,
+      attendance,
+      today: new Date(),
     });
-
-    return res.render("teachers/showAttendance.ejs", {
-      datas,
-      dupDatas,
-      periodCounts,     // ✅ send to EJS
-      totalStudents,    // ✅ send to EJS
-    });
-  })
+  }),
 );
-
 // logout teacher
 
 app.get("/logout", isLoggedIn, (req, res, next) => {
