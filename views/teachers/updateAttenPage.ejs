@@ -46,11 +46,17 @@
 
   <!-- Inputs Row -->
   <div class="row g-3 mb-3">
-    <div class="col-md-4">
-      <label for="period" class="form-label fw-bold">Period</label>
-      <input id="period" type="number" min="1" max="6" class="form-control shadow-sm"
-        placeholder="Enter period number" value="<%= currentAttendance?.periods || '' %>">
-    </div>
+  <div class="col-md-4">
+    <label for="period" class="form-label fw-bold">Period</label>
+
+    <select id="period" name="period" class="form-select shadow-sm" readonly>
+      <option value="<%= currentAttendance?.periods %>" selected>
+        <%= currentAttendance?.periods %>
+      </option>
+    </select>
+
+  </div>
+
 
     <div class="col-md-4">
       <label for="unit" class="form-label fw-bold">Unit</label>
