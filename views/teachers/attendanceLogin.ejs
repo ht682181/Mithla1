@@ -9,7 +9,7 @@
           <div class="text-center mb-3">
             <h3 class="fw-bold text-primary">📝 Attendance Login</h3>
             <p class="text-muted">
-              Select class, semester & section
+              Select class, semester, section & subject
             </p>
           </div>
 
@@ -18,7 +18,6 @@
                 class="needs-validation"
                 novalidate>
 
-            <!-- CLASS -->
             <div class="mb-3">
               <label class="form-label fw-bold">Class</label>
               <select name="data[class]" id="class" class="form-select shadow-sm" required>
@@ -34,45 +33,34 @@
               <div class="invalid-feedback">Please select class</div>
             </div>
 
-            <!-- SEMESTER -->
-           <div class="mb-3">
-  <label class="form-label fw-bold">Semester</label>
-  <select name="data[semester]" id="semester" class="form-select shadow-sm" required disabled>
-    <option value="">-- Choose Semester --</option>
-  </select>
-  <div class="invalid-feedback">Please select semester</div>
-</div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Semester</label>
+              <select name="data[semester]" id="semester" class="form-select shadow-sm" required disabled>
+                <option value="">-- Choose Semester --</option>
+              </select>
+              <div class="invalid-feedback">Please select semester</div>
+            </div>
 
-            <!-- SECTION -->
             <div class="mb-3">
               <label class="form-label fw-bold">Section</label>
-              <select name="data[section]"
-                      id="section"
-                      class="form-select shadow-sm"
-                      required
-                      disabled>
+              <select name="data[section]" id="section" class="form-select shadow-sm" required disabled>
                 <option value="">-- Choose Section --</option>
               </select>
               <div class="invalid-feedback">Please select section</div>
             </div>
 
-            <!-- SUBJECT -->
-            <!-- <div class="mb-3">
+            <div class="mb-3">
               <label class="form-label fw-bold">Subject</label>
-              <select name="data[subject]"
-                      id="subject"
-                      class="form-select shadow-sm"
-                      required
-                      disabled>
+              <select name="data[subject]" id="subject" class="form-select shadow-sm" required disabled>
                 <option value="">-- Choose Subject --</option>
               </select>
               <div class="invalid-feedback">Please select subject</div>
-            </div> -->
+            </div>
 
-            <!-- SUBMIT -->
+            <input type="hidden" name="data[teacherName]" value="<%=classData.name %>">
+
             <div class="text-center mt-4">
-              <button type="submit"
-                      class="btn btn-primary col-6 py-2 rounded-3 shadow-sm">
+              <button type="submit" class="btn btn-primary col-6 py-2 rounded-3 shadow-sm">
                 Login
               </button>
             </div>
@@ -84,11 +72,11 @@
   </div>
 </div>
 
-
 <script>
 const classSelect = document.getElementById("class");
 const semesterSelect = document.getElementById("semester");
 const sectionSelect = document.getElementById("section");
+const subjectSelect = document.getElementById("subject"); // ✅ Subject Selector Element
 
 // CLASS → SEMESTER
 classSelect.addEventListener("change", async () => {
@@ -99,6 +87,9 @@ classSelect.addEventListener("change", async () => {
 
   sectionSelect.innerHTML = '<option value="">-- Choose Section --</option>';
   sectionSelect.disabled = true;
+  
+  subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
+  subjectSelect.disabled = true;
 
   if (!className) return;
 
@@ -120,6 +111,9 @@ semesterSelect.addEventListener("change", async () => {
 
   sectionSelect.innerHTML = '<option>Loading...</option>';
   sectionSelect.disabled = true;
+  
+  subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
+  subjectSelect.disabled = true;
 
   if (!className || !semester) return;
 
@@ -134,5 +128,30 @@ semesterSelect.addEventListener("change", async () => {
   });
 
   sectionSelect.disabled = false;
+});
+
+// ✅ SECTION → SUBJECTS (Naya Logic)
+sectionSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+  const semester = semesterSelect.value;
+  const section = sectionSelect.value;
+
+  subjectSelect.innerHTML = '<option>Loading Subjects...</option>';
+  subjectSelect.disabled = true;
+
+  if (!className || !semester || !section) return;
+
+  // Background API to fetch subjects based on Section
+  const res = await fetch(
+    `/get-subjects?class=${encodeURIComponent(className)}&semester=${encodeURIComponent(semester)}&section=${encodeURIComponent(section)}`
+  );
+  const subjects = await res.json();
+
+  subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
+  subjects.forEach(sub => {
+    subjectSelect.innerHTML += `<option value="${sub}">${sub}</option>`;
+  });
+
+  subjectSelect.disabled = false;
 });
 </script>
