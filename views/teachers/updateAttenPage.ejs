@@ -1,6 +1,5 @@
 <%- layout("/layouts/boilerplateTeacher") -%>
 
-<!-- 🔥 Loader Overlay -->
 <div id="loaderOverlay" style="
   display:none;
   position:fixed;
@@ -16,7 +15,6 @@
   color:white;
   font-size:20px;
 ">
-
   <div class="spinner"></div>
   <p>Please wait... Updating attendance</p>
 </div>
@@ -31,7 +29,6 @@
   animation:spin 1s linear infinite;
   margin-bottom:15px;
 }
-
 @keyframes spin {
   0% { transform:rotate(0deg); }
   100% { transform:rotate(360deg); }
@@ -44,64 +41,55 @@
     <p class="text-muted">Date: <%= new Date().toDateString() %></p>
   </div>
 
-  <!-- Inputs Row -->
   <div class="row g-3 mb-3">
-  <div class="col-md-4">
-    <label for="period" class="form-label fw-bold">Period</label>
 
-    <select id="period" name="period" class="form-select shadow-sm" readonly>
-      <option value="<%= currentAttendance?.periods %>" selected>
-        <%= currentAttendance?.periods %>
-      </option>
-    </select>
+   <input type="hidden" id="className" value="<%= cleanClass %>">
+  <input type="hidden" id="semester" value="<%= cleanSemester %>">
+  <input type="hidden" id="section" value="<%= cleanSection %>">
+  <input type="hidden" id="teacherName" value="<%= teacherName %>">
+  
 
-  </div>
-
+    <div class="col-md-4">
+      <label for="period" class="form-label fw-bold">Period</label>
+      <% if (currentAttendance && currentAttendance.periods) { %>
+        <select id="period_display" class="form-select shadow-sm" disabled>
+          <option value="<%= currentAttendance.periods %>" selected>
+            <%= currentAttendance.periods %>
+          </option>
+        </select>
+        <input type="hidden" id="period" name="period" value="<%= currentAttendance.periods %>">
+      <% } else { %>
+        <input id="period" name="period" type="number" min="1" max="6" class="form-control shadow-sm" placeholder="Enter period number" value="">
+      <% } %>
+    </div>
 
     <div class="col-md-4">
       <label for="unit" class="form-label fw-bold">Unit</label>
-      <input id="unit" type="text" class="form-control shadow-sm"
-        placeholder="Enter unit" value="<%= currentAttendance?.unit || '' %>">
+      <input id="unit" type="text" class="form-control shadow-sm" placeholder="Enter unit" value="<%= currentAttendance?.unit || '' %>">
     </div>
 
     <div class="col-md-4">
       <label for="subject" class="form-label fw-bold">Subject</label>
-      <select id="subject" class="form-control shadow-sm">
+      <select id="subject_display" class="form-control shadow-sm" disabled>
         <% for(let sub of commonSubjects){ %>
           <option value="<%= sub %>" <%= sub === subject ? "selected" : "" %>><%= sub %></option>
         <% } %>
       </select>
+      <input type="hidden" id="subject" name="subject" value="<%= subject %>">
     </div>
   </div>
-<!-- 
-  <div class="mb-3">
-    <label for="description" class="form-label fw-bold">Description</label>
-    <textarea id="description" rows="3" class="form-control shadow-sm" placeholder="Enter description..."><%= currentAttendance?.description || "" %></textarea>
-  </div> -->
 
   <div class="mb-3">
-  <label for="description" class="form-label fw-bold">
-    Description <small class="text-muted">(max 200 characters)</small>
-  </label>
-
-  <textarea
-    id="description"
-    name="description"
-    rows="3"
-    class="form-control shadow-sm"
-    placeholder="Enter description... max 200 characters only"
-    maxlength="200"
-    required
-  ><%= currentAttendance?.description || "" %></textarea>
-
-  <div class="d-flex justify-content-between mt-1">
-    <small class="text-muted">Max 200 characters</small>
-    <small id="charCount" class="fw-semibold text-secondary">0 / 200</small>
+    <label for="description" class="form-label fw-bold">
+      Description <small class="text-muted">(max 200 characters)</small>
+    </label>
+    <textarea id="description" name="description" rows="3" class="form-control shadow-sm" placeholder="Enter description... max 200 characters only" maxlength="200" required><%= currentAttendance?.description || "" %></textarea>
+    <div class="d-flex justify-content-between mt-1">
+      <small class="text-muted">Max 200 characters</small>
+      <small id="charCount" class="fw-semibold text-secondary">0 / 200</small>
+    </div>
   </div>
-</div>
 
-
-  <!-- Search & Bulk Actions -->
   <div class="row mb-3 align-items-center">
     <div class="col-md-6 d-flex mb-2 mb-md-0">
       <input type="text" id="searchInput" class="form-control me-2 shadow-sm" placeholder="Search by name...">
@@ -115,10 +103,8 @@
     </div>
   </div>
 
-  <!-- Inline Red Message -->
   <div id="searchMsg" class="text-danger fw-bold text-center mb-2" style="display:none;"></div>
 
-  <!-- Students Table -->
   <div class="table-responsive shadow rounded p-2 bg-white">
     <table class="table table-hover align-middle mb-0">
       <thead class="table-dark text-center">
@@ -131,7 +117,7 @@
       </thead>
       <tbody id="studentTableBody">
         <% for(let s of students){ %>
-          <tr class="text-center">
+          <tr class="text-center" data-student-id="<%= s._id %>">
             <td><%= s.rollNo %></td>
             <td><%= s.name %></td>
             <td><%= s.fatherName %></td>
@@ -140,7 +126,7 @@
                 <button class="btn btn-sm btn-success mark-btn" data-id="<%= s._id %>" data-status="Present">P</button>
                 <button class="btn btn-sm btn-danger ms-2 mark-btn" data-id="<%= s._id %>" data-status="Absent">A</button>
                 <span class="ms-3 fw-bold status <%= s.attendanceToday === 'Present' ? 'text-success' : (s.attendanceToday === 'Absent' ? 'text-danger' : '') %>">
-                  <%= s.attendanceToday %>
+                  <%= s.attendanceToday || "" %>
                 </span>
               </div>
             </td>
@@ -156,63 +142,105 @@
 </div>
 
 <script>
-
-  
+document.addEventListener("DOMContentLoaded", () => {
+  const tableBody = document.getElementById("studentTableBody");
+  const originalTableBody = tableBody.innerHTML; 
+  const msgBox = document.getElementById("searchMsg");
+  const backBtn = document.getElementById("backBtn");
   const description = document.getElementById("description");
   const charCount = document.getElementById("charCount");
+  const loader = document.getElementById("loaderOverlay");
 
+  // 🔹 FUTURE-PROOF FIX: Global state to track ALL students attendance
+  const allStudentsAttendance = {};
+
+  // Initialize global state with current values from DOM on first load
+  function initializeAttendanceState() {
+    document.querySelectorAll("#studentTableBody tr").forEach(row => {
+      const studentId = row.dataset.studentId;
+      const statusSpan = row.querySelector(".status");
+      if (studentId && statusSpan) {
+        const currentStatus = statusSpan.textContent.trim();
+        if (currentStatus === "Present" || currentStatus === "Absent") {
+          allStudentsAttendance[studentId] = currentStatus;
+        }
+      }
+    });
+  }
+  initializeAttendanceState();
+
+  // Description character limit indicator
   description.addEventListener("input", () => {
     const length = description.value.length;
     charCount.textContent = `${length} / 200`;
-
     if (length >= 200) {
-      charCount.classList.remove("text-secondary");
-      charCount.classList.add("text-danger");
+      charCount.className = "fw-semibold text-danger";
     } else {
-      charCount.classList.remove("text-danger");
-      charCount.classList.add("text-secondary");
+      charCount.className = "fw-semibold text-secondary";
     }
   });
 
-document.addEventListener("DOMContentLoaded", () => {
-  const tableBody = document.getElementById("studentTableBody");
-  const originalTableBody = tableBody.innerHTML; // SAVE ORIGINAL
-  const msgBox = document.getElementById("searchMsg");
-  const backBtn = document.getElementById("backBtn");
-  const studentsData = {};
-
-  function markStudent(studentId, status, td){
-    const statusSpan = td.querySelector(".status");
-    statusSpan.textContent = status;
-    statusSpan.classList.remove("text-success","text-danger");
-    statusSpan.classList.add(status === "Present" ? "text-success" : "text-danger");
-    studentsData[studentId] = status;
+  // Function to sync UI status based on global state
+  function syncUIFromState() {
+    document.querySelectorAll("#studentTableBody tr").forEach(row => {
+      const studentId = row.dataset.studentId;
+      if (studentId && allStudentsAttendance[studentId]) {
+        const status = allStudentsAttendance[studentId];
+        const statusSpan = row.querySelector(".status");
+        if (statusSpan) {
+          statusSpan.textContent = status;
+          statusSpan.classList.remove("text-success", "text-danger");
+          statusSpan.classList.add(status === "Present" ? "text-success" : "text-danger");
+        }
+      }
+    });
   }
 
-  function attachEvents(){
+  function attachEvents() {
     document.querySelectorAll(".mark-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        markStudent(btn.dataset.id, btn.dataset.status, btn.closest("td"));
+      btn.addEventListener("click", (e) => {
+        const studentId = e.target.dataset.id;
+        const status = e.target.dataset.status;
+        
+        // Update global state
+        allStudentsAttendance[studentId] = status;
+        
+        // Update current row UI
+        const row = e.target.closest("tr");
+        const statusSpan = row.querySelector(".status");
+        statusSpan.textContent = status;
+        statusSpan.classList.remove("text-success", "text-danger");
+        statusSpan.classList.add(status === "Present" ? "text-success" : "text-danger");
       });
     });
   }
-
   attachEvents();
 
-  // Bulk Actions
+  // Bulk Present
   document.getElementById("markAllPresent").addEventListener("click", () => {
-    document.querySelectorAll(".mark-btn[data-status='Present']").forEach(btn => {
-      markStudent(btn.dataset.id, "Present", btn.closest("td"));
+    // If table is filtered, mark only visible ones, or mark all from original DOM.
+    // To make it perfectly intuitive: mark whatever is currently visible in UI
+    document.querySelectorAll("#studentTableBody tr").forEach(row => {
+      const studentId = row.dataset.studentId;
+      if(studentId) {
+        allStudentsAttendance[studentId] = "Present";
+      }
     });
+    syncUIFromState();
   });
 
+  // Bulk Absent
   document.getElementById("markAllAbsent").addEventListener("click", () => {
-    document.querySelectorAll(".mark-btn[data-status='Absent']").forEach(btn => {
-      markStudent(btn.dataset.id, "Absent", btn.closest("td"));
+    document.querySelectorAll("#studentTableBody tr").forEach(row => {
+      const studentId = row.dataset.studentId;
+      if(studentId) {
+        allStudentsAttendance[studentId] = "Absent";
+      }
     });
+    syncUIFromState();
   });
 
-  // Search
+  // Search Implementation
   document.getElementById("searchBtn").addEventListener("click", async () => {
     const query = document.getElementById("searchInput").value.trim();
     if(!query) return;
@@ -221,8 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(`/search/attendance/student?name=${encodeURIComponent(query)}`);
       const results = await res.json();
 
-      const tbody = document.getElementById("studentTableBody");
-      tbody.innerHTML = "";
+      tableBody.innerHTML = "";
       msgBox.style.display = "none";
 
       if(!results.success){
@@ -235,6 +262,12 @@ document.addEventListener("DOMContentLoaded", () => {
       results.data.forEach(s => {
         const tr = document.createElement("tr");
         tr.classList.add("text-center");
+        tr.setAttribute("data-student-id", s._id);
+        
+        // Check if we already have an un-submitted status change in memory
+        const currentStatus = allStudentsAttendance[s._id] || s.attendanceToday || "";
+        const statusClass = currentStatus === 'Present' ? 'text-success' : (currentStatus === 'Absent' ? 'text-danger' : '');
+
         tr.innerHTML = `
           <td>${s.rollNo}</td>
           <td>${s.name}</td>
@@ -243,11 +276,11 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="d-flex justify-content-center align-items-center">
               <button class="btn btn-sm btn-success mark-btn" data-id="${s._id}" data-status="Present">P</button>
               <button class="btn btn-sm btn-danger ms-2 mark-btn" data-id="${s._id}" data-status="Absent">A</button>
-              <span class="ms-3 fw-bold status ${s.attendanceToday === 'Present' ? 'text-success' : (s.attendanceToday === 'Absent' ? 'text-danger' : '')}">${s.attendanceToday || ""}</span>
+              <span class="ms-3 fw-bold status ${statusClass}">${currentStatus}</span>
             </div>
           </td>
         `;
-        tbody.appendChild(tr);
+        tableBody.appendChild(tr);
       });
 
       attachEvents();
@@ -255,95 +288,59 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch(err){ console.error(err); }
   });
 
-  // Back button
+  // Back Button Fix
   backBtn.onclick = () => {
     tableBody.innerHTML = originalTableBody;
     attachEvents();
+    syncUIFromState(); // Restore state onto full list
     msgBox.style.display = "none";
     backBtn.style.display = "none";
     document.getElementById("searchInput").value = "";
   };
 
-  // Done
+  // Submit Handler
   document.getElementById("doneBtn").addEventListener("click", async () => {
+    const period = parseInt(document.getElementById("period").value, 10);
+    const unit = document.getElementById("unit").value.trim();
+    const description = document.getElementById("description").value.trim();
+    const subject = document.getElementById("subject").value.trim();
+    const className = document.getElementById("className").value.trim();
+    const section = document.getElementById("section").value.trim();
+    const semester = document.getElementById("semester").value.trim();
+     const teacherName = document.getElementById("teacherName").value.trim();
+    
 
-  const period = parseInt(document.getElementById("period").value, 10);
-  const unit = document.getElementById("unit").value.trim();
-  const description = document.getElementById("description").value.trim();
-  const subject = document.getElementById("subject").value.trim();
+    if(!period || period < 1 || period > 6){ alert("Enter valid period 1-6"); return; }
+    if(!unit){ alert("Unit is required"); return; }
+    if(!description){ alert("Description is required"); return; }
+    if(!subject){ alert("Select a subject"); return; }
 
-  if(!period || period < 1 || period > 6){ 
-    alert("Enter valid period 1-6"); 
-    return; 
-  }
+    // Frontend validation: Check total count from original list if necessary
+    if(Object.keys(allStudentsAttendance).length === 0){
+      alert("Please mark attendance before saving!");
+      return;
+    }
 
-  if(!unit){ 
-    alert("Unit is required"); 
-    return; 
-  }
+    try {
+      // Show loader overlay safely
+      loader.style.display = "flex";
 
-  if(!description){ 
-    alert("Description is required"); 
-    return; 
-  }
+      const res = await fetch("/attendance/updateAll", {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ students: allStudentsAttendance, period, unit, description, subject,className,section,semester, teacherName  })
+      });
 
-  if(!subject){ 
-    alert("Select a subject"); 
-    return; 
-  }
-
-  // 🔥 IMPORTANT FIX: collect all students from table
-  const studentsData = {};
-
-  document.querySelectorAll("#studentTableBody tr").forEach(row => {
-    const btn = row.querySelector(".mark-btn");
-    const studentId = btn.dataset.id;
-    const status = row.querySelector(".status").textContent.trim();
-
-    if(status){
-      studentsData[studentId] = status;
+      if(res.ok) {
+         window.location.href = "/student/attendance/record";
+      } else {
+         loader.style.display = "none";
+         alert("Server error occurred while saving attendance.");
+      }
+    } catch(err){ 
+      loader.style.display = "none";
+      console.error(err); 
     }
   });
-
-  if(Object.keys(studentsData).length === 0){
-    alert("Mark all students first!");
-    return;
-  }
-
-  try {
-    const res = await fetch("/attendance/updateAll", {
-      method: "POST",
-      headers: { "Content-Type":"application/json" },
-      body: JSON.stringify({ students: studentsData, period, unit, description, subject })
-    });
-
-    const result = await res.text();
-    console.log(result);
-
-    window.location.href = "/student/attendance/record";
-
-  } catch(err){ 
-    console.error(err); 
-  }
-});
-});
-</script>
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-
-  const loader = document.getElementById("loaderOverlay");
-  const doneBtn = document.getElementById("doneBtn");
-
-  if(doneBtn){
-    doneBtn.addEventListener("click", () => {
-
-      // thoda delay taaki validation pe effect na pade
-      setTimeout(() => {
-        loader.style.display = "flex";
-      }, 200);
-
-    });
-  }
-
 });
 </script>
