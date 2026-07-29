@@ -2812,117 +2812,117 @@ app.post(
 
 // take attendance
 
-app.get(
-  "/add/student/attendance",
-  isLoggedIn,
-  WrapAsync(async (req, res) => {
-    let classData = await Teacher.findById(req.user._id);
-    req.session.teacherName = classData.name;
-    // console.log(classData);
-    res.render("teachers/attendanceLogin.ejs", { classData });
-  }),
-);
+// app.get(
+//   "/add/student/attendance",
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     let classData = await Teacher.findById(req.user._id);
+//     req.session.teacherName = classData.name;
+//     // console.log(classData);
+//     res.render("teachers/attendanceLogin.ejs", { classData });
+//   }),
+// );
 
-app.post(
-  "/add/student/attendance",
-  isLoggedIn,
-  WrapAsync(async (req, res) => {
-    const { data } = req.body;
-    const { class: className, semester, section } = data;
+// app.post(
+//   "/add/student/attendance",
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const { data } = req.body;
+//     const { class: className, semester, section } = data;
 
-    // Save selected data in session
-    req.session.class = className;
-    req.session.semester = semester;
-    req.session.section = section;
+//     // Save selected data in session
+//     req.session.class = className;
+//     req.session.semester = semester;
+//     req.session.section = section;
 
-    // 🔹 Find teacher having that class
-    let teacher = await Teacher.findById(req.user._id);
+//     // 🔹 Find teacher having that class
+//     let teacher = await Teacher.findById(req.user._id);
 
-    // 🔹 Find matching class inside teacher's class array
-    const classObj = teacher.class.find((c) => c.className === className);
-    if (!classObj) {
-      req.flash("error", "Class not assigned to you");
-      return res.redirect("/add/student/attendance");
-    }
+//     // 🔹 Find matching class inside teacher's class array
+//     const classObj = teacher.class.find((c) => c.className === className);
+//     if (!classObj) {
+//       req.flash("error", "Class not assigned to you");
+//       return res.redirect("/add/student/attendance");
+//     }
 
-    // 🔹 Find matching semester inside that class
-    const semObj = classObj.semesters.find((s) => s.semester === semester);
-    if (!semObj) {
-      req.flash("error", "Enter matching semester according to assigned class");
-      return res.redirect("/add/student/attendance");
-    }
+//     // 🔹 Find matching semester inside that class
+//     const semObj = classObj.semesters.find((s) => s.semester === semester);
+//     if (!semObj) {
+//       req.flash("error", "Enter matching semester according to assigned class");
+//       return res.redirect("/add/student/attendance");
+//     }
 
-    // 🔹 Find matching section inside that semester
-    const secObj = semObj.sections.find((s) => s.section === section);
-    if (!secObj) {
-      req.flash("error", "Section not assigned to you");
-      return res.redirect("/add/student/attendance");
-    }
+//     // 🔹 Find matching section inside that semester
+//     const secObj = semObj.sections.find((s) => s.section === section);
+//     if (!secObj) {
+//       req.flash("error", "Section not assigned to you");
+//       return res.redirect("/add/student/attendance");
+//     }
 
-    // 🔹 Get all students of that class + semester + section
-    const students = await Student.find({
-      class: className,
-      semester,
-      section,
-    });
+//     // 🔹 Get all students of that class + semester + section
+//     const students = await Student.find({
+//       class: className,
+//       semester,
+//       section,
+//     });
 
-    if (students.length === 0) {
-      req.flash("error", "No students found for this selection");
-      return res.redirect("/add/student/attendance");
-    }
+//     if (students.length === 0) {
+//       req.flash("error", "No students found for this selection");
+//       return res.redirect("/add/student/attendance");
+//     }
 
-    // 🔹 Flatten student subjects
-    const studentSubjects = students.flatMap((s) =>
-      s.subject.map((sub) => (typeof sub === "string" ? sub : sub.name)),
-    );
+//     // 🔹 Flatten student subjects
+//     const studentSubjects = students.flatMap((s) =>
+//       s.subject.map((sub) => (typeof sub === "string" ? sub : sub.name)),
+//     );
 
-    // 🔹 Teacher subjects for this specific section
-    const teacherSubjects = secObj.subjects; // teacher's assigned subjects in this section
+//     // 🔹 Teacher subjects for this specific section
+//     const teacherSubjects = secObj.subjects; // teacher's assigned subjects in this section
 
-    // 🔹 Find common subjects
-    const commonSubjects = teacherSubjects.filter((sub) =>
-      studentSubjects.includes(sub),
-    );
+//     // 🔹 Find common subjects
+//     const commonSubjects = teacherSubjects.filter((sub) =>
+//       studentSubjects.includes(sub),
+//     );
 
-    // 🔹 Render attendance page if subjects match
-    if (commonSubjects.length > 0) {
-      return res.render("teachers/attendancePage.ejs", {
-        students,
-        commonSubjects,
-      });
-    } else {
-      req.flash("error", "Subject not matched according to student subject");
-      return res.redirect("/add/student/attendance");
-    }
-  }),
-);
+//     // 🔹 Render attendance page if subjects match
+//     if (commonSubjects.length > 0) {
+//       return res.render("teachers/attendancePage.ejs", {
+//         students,
+//         commonSubjects,
+//       });
+//     } else {
+//       req.flash("error", "Subject not matched according to student subject");
+//       return res.redirect("/add/student/attendance");
+//     }
+//   }),
+// );
 
-app.post(
-  "/attendance/saveAll",
-  isLoggedIn,
-  WrapAsync(async (req, res) => {
-    const { students, period, unit, description, subject } = req.body;
+// app.post(
+//   "/attendance/saveAll",
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const { students, period, unit, description, subject } = req.body;
 
-    const section = req.session.section;
-    const classes = req.session.class;
-    const semester = req.session.semester;
-    const teacherName = req.session.teacherName;
+//     const section = req.session.section;
+//     const classes = req.session.class;
+//     const semester = req.session.semester;
+//     const teacherName = req.session.teacherName;
 
-    // 🔹 Step 1: Duplicate check (same as before)
-    const existingAttendance = await AttendenceDuplicate.findOne({
-      "attendance.periods": period,
-      "attendance.class": classes,
-      "attendance.section": section,
-      "attendance.semester": semester,
-    });
+//     // 🔹 Step 1: Duplicate check (same as before)
+//     const existingAttendance = await AttendenceDuplicate.findOne({
+//       "attendance.periods": period,
+//       "attendance.class": classes,
+//       "attendance.section": section,
+//       "attendance.semester": semester,
+//     });
 
-    if (existingAttendance) {
-      req.flash("error", `⚠️ Attendance already exists for Period ${period}`);
-      return res.redirect("/add/student/attendance");
-    }
+//     if (existingAttendance) {
+//       req.flash("error", `⚠️ Attendance already exists for Period ${period}`);
+//       return res.redirect("/add/student/attendance");
+//     }
 
-// 🔥 Step 2: Sequence check
-const currentPeriod = parseInt(period);
+// // 🔥 Step 2: Sequence check
+// const currentPeriod = parseInt(period);
 
 
 
@@ -2931,56 +2931,309 @@ const currentPeriod = parseInt(period);
     
   
     
+//     try {
+//       // 🔹 Step 2: Save attendance for each student
+//       const ops = Object.entries(students).map(async ([studentId, status]) => {
+//         // ✅ Create attendance (single source of truth)
+//         await Attendance.create({
+//           studentId: studentId, // ObjectId reference
+//           date: normalizeDate(new Date()),
+//           status,
+//           period,
+//           unit,
+//           description,
+//           subject,
+//           teacherName,
+//         });
+
+//         // ✅ Update duplicate-tracking collection
+//         await AttendenceDuplicate.findOneAndUpdate(
+//           { studentId },
+//           {
+//             $push: {
+//               attendance: {
+//                 status,
+//                 periods: period,
+//                 unit,
+//                 description,
+//                 section,
+//                 subject,
+//                 class: classes,
+//                 semester,
+//                 teacherId: req.user._id,
+//                 teacherName,
+//               },
+//             },
+//             $setOnInsert: { studentId },
+//           },
+//           { upsert: true },
+//         );
+//       });
+
+//       await Promise.all(ops);
+
+//       req.flash("success", "✅ Attendance saved successfully!");
+//       res.redirect("/add/student/attendance");
+//     } catch (err) {
+//       console.error("❌ Error saving attendance:", err);
+//       req.flash("error", "Something went wrong while saving attendance!");
+//       res.redirect("/add/student/attendance");
+//     }
+//   }),
+// );
+
+
+
+app.get(
+  "/add/student/attendance",
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    let classData = await Teacher.findById(req.user._id);
+    res.render("teachers/attendanceLogin.ejs", { classData });
+  })
+);
+
+app.post(
+  "/add/student/attendance",
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const { data } = req.body;
+
+    if (!data) {
+      req.flash("error", "Invalid form data submission.");
+      return res.redirect("/add/student/attendance");
+    }
+
+    const {
+      class: className,
+      semester,
+      section,
+      teacherName,
+      subject: selectedSubject,
+    } = data;
+
+    if (!selectedSubject) {
+      req.flash("error", "Please select a subject.");
+      return res.redirect("/add/student/attendance");
+    }
+
+      req.session.class = className;
+        req.session.semester = semester;
+        req.session.section = section;
+
+    // 1️⃣ Teacher permissions logic verification
+    let teacher = await Teacher.findById(req.user._id);
+
+    const classObj = teacher.class.find((c) => c.className === className);
+    if (!classObj) {
+      req.flash("error", "Class not assigned to you");
+      return res.redirect("/add/student/attendance");
+    }
+
+    const semObj = classObj.semesters.find((s) => s.semester === semester);
+    if (!semObj) {
+      req.flash("error", "Enter matching semester according to assigned class");
+      return res.redirect("/add/student/attendance");
+    }
+
+    const secObj = semObj.sections.find((s) => s.section === section);
+    if (!secObj) {
+      req.flash("error", "Section not assigned to you");
+      return res.redirect("/add/student/attendance");
+    }
+
+    const teacherSubjects = secObj.subjects || [];
+    if (!teacherSubjects.includes(selectedSubject)) {
+      req.flash(
+        "error",
+        "This subject is not assigned to you for this section."
+      );
+      return res.redirect("/add/student/attendance");
+    }
+
+    // 2️⃣ Fetch students based on selection
+    const students = await Student.find({
+      class: className,
+      semester,
+      section,
+      "subject.name": selectedSubject,
+    });
+
+    // 3️⃣ Verify and render
+    if (students.length === 0) {
+      req.flash(
+        "error",
+        `No students found who have opted for "${selectedSubject}" in this section.`
+      );
+      return res.redirect("/add/student/attendance");
+    }
+
+    return res.render("teachers/attendancePage.ejs", {
+      students,
+      selectedSubject,
+      teacherName,
+      className,
+      semester,
+      section,
+    });
+  })
+);
+
+
+
+const getTodayDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`; // String "2026-07-29"
+};
+
+app.post(
+  "/attendance/saveAll",
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const { 
+      students, 
+      period, 
+      unit, 
+      description, 
+      subject, 
+      className, 
+      semester, 
+      section, 
+      teacherName 
+    } = req.body;
+
+    // 1. Basic Validation
+    if (!students || typeof students !== "object" || Object.keys(students).length === 0) {
+      req.flash("error", "Invalid or missing student attendance data.");
+      return res.redirect("/add/student/attendance");
+    }
+
+    const parsedPeriod = Number(period);
+    const parsedSemester = String(semester);
+    const todayDateStr = getTodayDateString(); // Safe String Date
+
+    // 2. Pre-check A: Check Period Duplicate
+    const periodExists = await AttendenceDuplicate.findOne({
+      class: className,
+      semester: parsedSemester,
+      section: section,
+      periods: parsedPeriod,
+      date: todayDateStr,
+    });
+
+    if (periodExists) {
+      req.flash(
+        "error", 
+        `⚠️ Attendance for Period ${parsedPeriod} has ALREADY been marked today for ${className} (Sec-${section})!`
+      );
+      return res.redirect("/add/student/attendance");
+    }
+
+    // 3. Pre-check B: Check Subject Duplicate
+    const subjectExists = await AttendenceDuplicate.findOne({
+      class: className,
+      semester: parsedSemester,
+      section: section,
+      subject: subject,
+      date: todayDateStr,
+    });
+
+    if (subjectExists) {
+      req.flash(
+        "error", 
+        `⚠️ Attendance for Subject "${subject}" has ALREADY been marked today for ${className} (Sec-${section})!`
+      );
+      return res.redirect("/add/student/attendance");
+    }
+
+    // 4. Start Transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
-      // 🔹 Step 2: Save attendance for each student
-      const ops = Object.entries(students).map(async ([studentId, status]) => {
-        // ✅ Create attendance (single source of truth)
-        await Attendance.create({
-          studentId: studentId, // ObjectId reference
-          date: normalizeDate(new Date()),
+      const attendanceDocs = [];
+      const studentEntriesForDuplicate = [];
+
+      for (const [studentId, status] of Object.entries(students)) {
+        if (!mongoose.Types.ObjectId.isValid(studentId)) continue;
+
+        // Main Permanent Attendance
+        attendanceDocs.push({
+          studentId,
+          date: new Date(), // Main DB me Timestamp ke saath save kar sakte ho
           status,
-          period,
+          period: parsedPeriod,
           unit,
           description,
           subject,
           teacherName,
         });
 
-        // ✅ Update duplicate-tracking collection
-        await AttendenceDuplicate.findOneAndUpdate(
-          { studentId },
-          {
-            $push: {
-              attendance: {
-                status,
-                periods: period,
-                unit,
-                description,
-                section,
-                subject,
-                class: classes,
-                semester,
-                teacherId: req.user._id,
-                teacherName,
-              },
-            },
-            $setOnInsert: { studentId },
-          },
-          { upsert: true },
-        );
-      });
+        // Duplicate Document Entry
+        studentEntriesForDuplicate.push({
+          studentId,
+          status,
+          unit,
+          description,
+        });
+      }
 
-      await Promise.all(ops);
+      if (attendanceDocs.length === 0) {
+        await session.abortTransaction();
+        session.endSession();
+        req.flash("error", "No valid student records found.");
+        return res.redirect("/add/student/attendance");
+      }
+
+      const classLockDocument = {
+        date: todayDateStr,
+        class: className,
+        section: section,
+        semester: parsedSemester,
+        periods: parsedPeriod,
+        subject: subject,
+        teacherId: req.user?._id || "N/A",
+        teacherName: teacherName,
+        students: studentEntriesForDuplicate,
+        createdAt: new Date(),
+      };
+
+      // Execute Writes
+      await Attendance.insertMany(attendanceDocs, { session });
+      await AttendenceDuplicate.create([classLockDocument], { session });
+
+      await session.commitTransaction();
 
       req.flash("success", "✅ Attendance saved successfully!");
-      res.redirect("/add/student/attendance");
+      return res.redirect("/add/student/attendance");
+
     } catch (err) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+
+      // 🔥 Handle Double Click / Simultaneous Requests Lock (Error Code 11000)
+      if (err.code === 11000 || err.writeErrors?.some((e) => e.code === 11000)) {
+        req.flash(
+          "error", 
+          "⚠️ Conflict Detected! Ya toh is Period ki ya phir is Subject ki attendance pehle hi submit ho chuki hai."
+        );
+        return res.redirect("/add/student/attendance");
+      }
+
       console.error("❌ Error saving attendance:", err);
       req.flash("error", "Something went wrong while saving attendance!");
-      res.redirect("/add/student/attendance");
+      return res.redirect("/add/student/attendance");
+
+    } finally {
+      session.endSession();
     }
-  }),
+  })
 );
+
 
 app.get(
   "/search/attendance/student",
@@ -3138,152 +3391,15 @@ app.get("/get-subjects", isLoggedIn, async (req, res) => {
 
 //////////////////////////
 
-// app.post(
-//   "/update/student/attendance",
-//   isLoggedIn,
-//   WrapAsync(async (req, res) => {
-//     const { data } = req.body;
-//     const { class: className, semester, section, subject } = data;
-
-//     // ===== Save session =====
-//     req.session.class = className;
-//     req.session.semester = semester;
-//     req.session.section = section;
-//     req.session.subject = subject;
-
-//     // ===== Teacher check =====
-//     const teacher = await Teacher.findById(req.user._id);
-//     if (!teacher) {
-//       req.flash("error", "Teacher not found");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     const classObj = teacher.class?.find((c) => c.className === className);
-//     const semObj = classObj?.semesters?.find((s) => s.semester === semester);
-//     const secObj = semObj?.sections?.find((s) => s.section === section);
-
-//     if (!classObj || !semObj || !secObj) {
-//       req.flash("error", "Class / Semester / Section not assigned to you");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     // ===== Find attendance records =====
-//     const records = await AttendenceDuplicate.find({
-//       attendance: {
-//         $elemMatch: {
-//           teacherId: req.user._id,
-//           class: className,
-//           semester,
-//           section,
-//           subject,
-//         },
-//       },
-//     });
-
-//     if (!records.length) {
-//       req.flash("error", "No attendance found for update");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     // ===== Filter valid (within 24 hours) =====
-//     const now = new Date();
-//     const validAttendances = records.flatMap((r) =>
-//       r.attendance.filter(
-//         (att) =>
-//           att.teacherId.toString() === req.user._id.toString() &&
-//           att.class === className &&
-//           att.semester === semester &&
-//           att.section === section &&
-//           att.subject?.toLowerCase() === subject.toLowerCase() &&
-//           (now - new Date(att.date)) / (1000 * 60 * 60) <= 24,
-//       ),
-//     );
-
-//     if (!validAttendances.length) {
-//       req.flash("error", "Update allowed only within 24 hours");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     // ===== Latest attendance for period/unit/description =====
-//     const latest = validAttendances.sort(
-//       (a, b) => new Date(b.date) - new Date(a.date),
-//     )[0];
-
-//     const currentAttendance = {
-//       periods: latest.periods,
-//       unit: latest.unit,
-//       description: latest.description,
-//       date: latest.date,
-//     };
-
-//     // ===== Fetch students =====
-//     const students = await Student.find({
-//       class: className,
-//       semester,
-//       section,
-//     });
-
-//     if (!students.length) {
-//       req.flash("error", "No students found");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     // ===== Build status map =====
-//     const statusMap = {};
-//     for (const record of records) {
-//       const att = record.attendance.find(
-//         (a) =>
-//           a.teacherId.toString() === req.user._id.toString() &&
-//           a.class === className &&
-//           a.semester === semester &&
-//           a.section === section &&
-//           a.subject?.toLowerCase() === subject.toLowerCase(),
-//       );
-
-//       if (att) {
-//         statusMap[record.studentId.toString()] = att.status || "Not marked";
-//       }
-//     }
-
-//     const studentsWithStatus = students.map((stu) => ({
-//       ...stu.toObject(),
-//       attendanceToday: statusMap[stu._id.toString()] || "Not marked",
-//     }));
-
-//     // ===== Subject permission =====
-//     const studentSubjects = students.flatMap((s) =>
-//       s.subject.map((sub) => (typeof sub === "string" ? sub : sub.name)),
-//     );
-
-//     const teacherSubjects = secObj.subjects || [];
-//     const commonSubjects = teacherSubjects.filter((sub) =>
-//       studentSubjects.includes(sub),
-//     );
-
-//     if (!commonSubjects.includes(subject)) {
-//       req.flash("error", "You are not allowed for this subject");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     // ===== Render =====
-//     res.render("teachers/updateAttenPage.ejs", {
-//       students: studentsWithStatus,
-//       subject,
-//       commonSubjects,
-//       currentAttendance,
-//     });
-//   }),
-// );
-
 
 app.post(
   "/update/student/attendance",
   isLoggedIn,
   WrapAsync(async (req, res) => {
     const { data } = req.body;
-    const { class: className, semester, section, subject } = data;
+    const { class: className, semester, section, subject, teacherName } = data;
 
-    // 🔥 Normalizer (future proof)
+    // Normalizer helper
     const normalize = (str) =>
       str?.toString().trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -3292,13 +3408,7 @@ app.post(
     const cleanSection = section.trim();
     const cleanSubject = subject.trim();
 
-    // ===== Save session (cleaned) =====
-    req.session.class = cleanClass;
-    req.session.semester = cleanSemester;
-    req.session.section = cleanSection;
-    req.session.subject = cleanSubject;
-
-    // ===== Teacher check =====
+    // ===== Teacher authorization check =====
     const teacher = await Teacher.findById(req.user._id);
     if (!teacher) {
       req.flash("error", "Teacher not found");
@@ -3320,58 +3430,36 @@ app.post(
       return res.redirect("/update/student/attendance");
     }
 
-    // ===== Find attendance records =====
-    const records = await AttendenceDuplicate.find({
-      attendance: {
-        $elemMatch: {
-          teacherId: req.user._id,
-          class: cleanClass,
-          semester: cleanSemester,
-          section: cleanSection,
-          subject: cleanSubject,
-        },
-      },
+    // ===== Find attendance record in Class-Level Duplicate Collection =====
+    const todayDateStr = getTodayDateString();
+
+    const record = await AttendenceDuplicate.findOne({
+      class: cleanClass,
+      semester: cleanSemester,
+      section: cleanSection,
+      subject: cleanSubject,
+      date: todayDateStr,
     });
 
-    if (!records.length) {
-      req.flash("error", "No attendance found for update");
+    if (!record) {
+      req.flash("error", "No attendance record found for today to update");
       return res.redirect("/update/student/attendance");
     }
 
-    // ===== Filter valid (within 24 hours) =====
+    // Check 24 hour limit (Creation check)
     const now = new Date();
+    const hoursDiff = (now - new Date(record.createdAt)) / (1000 * 60 * 60);
 
-    const validAttendances = records.flatMap((r) =>
-      r.attendance.filter((att) => {
-        const hoursDiff =
-          (now - new Date(att.date)) / (1000 * 60 * 60);
-
-        return (
-          att.teacherId.toString() === req.user._id.toString() &&
-          normalize(att.class) === normalize(cleanClass) &&
-          normalize(att.semester) === normalize(cleanSemester) &&
-          normalize(att.section) === normalize(cleanSection) &&
-          normalize(att.subject) === normalize(cleanSubject) &&
-          hoursDiff <= 24
-        );
-      })
-    );
-
-    if (!validAttendances.length) {
+    if (hoursDiff > 24) {
       req.flash("error", "Update allowed only within 24 hours");
       return res.redirect("/update/student/attendance");
     }
 
-    // ===== Latest attendance =====
-    const latest = validAttendances.sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
-    )[0];
-
     const currentAttendance = {
-      periods: latest.periods,
-      unit: latest.unit,
-      description: latest.description,
-      date: latest.date,
+      periods: record.periods,
+      unit: record.students[0]?.unit || "",
+      description: record.students[0]?.description || "",
+      date: record.createdAt,
     };
 
     // ===== Fetch students =====
@@ -3388,39 +3476,23 @@ app.post(
 
     // ===== Build status map =====
     const statusMap = {};
-
-    for (const record of records) {
-      const att = record.attendance.find(
-        (a) =>
-          a.teacherId.toString() === req.user._id.toString() &&
-          normalize(a.class) === normalize(cleanClass) &&
-          normalize(a.semester) === normalize(cleanSemester) &&
-          normalize(a.section) === normalize(cleanSection) &&
-          normalize(a.subject) === normalize(cleanSubject)
-      );
-
-      if (att) {
-        statusMap[record.studentId.toString()] =
-          att.status || "Not marked";
-      }
+    for (const studentEntry of record.students) {
+      statusMap[studentEntry.studentId.toString()] = studentEntry.status || "Not marked";
     }
 
     const studentsWithStatus = students.map((stu) => ({
       ...stu.toObject(),
-      attendanceToday:
-        statusMap[stu._id.toString()] || "Not marked",
+      attendanceToday: statusMap[stu._id.toString()] || "Not marked",
     }));
 
-    // ===== Subject permission =====
+    // ===== Subject permission check =====
     const studentSubjects = students.flatMap((s) =>
       s.subject.map((sub) =>
         typeof sub === "string" ? sub.trim() : sub.name.trim()
       )
     );
 
-    const teacherSubjects =
-      secObj.subjects?.map((sub) => sub.trim()) || [];
-
+    const teacherSubjects = secObj.subjects?.map((sub) => sub.trim()) || [];
     const commonSubjects = teacherSubjects.filter((sub) =>
       studentSubjects.includes(sub)
     );
@@ -3430,151 +3502,464 @@ app.post(
       return res.redirect("/update/student/attendance");
     }
 
-    // ===== Render =====
+    // ===== Render Update Form =====
     res.render("teachers/updateAttenPage.ejs", {
       students: studentsWithStatus,
       subject: cleanSubject,
+      cleanClass,
+      cleanSection,
+      cleanSemester,
+      teacherName,
       commonSubjects,
       currentAttendance,
     });
   })
 );
 
-// POST: update all attendance
 
+/* =========================================================
+   2️⃣ SAVE UPDATED ATTENDANCE SUBMISSION
+========================================================== */
 app.post(
   "/attendance/updateAll",
+  isLoggedIn,
   WrapAsync(async (req, res) => {
-    const { students, period, unit, description, subject } = req.body;
+    const { 
+      students, 
+      period, 
+      unit, 
+      description, 
+      subject, 
+      className, 
+      semester, 
+      section, 
+      teacherName 
+    } = req.body;
 
-    const section = req.session.section;
-    const classes = req.session.class;
-    const semester = req.session.semester;
-    const teacherName = req.session.teacherName;
+    if (!students || typeof students !== "object" || Object.keys(students).length === 0) {
+      req.flash("error", "Invalid or missing student attendance data.");
+      return res.redirect("/add/student/attendance");
+    }
+
+    const parsedPeriod = Number(period);
+    const parsedSemester = String(semester);
+    const todayDateStr = getTodayDateString();
     const now = new Date();
 
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // MongoDB Session Start for Transaction Locks
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-
-      const todayEnd = new Date();
-      todayEnd.setHours(23, 59, 59, 999);
-
-      let updatedCount = 0;
+      const updatedStudentEntries = [];
+      const bulkMainAttendanceOps = [];
 
       for (const [id, status] of Object.entries(students)) {
+        if (!mongoose.Types.ObjectId.isValid(id)) continue;
 
-        /* =========================================================
-           🔹 1️⃣ ATTENDENCE DUPLICATE CHECK
-        ========================================================== */
-
-        const duplicateDoc = await AttendenceDuplicate.findOne({
-          studentId: id
+        // 1. Array element for AttendenceDuplicate
+        updatedStudentEntries.push({
+          studentId: id,
+          status,
+          unit,
+          description,
         });
 
-        if (duplicateDoc) {
-
-          const existingEntry = duplicateDoc.attendance.find(a =>
-            a.periods == period &&
-            a.class === classes &&
-            a.section === section &&
-            a.semester === semester &&
-            a.subject === subject
-          );
-
-          if (existingEntry) {
-            // 🔄 Update existing
-            existingEntry.status = status;
-            existingEntry.unit = unit;
-            existingEntry.description = description;
-            existingEntry.updatedAt = now;
-
-          } else {
-            // ➕ Create new entry inside attendance array
-            duplicateDoc.attendance.push({
-              periods: period,
-              class: classes,
-              section,
-              semester,
-              subject,
-              status,
-              unit,
-              description,
-                teacherId:req.user._id,
-              teacherName:teacherName,
-              createdAt: now,
-              updatedAt: now,
-            });
-          }
-
-          await duplicateDoc.save();
-
-        } else {
-          // 🆕 Create whole document
-          await AttendenceDuplicate.create({
-            studentId: id,
-            attendance: [{
-              periods: period,
-              class: classes,
-              section,
-              semester,
-              subject,
-              status,
-              unit,
-              description,
-               teacherId:req.user._id,
-              teacherName:teacherName,
-              createdAt: now,
-              updatedAt: now,
-            }]
-          });
-        }
-
-        /* =========================================================
-           🔹 2️⃣ ATTENDANCE COLLECTION CHECK
-        ========================================================== */
-
-      const attendanceDoc = await Attendance.findOne({
-  studentId: id,
-  period: period,
-  subject: subject,
-  date: { $gte: todayStart, $lte: todayEnd },
-});
-
-if (attendanceDoc) {
-  attendanceDoc.status = status;
-  attendanceDoc.unit = unit;
-  attendanceDoc.description = description;
-  attendanceDoc.updatedAt = now;
-  await attendanceDoc.save();
-} else {
-  await Attendance.create({
-    studentId: id,
-    period,
-    subject,
-    status,
-    unit,
-    description,
-    teacherName:teacherName,
-    date: now,
-    createdAt: now,
-    updatedAt: now,
-  });
-}
-
-        updatedCount++;
+        // 2. Upsert/Update Operation for Permanent Attendance Collection
+        bulkMainAttendanceOps.push({
+          updateOne: {
+            filter: {
+              studentId: id,
+              period: parsedPeriod,
+              subject: subject,
+              date: { $gte: todayStart, $lte: todayEnd },
+            },
+            update: {
+              $set: {
+                status,
+                unit,
+                description,
+                teacherName,
+                updatedAt: now,
+              },
+              $setOnInsert: {
+                studentId: id,
+                period: parsedPeriod,
+                subject,
+                date: now,
+                createdAt: now,
+              },
+            },
+            upsert: true,
+          },
+        });
       }
 
-      req.flash("success", `✅ ${updatedCount} students processed successfully!`);
+      // 🔹 UPDATE / OVERWRITE ATTENDENCE DUPLICATE RECORD (Class-Level)
+      await AttendenceDuplicate.findOneAndUpdate(
+        {
+          class: className,
+          semester: parsedSemester,
+          section: section,
+          periods: parsedPeriod,
+          subject: subject,
+          date: todayDateStr,
+        },
+        {
+          $set: {
+            teacherId: req.user._id,
+            teacherName: teacherName,
+            students: updatedStudentEntries,
+            createdAt: now, // Reset TTL lock timer
+          },
+        },
+        { upsert: true, session }
+      );
+
+      // 🔹 BULK WRITE TO MAIN ATTENDANCE COLLECTION
+      if (bulkMainAttendanceOps.length > 0) {
+        await Attendance.bulkWrite(bulkMainAttendanceOps, { session });
+      }
+
+      // Commit transaction
+      await session.commitTransaction();
+
+      req.flash(
+        "success",
+        `✅ Attendance updated successfully for ${updatedStudentEntries.length} students!`
+      );
       return res.redirect("/add/student/attendance");
 
     } catch (err) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+
+      // 🔥 Catch Concurrent Request Conflicts (Race Conditions)
+      if (err.code === 11000 || err.writeErrors?.some((e) => e.code === 11000)) {
+        req.flash(
+          "error",
+          "⚠️ Conflict Detected! Submissions overlapping or period locked."
+        );
+        return res.redirect("/add/student/attendance");
+      }
+
       console.error("❌ Error updating attendance:", err);
-      req.flash("error", "Something went wrong!");
+      req.flash("error", "Something went wrong while updating attendance!");
       return res.redirect("/add/student/attendance");
+
+    } finally {
+      session.endSession();
     }
   })
 );
+
+
+// app.post(
+//   "/update/student/attendance",
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const { data } = req.body;
+//     const { class: className, semester, section, subject } = data;
+
+//     // 🔥 Normalizer (future proof)
+//     const normalize = (str) =>
+//       str?.toString().trim().toLowerCase().replace(/\s+/g, " ");
+
+//     const cleanClass = className.trim();
+//     const cleanSemester = semester.trim();
+//     const cleanSection = section.trim();
+//     const cleanSubject = subject.trim();
+
+//     // ===== Save session (cleaned) =====
+//     req.session.class = cleanClass;
+//     req.session.semester = cleanSemester;
+//     req.session.section = cleanSection;
+//     req.session.subject = cleanSubject;
+
+//     // ===== Teacher check =====
+//     const teacher = await Teacher.findById(req.user._id);
+//     if (!teacher) {
+//       req.flash("error", "Teacher not found");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     const classObj = teacher.class?.find(
+//       (c) => normalize(c.className) === normalize(cleanClass)
+//     );
+//     const semObj = classObj?.semesters?.find(
+//       (s) => normalize(s.semester) === normalize(cleanSemester)
+//     );
+//     const secObj = semObj?.sections?.find(
+//       (s) => normalize(s.section) === normalize(cleanSection)
+//     );
+
+//     if (!classObj || !semObj || !secObj) {
+//       req.flash("error", "Class / Semester / Section not assigned to you");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     // ===== Find attendance records =====
+//     const records = await AttendenceDuplicate.find({
+//       attendance: {
+//         $elemMatch: {
+//           teacherId: req.user._id,
+//           class: cleanClass,
+//           semester: cleanSemester,
+//           section: cleanSection,
+//           subject: cleanSubject,
+//         },
+//       },
+//     });
+
+//     if (!records.length) {
+//       req.flash("error", "No attendance found for update");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     // ===== Filter valid (within 24 hours) =====
+//     const now = new Date();
+
+//     const validAttendances = records.flatMap((r) =>
+//       r.attendance.filter((att) => {
+//         const hoursDiff =
+//           (now - new Date(att.date)) / (1000 * 60 * 60);
+
+//         return (
+//           att.teacherId.toString() === req.user._id.toString() &&
+//           normalize(att.class) === normalize(cleanClass) &&
+//           normalize(att.semester) === normalize(cleanSemester) &&
+//           normalize(att.section) === normalize(cleanSection) &&
+//           normalize(att.subject) === normalize(cleanSubject) &&
+//           hoursDiff <= 24
+//         );
+//       })
+//     );
+
+//     if (!validAttendances.length) {
+//       req.flash("error", "Update allowed only within 24 hours");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     // ===== Latest attendance =====
+//     const latest = validAttendances.sort(
+//       (a, b) => new Date(b.date) - new Date(a.date)
+//     )[0];
+
+//     const currentAttendance = {
+//       periods: latest.periods,
+//       unit: latest.unit,
+//       description: latest.description,
+//       date: latest.date,
+//     };
+
+//     // ===== Fetch students =====
+//     const students = await Student.find({
+//       class: cleanClass,
+//       semester: cleanSemester,
+//       section: cleanSection,
+//     });
+
+//     if (!students.length) {
+//       req.flash("error", "No students found");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     // ===== Build status map =====
+//     const statusMap = {};
+
+//     for (const record of records) {
+//       const att = record.attendance.find(
+//         (a) =>
+//           a.teacherId.toString() === req.user._id.toString() &&
+//           normalize(a.class) === normalize(cleanClass) &&
+//           normalize(a.semester) === normalize(cleanSemester) &&
+//           normalize(a.section) === normalize(cleanSection) &&
+//           normalize(a.subject) === normalize(cleanSubject)
+//       );
+
+//       if (att) {
+//         statusMap[record.studentId.toString()] =
+//           att.status || "Not marked";
+//       }
+//     }
+
+//     const studentsWithStatus = students.map((stu) => ({
+//       ...stu.toObject(),
+//       attendanceToday:
+//         statusMap[stu._id.toString()] || "Not marked",
+//     }));
+
+//     // ===== Subject permission =====
+//     const studentSubjects = students.flatMap((s) =>
+//       s.subject.map((sub) =>
+//         typeof sub === "string" ? sub.trim() : sub.name.trim()
+//       )
+//     );
+
+//     const teacherSubjects =
+//       secObj.subjects?.map((sub) => sub.trim()) || [];
+
+//     const commonSubjects = teacherSubjects.filter((sub) =>
+//       studentSubjects.includes(sub)
+//     );
+
+//     if (!commonSubjects.includes(cleanSubject)) {
+//       req.flash("error", "You are not allowed for this subject");
+//       return res.redirect("/update/student/attendance");
+//     }
+
+//     // ===== Render =====
+//     res.render("teachers/updateAttenPage.ejs", {
+//       students: studentsWithStatus,
+//       subject: cleanSubject,
+//       commonSubjects,
+//       currentAttendance,
+//     });
+//   })
+// );
+
+// // POST: update all attendance
+
+// app.post(
+//   "/attendance/updateAll",
+//   WrapAsync(async (req, res) => {
+//     const { students, period, unit, description, subject } = req.body;
+
+//     const section = req.session.section;
+//     const classes = req.session.class;
+//     const semester = req.session.semester;
+//     const teacherName = req.session.teacherName;
+//     const now = new Date();
+
+//     try {
+//       const todayStart = new Date();
+//       todayStart.setHours(0, 0, 0, 0);
+
+//       const todayEnd = new Date();
+//       todayEnd.setHours(23, 59, 59, 999);
+
+//       let updatedCount = 0;
+
+//       for (const [id, status] of Object.entries(students)) {
+
+//         /* =========================================================
+//            🔹 1️⃣ ATTENDENCE DUPLICATE CHECK
+//         ========================================================== */
+
+//         const duplicateDoc = await AttendenceDuplicate.findOne({
+//           studentId: id
+//         });
+
+//         if (duplicateDoc) {
+
+//           const existingEntry = duplicateDoc.attendance.find(a =>
+//             a.periods == period &&
+//             a.class === classes &&
+//             a.section === section &&
+//             a.semester === semester &&
+//             a.subject === subject
+//           );
+
+//           if (existingEntry) {
+//             // 🔄 Update existing
+//             existingEntry.status = status;
+//             existingEntry.unit = unit;
+//             existingEntry.description = description;
+//             existingEntry.updatedAt = now;
+
+//           } else {
+//             // ➕ Create new entry inside attendance array
+//             duplicateDoc.attendance.push({
+//               periods: period,
+//               class: classes,
+//               section,
+//               semester,
+//               subject,
+//               status,
+//               unit,
+//               description,
+//                 teacherId:req.user._id,
+//               teacherName:teacherName,
+//               createdAt: now,
+//               updatedAt: now,
+//             });
+//           }
+
+//           await duplicateDoc.save();
+
+//         } else {
+//           // 🆕 Create whole document
+//           await AttendenceDuplicate.create({
+//             studentId: id,
+//             attendance: [{
+//               periods: period,
+//               class: classes,
+//               section,
+//               semester,
+//               subject,
+//               status,
+//               unit,
+//               description,
+//                teacherId:req.user._id,
+//               teacherName:teacherName,
+//               createdAt: now,
+//               updatedAt: now,
+//             }]
+//           });
+//         }
+
+//         /* =========================================================
+//            🔹 2️⃣ ATTENDANCE COLLECTION CHECK
+//         ========================================================== */
+
+//       const attendanceDoc = await Attendance.findOne({
+//   studentId: id,
+//   period: period,
+//   subject: subject,
+//   date: { $gte: todayStart, $lte: todayEnd },
+// });
+
+// if (attendanceDoc) {
+//   attendanceDoc.status = status;
+//   attendanceDoc.unit = unit;
+//   attendanceDoc.description = description;
+//   attendanceDoc.updatedAt = now;
+//   await attendanceDoc.save();
+// } else {
+//   await Attendance.create({
+//     studentId: id,
+//     period,
+//     subject,
+//     status,
+//     unit,
+//     description,
+//     teacherName:teacherName,
+//     date: now,
+//     createdAt: now,
+//     updatedAt: now,
+//   });
+// }
+
+//         updatedCount++;
+//       }
+
+//       req.flash("success", `✅ ${updatedCount} students processed successfully!`);
+//       return res.redirect("/add/student/attendance");
+
+//     } catch (err) {
+//       console.error("❌ Error updating attendance:", err);
+//       req.flash("error", "Something went wrong!");
+//       return res.redirect("/add/student/attendance");
+//     }
+//   })
+// );
 
 
 // show attendance route
