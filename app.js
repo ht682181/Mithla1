@@ -4512,6 +4512,564 @@ app.get("/student/logout", verifiedAny, (req, res) => {
 });
 
 // ////  student folder closed////
+/ Add StudentMarks
+
+// 1️⃣ Form Render Route
+app.get(
+  "/add/student-mark",
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    let classData = await Teacher.findById(req.user._id);
+    res.render("teachers/addMarks", { classData });
+  })
+);
+
+
+
+// 1️⃣ Setup Student Marks Route
+app.post(
+  "/add/student/marks-setup",
+  isLoggedIn,
+  validateMarksSetup,
+  WrapAsync(async (req, res) => {
+    const {
+      className,
+      semester,
+      section,
+      subject,
+      academicYear,
+      examName,
+      examType,
+      maxMarks,
+      passMarks,
+      teacherName,
+    } = req.body.data;
+
+    const parsedYear = Number(academicYear);
+    const parsedSem = Number(semester);
+    const parsedMax = Number(maxMarks);
+    const parsedPass = Number(passMarks);
+
+    // 🛡️ Extra Guard Check
+    if (parsedPass > parsedMax) {
+      req.flash("error", "Pass marks cannot be greater than maximum marks.");
+      return req.session.save(() => res.redirect("/add/student-mark"));
+    }
+
+    // 🛡️ Duplicate Entry Check
+    const existingDoc = await Marks.findOne({
+      academicYear: parsedYear,
+      className,
+      semester: parsedSem,
+      section,
+      subject,
+      examName,
+    });
+
+    if (existingDoc) {
+      req.flash(
+        "error",
+        `Marks register already exists for ${examName} (${subject}, Sec-${section}, ${parsedYear}).`
+      );
+      return req.session.save(() => res.redirect("/add/student-mark"));
+    }
+
+    // 🛡️ Teacher Access Authorization
+    let teacher = await Teacher.findById(req.user._id);
+    const classObj = teacher?.class?.find((c) => c.className === className);
+    const semObj = classObj?.semesters?.find((s) => String(s.semester) === String(semester));
+    const secObj = semObj?.sections?.find((s) => s.section === section);
+
+    if (!secObj || !(secObj.subjects || []).includes(subject)) {
+      req.flash("error", "Unauthorized access or subject not assigned to you.");
+      return req.session.save(() => res.redirect("/add/student-mark"));
+    }
+
+    // Fetch Enrolled Students
+    const students = await Student.find({
+      class: className,
+      semester: parsedSem,
+      section,
+      "subject.name": subject,
+    }).lean();
+
+    if (!students || students.length === 0) {
+      req.flash("error", `No active students found for ${subject} in section ${section}.`);
+      return req.session.save(() => res.redirect("/add/student-mark"));
+    }
+
+    res.render("teachers/marksPage.ejs", {
+      students,
+      metaData: {
+        className,
+        semester: parsedSem,
+        section,
+        subject,
+        academicYear: parsedYear,
+        examName,
+        examType,
+        maxMarks: parsedMax,
+        passMarks: parsedPass,
+        teacherName: teacherName || req.user.name,
+      }
+    });
+  })
+);
+
+
+// 2️⃣ Save Marks Route (With Atomic Mongoose Session & Transaction)
+app.post(
+  "/save/student-marks",
+  isLoggedIn,
+  validateSaveMarks,
+  WrapAsync(async (req, res) => {
+    // 🔴 Step A: Session Layer Initialize
+    const session = await mongoose.startSession();
+
+    try {
+      // 🟢 Step B: Start Transaction Block
+      session.startTransaction();
+
+      const { metaData, studentMarks } = req.body;
+
+      const numYear = Number(metaData.academicYear);
+      const numSem = Number(metaData.semester);
+      const numMax = Number(metaData.maxMarks);
+
+      // 🛡️ Transactional Duplicate Check
+      const existingEntry = await Marks.findOne({
+        academicYear: numYear,
+        className: metaData.className,
+        semester: numSem,
+        section: metaData.section,
+        subject: metaData.subject,
+        examName: metaData.examName,
+      }).session(session);
+
+      if (existingEntry) {
+        await session.abortTransaction();
+        req.flash("error", "Marks entry already submitted for this exam!");
+        return req.session.save(() => res.redirect("/add/student-mark"));
+      }
+
+      // Format & Strict Check Student Payload
+      const formattedStudents = [];
+      const studentKeys = studentMarks ? Object.keys(studentMarks) : [];
+
+      if (studentKeys.length === 0) {
+        await session.abortTransaction();
+        req.flash("error", "No student marks data received for saving.");
+        return req.session.save(() => res.redirect("/add/student-mark"));
+      }
+
+      for (const studentId of studentKeys) {
+        const item = studentMarks[studentId];
+        const isAbsent = item.attendanceStatus === "Absent";
+        const obtained = isAbsent ? 0 : Number(item.obtainedMarks || 0);
+
+        // Individual Marks Range Validation
+        if (isNaN(obtained) || obtained < 0 || obtained > numMax) {
+          await session.abortTransaction();
+          req.flash(
+            "error", 
+            `Invalid marks entered for student ${item.studentName || 'Unknown'}. (Range: 0 to ${numMax})`
+          );
+          return req.session.save(() => res.redirect("/add/student-mark"));
+        }
+
+        formattedStudents.push({
+          studentId,
+          rollNumber: String(item.rollNumber || "").trim(),
+          studentName: String(item.studentName || "").trim(),
+          fatherName: item.fatherName ? String(item.fatherName).trim() : "",
+          obtainedMarks: obtained,
+          attendanceStatus: isAbsent ? "Absent" : "Present",
+          remarks: item.remarks ? String(item.remarks).trim() : "",
+          updatedAt: new Date(),
+        });
+      }
+
+      // Save Document Bound to Session
+      const newMarksDoc = new Marks({
+        academicYear: numYear,
+        className: metaData.className,
+        semester: numSem,
+        section: metaData.section,
+        subject: metaData.subject,
+        examName: metaData.examName,
+        examType: metaData.examType,
+        maxMarks: numMax,
+        passMarks: Number(metaData.passMarks),
+        teacherId: req.user._id,
+        teacherName: metaData.teacherName,
+        status: "OPEN",
+        students: formattedStudents,
+      });
+
+      // 💾 Document write attached with session
+      await newMarksDoc.save({ session });
+
+      // 🏁 Step C: Commit Transaction
+      await session.commitTransaction();
+
+      req.flash("success", "Marks sheet saved successfully!");
+      return req.session.save(() => res.redirect("/add/student-mark"));
+
+    } catch (err) {
+      // Safe Abort Check (In case transaction was already committed or terminated)
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+
+      if (err.code === 11000) {
+        req.flash("error", "Duplicate submission detected! Document already exists.");
+      } else {
+        req.flash("error", `Server Error during marks submission: ${err.message}`);
+      }
+
+      return req.session.save(() => res.redirect("/add/student-mark"));
+
+    } finally {
+      // 🔄 Step E: Session Close Mandatory Guard
+      session.endSession();
+    }
+  })
+);
+
+// GET Exams based on filters
+
+
+// Render View Marks Filter Form Page
+app.get(
+  "/show/marks/loginPage",
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    let classData = await Teacher.findById(req.user._id);
+    res.render("teachers/showMarksLogin.ejs", { classData });
+  })
+);
+
+app.get(
+  "/get-exams-by-filters",
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const { academicYear, className, semester, section, subject } = req.query;
+
+    const exams = await Marks.distinct("examName", {
+      teacherId: req.user._id,
+      academicYear: Number(academicYear),
+      className,
+      semester: Number(semester),
+      section,
+      subject,
+    });
+
+    res.json(exams);
+  })
+);
+
+// GET Unique Academic Years for Logged-in Teacher
+app.get(
+  "/get-teacher-academic-years",
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    // Is teacher ne jitne bhi unique academicYears me entries ki hain, unhe fetch karo
+    const years = await Marks.distinct("academicYear", {
+      teacherId: req.user._id,
+    });
+
+    // Ascending / Descending Order me Sort kar lo (Latest top par)
+    years.sort((a, b) => b - a);
+
+    res.json(years);
+  })
+);
+
+
+
+
+// 1️⃣ VIEW STUDENT MARKS
+app.get(
+  "/view/student-marks",
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const { academicYear, className, semester, section, subject, examName } = req.query;
+
+    if (!academicYear || !className || !semester || !section || !subject || !examName) {
+      req.flash("error", "Please select all parameters to view marks register.");
+      return req.session.save(() => res.redirect("/show/marks/loginPage"));
+    }
+
+    const formattedExamName = String(examName).trim().toUpperCase();
+
+    const markSheet = await Marks.findOne({
+      academicYear: Number(academicYear),
+      className,
+      semester: Number(semester),
+      section,
+      subject,
+      examName:formattedExamName,
+    });
+
+    if (!markSheet) {
+      req.flash("error", "No mark register found for selected criteria.");
+      return req.session.save(() => res.redirect("/show/marks/loginPage"));
+    }
+
+
+
+    // Calculating Statistics Safely
+    const students = markSheet.students || [];
+    const totalStudents = students.length;
+    
+    const presentStudents = students.filter(s => s.attendanceStatus === "Present");
+    const presentCount = presentStudents.length;
+    const absentCount = totalStudents - presentCount;
+
+    let highest = 0;
+    let lowest = 0;
+    let average = "0.00";
+
+    if (presentCount > 0) {
+      const marksArray = presentStudents.map(s => Number(s.obtainedMarks) || 0);
+      highest = Math.max(...marksArray);
+      lowest = Math.min(...marksArray);
+      const totalMarks = marksArray.reduce((acc, curr) => acc + curr, 0);
+      average = (totalMarks / presentCount).toFixed(2);
+    }
+
+    res.render("teachers/viewMarksRegister.ejs", {
+      markSheet,
+      stats: { totalStudents, presentCount, absentCount, highest, lowest, average },
+    });
+  })
+);
+
+
+// 2️⃣ UPDATE STUDENT MARKS
+app.post(
+  "/update/student-marks/:id",
+  isLoggedIn,
+  validateUpdateMarks,
+  WrapAsync(async (req, res) => {
+    const { id } = req.params;
+    const { studentMarks } = req.body;
+
+    const session = await mongoose.startSession();
+    let returnUrl = "/show/marks/loginPage"; // Default fallback URL
+
+    try {
+      session.startTransaction();
+
+      const markSheet = await Marks.findById(id).session(session);
+
+      if (!markSheet) {
+        await session.abortTransaction();
+        req.flash("error", "Marksheet record not found.");
+        return req.session.save(() => res.redirect("/show/marks/loginPage"));
+      }
+
+      // Dynamic exact URL assignment
+      returnUrl = `/view/student-marks?academicYear=${markSheet.academicYear}&className=${encodeURIComponent(markSheet.className)}&semester=${markSheet.semester}&section=${encodeURIComponent(markSheet.section)}&subject=${encodeURIComponent(markSheet.subject)}&examName=${encodeURIComponent(markSheet.examName)}`;
+
+      if (markSheet.status === "LOCKED") {
+        await session.abortTransaction();
+        req.flash("error", "❌ Register is LOCKED! You cannot edit student marks.");
+        return req.session.save(() => res.redirect(returnUrl));
+      }
+
+      for (let studentId in studentMarks) {
+        const updatedItem = studentMarks[studentId];
+        const targetStudent = markSheet.students.find(
+          (s) => String(s.studentId) === String(studentId)
+        );
+
+        if (targetStudent) {
+          const isAbsent = updatedItem.attendanceStatus === "Absent";
+          const newMarks = isAbsent ? 0 : Number(updatedItem.obtainedMarks || 0);
+
+          if (!isAbsent && newMarks > markSheet.maxMarks) {
+            await session.abortTransaction();
+            req.flash(
+              "error",
+              `Validation Error: Marks for ${targetStudent.studentName} (${newMarks}) exceed Maximum Marks (${markSheet.maxMarks}).`
+            );
+            return req.session.save(() => res.redirect(returnUrl));
+          }
+
+          targetStudent.attendanceStatus = isAbsent ? "Absent" : "Present";
+          targetStudent.obtainedMarks = newMarks;
+          targetStudent.remarks = String(updatedItem.remarks || "").trim();
+          targetStudent.updatedAt = new Date();
+        }
+      }
+
+      await markSheet.save({ session });
+      await session.commitTransaction();
+
+      req.flash("success", "Student marks updated successfully!");
+      return req.session.save(() => res.redirect(returnUrl));
+
+    } catch (err) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      req.flash("error", `Update failed: ${err.message}`);
+      return req.session.save(() => res.redirect(returnUrl));
+    } finally {
+      session.endSession();
+    }
+  })
+);
+
+
+// 3️⃣ UPDATE EXAM DETAILS
+app.post(
+  "/update/exam-details/:id",
+  isLoggedIn,
+  validateUpdateExam,
+  WrapAsync(async (req, res) => {
+    const { id } = req.params;
+    const { subject, examName, maxMarks, passMarks, examType } = req.body;
+
+    const formattedExamName = String(examName).trim().toUpperCase();
+
+    const session = await mongoose.startSession();
+    let currentReturnUrl = "/show/marks/loginPage"; // Safe scope variable declaration
+
+    try {
+      session.startTransaction();
+
+      const markSheet = await Marks.findById(id).session(session);
+
+      if (!markSheet) {
+        await session.abortTransaction();
+        req.flash("error", "Marksheet record not found.");
+        return req.session.save(() => res.redirect("/show/marks/loginPage"));
+      }
+
+      // Track URL for safe redirects
+      currentReturnUrl = `/view/student-marks?academicYear=${markSheet.academicYear}&className=${encodeURIComponent(markSheet.className)}&semester=${markSheet.semester}&section=${encodeURIComponent(markSheet.section)}&subject=${encodeURIComponent(markSheet.subject)}&examName=${encodeURIComponent(markSheet.examName)}`;
+
+      if (markSheet.status === "LOCKED") {
+        await session.abortTransaction();
+        req.flash("error", "❌ Register is LOCKED! Cannot edit Exam details.");
+        return req.session.save(() => res.redirect(currentReturnUrl));
+      }
+
+      const newMax = Number(maxMarks);
+      const newPass = Number(passMarks);
+
+      // Verify no student score breaches new maximum marks limit
+      const offendingStudent = markSheet.students.find(
+        (s) => s.attendanceStatus === "Present" && s.obtainedMarks > newMax
+      );
+
+      if (offendingStudent) {
+        await session.abortTransaction();
+        req.flash(
+          "error",
+          `❌ Validation Error: Student "${offendingStudent.studentName}" has ${offendingStudent.obtainedMarks} marks. Lowering Max Marks to ${newMax} is rejected.`
+        );
+        return req.session.save(() => res.redirect(currentReturnUrl));
+      }
+
+      // Check unique index collision before updating Subject or Exam Name
+      if (markSheet.subject !== subject || markSheet.examName !== examName) {
+        const existingDoc = await Marks.findOne({
+          academicYear: markSheet.academicYear,
+          className: markSheet.className,
+          semester: markSheet.semester,
+          section: markSheet.section,
+          subject,
+          examName:formattedExamName,
+          _id: { $ne: id }
+        }).session(session);
+
+        if (existingDoc) {
+          await session.abortTransaction();
+          req.flash("error", `An exam register already exists for "${examName}" in subject "${subject}".`);
+          return req.session.save(() => res.redirect(currentReturnUrl));
+        }
+      }
+
+      // Update fields
+      markSheet.subject = subject;
+      markSheet.examName = examName;
+      markSheet.maxMarks = newMax;
+      markSheet.passMarks = newPass;
+      markSheet.examType = examType;
+
+      await markSheet.save({ session });
+      await session.commitTransaction();
+
+      // Updated View Path after successfully updating metadata
+      const newReturnUrl = `/view/student-marks?academicYear=${markSheet.academicYear}&className=${encodeURIComponent(markSheet.className)}&semester=${markSheet.semester}&section=${encodeURIComponent(markSheet.section)}&subject=${encodeURIComponent(markSheet.subject)}&examName=${encodeURIComponent(markSheet.examName)}`;
+
+      req.flash("success", "Exam details updated successfully!");
+      return req.session.save(() => res.redirect(newReturnUrl));
+
+    } catch (err) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      req.flash("error", `Failed to update exam details: ${err.message}`);
+      return req.session.save(() => res.redirect(currentReturnUrl)); // Bug fixed: Safely redirects using current URL
+    } finally {
+      session.endSession();
+    }
+  })
+);
+
+
+// 4️⃣ DELETE MARKS REGISTER
+app.post(
+  "/delete/marks-register/:id",
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const { id } = req.params;
+    const session = await mongoose.startSession();
+    let returnUrl = "/show/marks/loginPage"; // Safe fallback scope
+
+    try {
+      session.startTransaction();
+
+      const markSheet = await Marks.findById(id).session(session);
+
+      if (!markSheet) {
+        await session.abortTransaction();
+        req.flash("error", "Marksheet record not found or already deleted.");
+        return req.session.save(() => res.redirect("/show/marks/loginPage"));
+      }
+
+      returnUrl = `/view/student-marks?academicYear=${markSheet.academicYear}&className=${encodeURIComponent(markSheet.className)}&semester=${markSheet.semester}&section=${encodeURIComponent(markSheet.section)}&subject=${encodeURIComponent(markSheet.subject)}&examName=${encodeURIComponent(markSheet.examName)}`;
+
+      // Lock Guard Check
+      if (markSheet.status === "LOCKED") {
+        await session.abortTransaction();
+        req.flash("error", "❌ Register is LOCKED! Locked marksheets cannot be deleted.");
+        return req.session.save(() => res.redirect(returnUrl));
+      }
+
+      // Delete document inside session transaction
+      await Marks.findByIdAndDelete(id).session(session);
+
+      await session.commitTransaction();
+      req.flash("success", "🗑️ Marks register deleted successfully!");
+      return req.session.save(() => res.redirect("/show/marks/loginPage"));
+
+    } catch (err) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      req.flash("error", `Failed to delete register: ${err.message}`);
+      return req.session.save(() => res.redirect(returnUrl));
+    } finally {
+      session.endSession();
+    }
+  })
+);
+
 
 app.use((req, res, next) => {
   next(new ExpressError(404, "page not found"));
