@@ -50,6 +50,7 @@ const validateFeed = require("./schema/feedSchema.js");
 const  { validateMarksSetup, validateSaveMarks } = require("./schema/marksSchema.js")
 
 const { validateUpdateMarks, validateUpdateExam } = require("./schema/editMarkSchema.js");
+const Marks= require("./models/marksData.js")
 
 // ------------------ MongoStore + Session Setup ------------------
 
