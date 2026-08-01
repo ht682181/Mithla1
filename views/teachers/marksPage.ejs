@@ -1,0 +1,378 @@
+<%- layout("/layouts/boilerplateTeacher") -%>
+
+<style>
+  :root {
+    --primary-slate: #0f172a;
+    --accent-indigo: #4f46e5;
+    --border-color: #e2e8f0;
+    --bg-light: #f8fafc;
+  }
+
+  .page-container {
+    max-width: 1320px;
+    margin: 0 auto;
+  }
+  
+  .marks-card {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+  }
+
+  .header-banner {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    border-left: 6px solid var(--accent-indigo);
+    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+  }
+
+  .meta-chip {
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    color: #475569;
+    font-size: 0.825rem;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-weight: 500;
+  }
+
+  .meta-chip strong {
+    color: #0f172a;
+  }
+
+  .stat-badge {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 8px 16px;
+  }
+
+  .table-custom {
+    border-collapse: separate;
+    border-spacing: 0 6px;
+  }
+
+  .table-custom tbody tr {
+    background: #ffffff;
+    transition: all 0.15s ease;
+  }
+
+  .table-custom tbody tr:hover {
+    background-color: var(--bg-light);
+  }
+
+  .table-custom td, .table-custom th {
+    padding: 12px 16px;
+    vertical-align: middle;
+  }
+
+  .table-custom thead th {
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-weight: 800;
+    border-bottom: 2px solid var(--border-color);
+  }
+
+  .form-control-custom, .form-select-custom {
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-weight: 600;
+    color: #0f172a;
+    transition: all 0.2s ease;
+  }
+
+  .form-control-custom:focus, .form-select-custom:focus {
+    border-color: var(--accent-indigo);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  }
+
+  .form-control-custom:disabled {
+    background-color: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
+  }
+
+  .student-avatar {
+    width: 36px;
+    height: 36px;
+    background: #e0e7ff;
+    color: var(--accent-indigo);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+</style>
+
+<div class="page-container my-4 px-3">
+  <form action="/save/student-marks" method="POST" class="needs-validation" novalidate id="marksForm">
+    
+    <!-- Hidden Metadata Payload (Strict Required) -->
+    <input type="hidden" name="metaData[academicYear]" value="<%= metaData.academicYear %>" required>
+    <input type="hidden" name="metaData[className]" value="<%= metaData.className %>" required>
+    <input type="hidden" name="metaData[semester]" value="<%= metaData.semester %>" required>
+    <input type="hidden" name="metaData[section]" value="<%= metaData.section %>" required>
+    <input type="hidden" name="metaData[subject]" value="<%= metaData.subject %>" required>
+    <input type="hidden" name="metaData[examName]" value="<%= metaData.examName %>" required>
+    <input type="hidden" name="metaData[examType]" value="<%= metaData.examType %>" required>
+    <input type="hidden" name="metaData[maxMarks]" value="<%= metaData.maxMarks %>" required>
+    <input type="hidden" name="metaData[passMarks]" value="<%= metaData.passMarks %>" required>
+    <input type="hidden" name="metaData[teacherName]" value="<%= metaData.teacherName %>" required>
+
+    <!-- Header Banner (Clean Premium Style) -->
+    <div class="header-banner p-3 p-md-4 mb-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="badge text-white px-2 py-1 fs-7" style="background-color: var(--accent-indigo); border-radius: 6px;">
+              📝 MARKS ENTRY
+            </span>
+            <h2 class="fw-bold text-dark mb-0 me-2"><%= metaData.examName %></h2>
+            <span class="badge bg-light text-dark border fw-bold"><%= metaData.academicYear %></span>
+          </div>
+          <div class="d-flex flex-wrap gap-2 pt-1">
+            <span class="meta-chip">Class: <strong><%= metaData.className %></strong></span>
+            <span class="meta-chip">Semester: <strong><%= metaData.semester %></strong></span>
+            <span class="meta-chip">Section: <strong><%= metaData.section %></strong></span>
+            <span class="meta-chip">Subject: <strong><%= metaData.subject %></strong></span>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 text-dark flex-wrap">
+          <div class="stat-badge text-center">
+            <div class="text-muted small fw-bold text-uppercase fs-8">Exam Type</div>
+            <div class="fw-extrabold text-indigo fs-6" style="color: var(--accent-indigo);"><%= metaData.examType %></div>
+          </div>
+          <div class="stat-badge text-center" style="border-top: 3px solid #22c55e;">
+            <div class="text-muted small fw-bold text-uppercase fs-8">Max Marks</div>
+            <div class="fw-extrabold text-success fs-6"><%= metaData.maxMarks %></div>
+          </div>
+          <div class="stat-badge text-center" style="border-top: 3px solid #eab308;">
+            <div class="text-muted small fw-bold text-uppercase fs-8">Pass Marks</div>
+            <div class="fw-extrabold text-warning fs-6"><%= metaData.passMarks %></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Container -->
+    <div class="card marks-card p-2 p-md-3">
+      <div class="table-responsive">
+        <table class="table table-custom align-middle mb-0">
+          <thead>
+            <tr>
+              <th class="ps-3" style="width: 100px;">Roll No</th>
+              <th style="width: 250px;">Student Details</th>
+              <th>Father Name</th>
+              <th style="width: 150px;">Attendance</th>
+              <th style="width: 180px;">Marks Obtained</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% students.forEach((student) => { %>
+              <tr>
+                <!-- Roll No -->
+                <td class="ps-3">
+                  <span class="badge bg-light text-dark border fw-bold fs-7">#<%= student.rollNo %></span>
+                </td>
+
+                <!-- Student Info -->
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="student-avatar">
+                      <%= student.name ? student.name.charAt(0).toUpperCase() : 'S' %>
+                    </div>
+                    <div>
+                      <div class="fw-bold text-dark mb-0 fs-6"><%= student.name %></div>
+                    </div>
+                  </div>
+                  <input type="hidden" name="studentMarks[<%= student._id %>][studentName]" value="<%= student.name %>" required>
+                  <input type="hidden" name="studentMarks[<%= student._id %>][rollNumber]" value="<%= student.rollNo %>" required>
+                  <input type="hidden" name="studentMarks[<%= student._id %>][fatherName]" value="<%= student.fatherName || '' %>">
+                </td>
+
+                <!-- Father Name -->
+                <td class="text-muted fw-semibold fs-7">
+                  <%= student.fatherName || 'N/A' %>
+                </td>
+
+                <!-- Attendance -->
+                <td>
+                  <select 
+                    name="studentMarks[<%= student._id %>][attendanceStatus]" 
+                    class="form-select form-select-sm form-select-custom attendance-select" 
+                    data-student-id="<%= student._id %>"
+                    required
+                  >
+                    <option value="Present" selected>🟢 Present</option>
+                    <option value="Absent">🔴 Absent</option>
+                  </select>
+                </td>
+
+                <!-- Marks Input -->
+                <td>
+                  <div class="has-validation">
+                    <div class="input-group input-group-sm">
+                      <input 
+                        type="number" 
+                        id="marks-<%= student._id %>"
+                        name="studentMarks[<%= student._id %>][obtainedMarks]" 
+                        class="form-control form-control-custom marks-input fw-bold text-dark" 
+                        value="0" 
+                        max="<%= metaData.maxMarks %>" 
+                        min="0"
+                        step="0.01"
+                        required
+                      >
+                      <span class="input-group-text bg-light text-muted border fw-semibold">/ <%= metaData.maxMarks %></span>
+                    </div>
+                    <div class="invalid-feedback text-danger small">Must be 0 to <%= metaData.maxMarks %></div>
+                  </div>
+                </td>
+
+                <!-- Remarks -->
+                <td class="pe-3">
+                  <input 
+                    type="text" 
+                    name="studentMarks[<%= student._id %>][remarks]" 
+                    class="form-control form-control-sm form-control-custom remarks-input" 
+                    placeholder="Add feedback..." 
+                    maxlength="150"
+                  >
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="d-flex justify-content-between align-items-center mt-4 px-2 flex-wrap gap-2">
+      <div class="text-muted small fw-medium">
+        Total Students: <strong class="text-dark"><%= students.length %></strong>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="/add/student-mark" class="btn btn-light btn-sm rounded-2 px-4 fw-semibold border">Cancel</a>
+        <button type="submit" id="submitBtn" class="btn btn-primary btn-sm rounded-2 px-4 fw-bold shadow-sm" style="background-color: var(--accent-indigo); border: none;">
+          🚀 Save Marks Sheet
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- JS Validations & Submit Safeguard -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("marksForm");
+  const submitBtn = document.getElementById("submitBtn");
+
+  // Attendance Toggle Logic
+  document.querySelectorAll(".attendance-select").forEach((select) => {
+    select.addEventListener("change", (e) => {
+      const studentId = e.target.getAttribute("data-student-id");
+      const marksInput = document.getElementById(`marks-${studentId}`);
+      if (e.target.value === "Absent") {
+        marksInput.value = 0;
+        marksInput.disabled = true;
+        marksInput.classList.remove("is-invalid");
+      } else {
+        marksInput.disabled = false;
+      }
+    });
+  });
+
+  // Real-time marks validation on input
+  document.querySelectorAll(".marks-input").forEach((input) => {
+    input.addEventListener("input", (e) => {
+      const max = parseFloat(e.target.getAttribute("max"));
+      const val = parseFloat(e.target.value);
+
+      if (val < 0 || val > max || isNaN(val)) {
+        e.target.classList.add("is-invalid");
+      } else {
+        e.target.classList.remove("is-invalid");
+      }
+    });
+  });
+
+  // 🚀 ENTER KEY NAVIGATION FOR MARKS INPUT
+  const marksInputs = Array.from(document.querySelectorAll(".marks-input"));
+  marksInputs.forEach((input, index) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault(); // Stop form submission on Enter
+
+        let nextIndex = index + 1;
+        while (nextIndex < marksInputs.length && marksInputs[nextIndex].disabled) {
+          nextIndex++;
+        }
+
+        if (nextIndex < marksInputs.length) {
+          marksInputs[nextIndex].focus();
+          marksInputs[nextIndex].select();
+        } else {
+          submitBtn.focus();
+        }
+      }
+    });
+  });
+
+  // 🚀 ENTER KEY NAVIGATION FOR REMARKS INPUT
+  const remarksInputs = Array.from(document.querySelectorAll(".remarks-input"));
+  remarksInputs.forEach((input, index) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault(); // Stop form submission on Enter
+
+        let nextIndex = index + 1;
+        while (nextIndex < remarksInputs.length && remarksInputs[nextIndex].disabled) {
+          nextIndex++;
+        }
+
+        if (nextIndex < remarksInputs.length) {
+          remarksInputs[nextIndex].focus();
+          remarksInputs[nextIndex].select();
+        } else {
+          submitBtn.focus();
+        }
+      }
+    });
+  });
+
+  // Form Submit Validation & Double Click Prevention
+  form.addEventListener("submit", (e) => {
+    let isValid = true;
+
+    document.querySelectorAll(".marks-input:not(:disabled)").forEach((input) => {
+      const max = parseFloat(input.getAttribute("max"));
+      const val = parseFloat(input.value);
+
+      if (isNaN(val) || val < 0 || val > max) {
+        input.classList.add("is-invalid");
+        isValid = false;
+      }
+    });
+
+    if (!form.checkValidity() || !isValid) {
+      e.preventDefault();
+      e.stopPropagation();
+      form.classList.add("was-validated");
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '⌛ Saving Marks...';
+  });
+});
+</script>
