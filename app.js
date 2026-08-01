@@ -580,6 +580,135 @@ app.put(
   }),
 );
 
+
+// 1. RENDER MAIN PAGE
+app.get("/admin/marks-management",verifiedAny, WrapAsync(async (req, res) => {
+  // Initial Load: Distict Classes available in database
+  const classes = await Marks.distinct("className");
+  res.render("admin/marksManagement.ejs", { classes });
+}));
+
+// API 1: Get Semesters for selected Class
+app.get("/api/marks/semesters", verifiedAny, WrapAsync(async (req, res) => {
+  const { className } = req.query;
+  if (!className) return res.json([]);
+  const semesters = await Marks.distinct("semester", { className });
+  res.json(semesters.sort((a, b) => a - b));
+}));
+
+// API 2: Get Academic Years for Class + Semester
+app.get("/api/marks/academic-years", verifiedAny, WrapAsync(async (req, res) => {
+  const { className, semester } = req.query;
+  if (!className || !semester) return res.json([]);
+  const academicYears = await Marks.distinct("academicYear", { 
+    className, 
+    semester: Number(semester) 
+  });
+  res.json(academicYears.sort((a, b) => b - a));
+}));
+
+// API 3: Get Exam Names for Class + Semester + Academic Year
+app.get("/api/marks/exams", verifiedAny, WrapAsync(async (req, res) => {
+  const { className, semester, academicYear } = req.query;
+  if (!className || !semester || !academicYear) return res.json([]);
+  const exams = await Marks.distinct("examName", { 
+    className, 
+    semester: Number(semester),
+    academicYear: Number(academicYear)
+  });
+  res.json(exams);
+}));
+
+// API 4: Fetch Matrix Data (Pivoted Section-wise)
+app.get("/api/marks/records", verifiedAny, WrapAsync(async (req, res) => {
+  const { className, semester, academicYear, examName } = req.query;
+
+  if (!className || !semester || !academicYear || !examName) {
+    return res.status(400).json({ success: false, message: "All filters are required." });
+  }
+
+  // Fetch all registers matching search criteria
+  const records = await Marks.find({
+    className,
+    semester: Number(semester),
+    academicYear: Number(academicYear),
+    examName: String(examName).trim().toUpperCase()
+  }).lean();
+
+  res.json({ success: true, records });
+}));
+
+// API 5: Lock / Unlock Section Toggle
+app.post("/api/marks/toggle-lock",verifiedAny, WrapAsync(async (req, res) => {
+  const { className, semester, academicYear, examName, section, targetStatus } = req.body;
+
+  await Marks.updateMany(
+    {
+      className,
+      semester: Number(semester),
+      academicYear: Number(academicYear),
+      examName: String(examName).trim().toUpperCase(),
+      section
+    },
+    { $set: { status: targetStatus } }
+  );
+
+  res.json({ success: true, message: `Section ${section} status changed to ${targetStatus}` });
+}));
+
+// API 6: Delete Entire Section Records
+app.delete("/api/marks/delete-section", verifiedAny, WrapAsync(async (req, res) => {
+  const { className, semester, academicYear, examName, section } = req.body;
+
+  const result = await Marks.deleteMany({
+    className,
+    semester: Number(semester),
+    academicYear: Number(academicYear),
+    examName: String(examName).trim().toUpperCase(),
+    section
+  });
+
+  res.json({ success: true, message: `Deleted ${result.deletedCount} registers for Section ${section}` });
+}));
+
+// API 7: Edit Single Student Marks in a Subject Register
+app.post("/api/marks/edit-student-mark",verifiedAny, WrapAsync(async (req, res) => {
+  const { registerId, studentId, obtainedMarks, attendanceStatus, remarks } = req.body;
+
+  const markSheet = await Marks.findById(registerId);
+  if (!markSheet) return res.status(404).json({ success: false, message: "Register not found." });
+  if (markSheet.status === "LOCKED") {
+    return res.status(403).json({ success: false, message: "Register is LOCKED by Admin." });
+  }
+
+  const studentObj = markSheet.students.find(s => s.studentId.toString() === studentId || s._id.toString() === studentId);
+  if (!studentObj) return res.status(404).json({ success: false, message: "Student record not found." });
+
+  const finalMarks = attendanceStatus === "Absent" ? 0 : Number(obtainedMarks);
+  
+  if (finalMarks > markSheet.maxMarks) {
+    return res.status(400).json({ success: false, message: `Marks cannot exceed Max Marks (${markSheet.maxMarks})` });
+  }
+
+  studentObj.attendanceStatus = attendanceStatus;
+  studentObj.obtainedMarks = finalMarks;
+  studentObj.remarks = remarks || "";
+  studentObj.updatedAt = new Date();
+
+  await markSheet.save();
+  res.json({ success: true, message: "Student marks updated successfully!" });
+}));
+
+// API 8: Delete Complete Subject Register
+app.delete("/api/marks/delete-subject/:id",verifiedAny, WrapAsync(async (req, res) => {
+  const { id } = req.params;
+  await Marks.findByIdAndDelete(id);
+  res.json({ success: true, message: "Subject register deleted successfully." });
+}));
+
+
+
+
 // DELETE TEACHER
 
 app.delete(
