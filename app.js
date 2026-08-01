@@ -47,6 +47,10 @@ const validateAssignStudent = require("./schema/assignStudent.js");
 const validateAssignTeacher = require("./schema/assignTeacher.js");
 const validateFeed = require("./schema/feedSchema.js");
 
+const  { validateMarksSetup, validateSaveMarks } = require("./schema/marksSchema.js")
+
+const { validateUpdateMarks, validateUpdateExam } = require("./schema/editMarkSchema.js");
+
 // ------------------ MongoStore + Session Setup ------------------
 
 const session = require("express-session");
