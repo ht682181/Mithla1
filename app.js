@@ -4022,502 +4022,8 @@ app.get(
     });
   }),
 );
-// logout teacher
 
-app.get("/logout", isLoggedIn, (req, res, next) => {
-  req.logout((err) => {
-    if (err) {
-      return next(err);
-    }
-
-    req.flash("success", "You are logged out");
-    res.redirect("/student/attendance/login");
-  });
-});
-
-////////////////////////// teacher folder closed/////////////////////////////////////////////////
-
-//////////////////////////// student folder start//////////////////////////////////////////////
-
-// otp
-
-// app.get("/otp", (req, res) => {
-//   const email = req.session.email;
-//   res.render("listings/otp.ejs",{email});
-// });
-
-// app.post(
-//   "/verify-otp",
-//   WrapAsync(async (req, res) => {
-//     const { otp } = req.body;
-//     let otpRecord = await OTP.findOne({ otp: otp });
-
-//     if (otpRecord) {
-//       req.session.otpVerified = true;
-//       req.flash("success", "Login successfully");
-//       return res.redirect("/student/attendance");
-//     } else {
-//       req.flash("error", "Invalid-OTP!");
-//       return res.redirect("/otp");
-//     }
-//   }),
-// );
-
-// update Password
-
-app.get("/student/update/password",(req, res) => {
-  res.render("users/updatePassword.ejs");
-});
-
-app.post(
-  "/student/update/password",
-  WrapAsync(async (req, res) => {
-
-    const rollNo = req.session.rollNo; // ✅ FIXED
-    const { password } = req.body.data;     // ✅ FIXED
-
-    if (!rollNo) {
-      req.flash("error", "Session expired. Please login again");
-      return res.redirect("/student/attendance/login");
-    }
-
-    // 🔐 PASSWORD LENGTH VALIDATION
-    if (!password || password.length < 6) {
-      req.flash("error", "Password must be at least 6 characters long");
-      return res.redirect("/student/update/password");
-    }
-
-    const student = await Student.findOne({ rollNo: parseInt(rollNo) });
-  
-
-    if (!student) {
-      req.flash("error", "Student not found");
-      return res.redirect("/student/attendance/login");
-    }
-
-    student.password = password;
-    student.check = "update";
-    await student.save();
-    req.session.rollNo = null;
-    req.flash("success", "Update success login again with change password");
-    return res.redirect("/student/attendance/login");
-  })
-);
-
-//  student main page
-
-app.get(
-  "/student/attendance",
-  verifiedAny,
-  WrapAsync(async (req, res) => {
-    let rollNo = req.session.rollNo;
-
-    if (!rollNo) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance/login");
-    }
-    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
-
-    if (!student) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance/login");
-    }
-    res.render("students/main.ejs", { student });
-  }),
-);
-
-// student profile
-
-app.get(
-  "/profile",
-  verifiedAny,
-  WrapAsync(async (req, res) => {
-    let rollNo = req.session.rollNo;
-
-    if (!rollNo) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance/login");
-    }
-    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
-
-    if (!student) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance/login");
-    }
-    res.render("students/profile.ejs", { student });
-  }),
-);
-
-// edit profile
-app.get(
-  "/profile/edit/:id",
-  verifiedAny,
-  WrapAsync(async (req, res) => {
-    let { id } = req.params;
-    let data = await Student.findById(id);
-    res.render("students/editProfile.ejs", { data, id });
-  }),
-);
-
-app.put(
-  "/profile/edit/:id",
-  verifiedAny,
-  upload.single("data[image]"),
-  WrapAsync(async (req, res) => {
-    let { id } = req.params;
-    let student = await Student.findByIdAndUpdate(id, { ...req.body.data });
-    if (typeof req.file !== "undefined") {
-      let url = req.file.path;
-      let filename = req.file.filename;
-      student.image = { url, filename };
-    }
-    await student.save();
-    req.flash("success", "Profile Update successfully");
-    res.redirect(`/profile`);
-  }),
-);
-
-// subject check
-
-app.get(
-  "/student/attendance/subject/check",
-  verifiedAny,
-  WrapAsync(async (req, res) => {
-    let rollNo = req.session.rollNo;
-
-    if (!rollNo) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance/login");
-    }
-
-    // ek student ke document ko nikaalo
-    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
-
-    if (!student) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance");
-    }
-    res.render("students/checkSubject.ejs", { student });
-  }),
-);
-
-// Add feed
-
-app.get(
-  "/student/add/feed",
-  verifiedAny,
-  WrapAsync(async (req, res) => {
-    let rollNo = req.session.rollNo;
-
-    if (!rollNo) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance/login");
-    }
-
-    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
-
-    if (!student) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance");
-    }
-    res.render("students/feedPage.ejs", { student });
-  }),
-);
-
-app.post(
-  "/student/add/feed/:studentId",
-  verifiedAny,
-  validateFeed,
-  WrapAsync(async (req, res) => {
-    const { content } = req.body.data || {};
-    if (!content || content.trim() === "") {
-      req.flash("error", "Feed cannot be empty");
-      return res.redirect("/student/add/feed");
-    }
-
-    const studentId = req.params.studentId;
-
-    // Optional: verify if student exists
-    const student = await Student.findById(studentId);
-    if (!student) {
-      req.flash("error", "Student not found");
-      return res.redirect("/student/add/feed");
-    }
-
-    const newFeed = new Feed({
-      content: content.trim(),
-      studentId: student._id, // Correct reference
-    });
-
-    await newFeed.save();
-
-    req.flash("success", "Feed added successfully");
-    res.redirect("/student/add/feed");
-  }),
-);
-
-// show feed
-
-app.get(
-  "/student/show/feed",
-  verifiedAny,
-  WrapAsync(async (req, res) => {
-    const rollNo = req.session.rollNo;
-    if (!rollNo) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance/login");
-    }
-
-    const student = await Student.findOne({ rollNo: parseInt(rollNo) });
-    if (!student) {
-      req.flash("error", "Student not found");
-      return res.redirect("/student/attendance");
-    }
-
-    const page = parseInt(req.query.page) || 1;
-    const limit = 10;
-
-    const totalFeeds = await Feed.countDocuments({ studentId: student._id });
-
-    const feeds = await Feed.find({ studentId: student._id })
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    const totalPages = Math.ceil(totalFeeds / limit);
-
-    res.render("students/showFeed.ejs", { feeds, page, totalPages });
-  }),
-);
-
-// delete feed
-
-app.delete(
-  "/student/feed/delete/:id",
-  verifiedAny,
-  WrapAsync(async (req, res) => {
-    const { id } = req.params;
-    await Feed.findByIdAndDelete(id);
-    req.flash("success", "Delete successfully");
-    res.redirect("/student/show/feed");
-  }),
-);
-
-// show status//
-
-app.get(
-  "/student/attendance/status/check",
-  verifiedAny,
-  WrapAsync(async (req, res) => {
-    let rollNo = req.session.rollNo;
-    if (!rollNo) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance/login");
-    }
-
-    // ek student ke document ko nikaalo
-    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
-
-    if (!student) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance");
-    }
-    res.render("students/showStatus.ejs", { student });
-  }),
-);
-
-//////  filter attendance
-
-app.get(
-  "/student/attendance/:studentId/:filter",
-  verifiedAny,
-  WrapAsync(async (req, res) => {
-    const { studentId, filter } = req.params;
-    req.session.studentId = studentId;
-
-    let dateQuery = {};
-    const now = new Date();
-
-    // ===== TODAY (UTC SAFE) =====
-    if (filter === "today") {
-      const start = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate(),
-          0,
-          0,
-          0,
-          0,
-        ),
-      );
-
-      const end = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate(),
-          23,
-          59,
-          59,
-          999,
-        ),
-      );
-
-      dateQuery = { $gte: start, $lte: end };
-    }
-
-    // ===== WEEKLY (Sun–Sat, UTC SAFE) =====
-    if (filter === "weekly") {
-      const day = now.getUTCDay(); // 0=Sun
-      const startOfWeek = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate() - day,
-          0,
-          0,
-          0,
-          0,
-        ),
-      );
-
-      const endOfWeek = new Date(
-        Date.UTC(
-          startOfWeek.getUTCFullYear(),
-          startOfWeek.getUTCMonth(),
-          startOfWeek.getUTCDate() + 6,
-          23,
-          59,
-          59,
-          999,
-        ),
-      );
-
-      dateQuery = { $gte: startOfWeek, $lte: endOfWeek };
-    }
-
-    // ===== MONTHLY (1st → last day, UTC SAFE) =====
-    if (filter === "monthly") {
-      const startOfMonth = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0),
-      );
-
-      const endOfMonth = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth() + 1,
-          0,
-          23,
-          59,
-          59,
-          999,
-        ),
-      );
-
-      dateQuery = { $gte: startOfMonth, $lte: endOfMonth };
-    }
-
-    const attendance = await Attendance.find({
-      studentId,
-      ...(filter !== "all" && { date: dateQuery }),
-    }).sort({ date: 1, period: 1 });
-
-    res.json({
-      success: true,
-      filter,
-      range: dateQuery,
-      count: attendance.length,
-      data: attendance,
-    });
-  }),
-);
-// ----------------- Date-wise search -----------------
-app.post(
-  "/search/student/attendance/date",
-  verifiedAny,
-  WrapAsync(async (req, res) => {
-    const studentId = req.session.studentId;
-    const { from, to } = req.body.data; // "YYYY-MM-DD"
-
-    let rollNo = req.session.rollNo;
-    if (!rollNo) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance/status/check");
-    }
-
-    if (!from || !to) {
-      req.flash("error", "Please select From & To date");
-      return res.redirect("/student/attendance/status/check");
-    }
-    const fromDate = parseIndianDate(from);
-
-    const toDate = parseIndianDate(to);
-    toDate.setHours(23, 59, 59, 999);
-
-    // ek student ke document ko nikaalo
-    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
-
-    if (!student) {
-      req.flash("error", "Something went wrong");
-      return res.redirect("/student/attendance/status/check");
-    }
-
-    // ---------- FETCH ATTENDANCE ----------
-    const attendanceRecords = await Attendance.find({
-      studentId,
-      date: {
-        $gte: fromDate,
-        $lt: toDate, // IMPORTANT
-      },
-    }).sort({ date: 1, period: 1 });
-
-    if (!attendanceRecords.length) {
-      req.flash("error", "No attendance found in selected range");
-      return res.redirect("/student/attendance/status/check");
-    }
-
-    // ---------- DAY WISE CALCULATION ----------
-    const dayMap = new Map();
-
-    attendanceRecords.forEach((att) => {
-      const key = new Date(att.date).toDateString();
-      if (!dayMap.has(key)) dayMap.set(key, []);
-      dayMap.get(key).push(att.status);
-    });
-
-    let totalDays = dayMap.size;
-    let presentDays = 0;
-    let absentDays = 0;
-
-    dayMap.forEach((statuses) => {
-      if (statuses.includes("Present")) presentDays++;
-      else absentDays++;
-    });
-
-    // ---------- RENDER ----------
-    res.render("students/DateWiseStatus.ejs", {
-      attendanceRecords,
-      total: totalDays,
-      present: presentDays,
-      absent: absentDays,
-      from,
-      to,
-      student,
-    });
-  }),
-);
-
-// logout student route
-app.get("/student/logout", verifiedAny, (req, res) => {
-   req.session.rollNo = null;
-  req.session.otpVerified = false;
-  req.flash("success", "Logout successfuly");
-  res.redirect("/student/attendance/login");
-});
-
-// ////  student folder closed////
-/ Add StudentMarks
+// Add StudentMarks
 
 // 1️⃣ Form Render Route
 app.get(
@@ -5074,6 +4580,503 @@ app.post(
     }
   })
 );
+
+// logout teacher
+
+app.get("/logout", isLoggedIn, (req, res, next) => {
+  req.logout((err) => {
+    if (err) {
+      return next(err);
+    }
+
+    req.flash("success", "You are logged out");
+    res.redirect("/student/attendance/login");
+  });
+});
+
+////////////////////////// teacher folder closed/////////////////////////////////////////////////
+
+//////////////////////////// student folder start//////////////////////////////////////////////
+
+// otp
+
+// app.get("/otp", (req, res) => {
+//   const email = req.session.email;
+//   res.render("listings/otp.ejs",{email});
+// });
+
+// app.post(
+//   "/verify-otp",
+//   WrapAsync(async (req, res) => {
+//     const { otp } = req.body;
+//     let otpRecord = await OTP.findOne({ otp: otp });
+
+//     if (otpRecord) {
+//       req.session.otpVerified = true;
+//       req.flash("success", "Login successfully");
+//       return res.redirect("/student/attendance");
+//     } else {
+//       req.flash("error", "Invalid-OTP!");
+//       return res.redirect("/otp");
+//     }
+//   }),
+// );
+
+// update Password
+
+app.get("/student/update/password",(req, res) => {
+  res.render("users/updatePassword.ejs");
+});
+
+app.post(
+  "/student/update/password",
+  WrapAsync(async (req, res) => {
+
+    const rollNo = req.session.rollNo; // ✅ FIXED
+    const { password } = req.body.data;     // ✅ FIXED
+
+    if (!rollNo) {
+      req.flash("error", "Session expired. Please login again");
+      return res.redirect("/student/attendance/login");
+    }
+
+    // 🔐 PASSWORD LENGTH VALIDATION
+    if (!password || password.length < 6) {
+      req.flash("error", "Password must be at least 6 characters long");
+      return res.redirect("/student/update/password");
+    }
+
+    const student = await Student.findOne({ rollNo: parseInt(rollNo) });
+  
+
+    if (!student) {
+      req.flash("error", "Student not found");
+      return res.redirect("/student/attendance/login");
+    }
+
+    student.password = password;
+    student.check = "update";
+    await student.save();
+    req.session.rollNo = null;
+    req.flash("success", "Update success login again with change password");
+    return res.redirect("/student/attendance/login");
+  })
+);
+
+//  student main page
+
+app.get(
+  "/student/attendance",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    let rollNo = req.session.rollNo;
+
+    if (!rollNo) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance/login");
+    }
+    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
+
+    if (!student) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance/login");
+    }
+    res.render("students/main.ejs", { student });
+  }),
+);
+
+// student profile
+
+app.get(
+  "/profile",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    let rollNo = req.session.rollNo;
+
+    if (!rollNo) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance/login");
+    }
+    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
+
+    if (!student) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance/login");
+    }
+    res.render("students/profile.ejs", { student });
+  }),
+);
+
+// edit profile
+app.get(
+  "/profile/edit/:id",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    let { id } = req.params;
+    let data = await Student.findById(id);
+    res.render("students/editProfile.ejs", { data, id });
+  }),
+);
+
+app.put(
+  "/profile/edit/:id",
+  verifiedAny,
+  upload.single("data[image]"),
+  WrapAsync(async (req, res) => {
+    let { id } = req.params;
+    let student = await Student.findByIdAndUpdate(id, { ...req.body.data });
+    if (typeof req.file !== "undefined") {
+      let url = req.file.path;
+      let filename = req.file.filename;
+      student.image = { url, filename };
+    }
+    await student.save();
+    req.flash("success", "Profile Update successfully");
+    res.redirect(`/profile`);
+  }),
+);
+
+// subject check
+
+app.get(
+  "/student/attendance/subject/check",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    let rollNo = req.session.rollNo;
+
+    if (!rollNo) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance/login");
+    }
+
+    // ek student ke document ko nikaalo
+    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
+
+    if (!student) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance");
+    }
+    res.render("students/checkSubject.ejs", { student });
+  }),
+);
+
+// Add feed
+
+app.get(
+  "/student/add/feed",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    let rollNo = req.session.rollNo;
+
+    if (!rollNo) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance/login");
+    }
+
+    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
+
+    if (!student) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance");
+    }
+    res.render("students/feedPage.ejs", { student });
+  }),
+);
+
+app.post(
+  "/student/add/feed/:studentId",
+  verifiedAny,
+  validateFeed,
+  WrapAsync(async (req, res) => {
+    const { content } = req.body.data || {};
+    if (!content || content.trim() === "") {
+      req.flash("error", "Feed cannot be empty");
+      return res.redirect("/student/add/feed");
+    }
+
+    const studentId = req.params.studentId;
+
+    // Optional: verify if student exists
+    const student = await Student.findById(studentId);
+    if (!student) {
+      req.flash("error", "Student not found");
+      return res.redirect("/student/add/feed");
+    }
+
+    const newFeed = new Feed({
+      content: content.trim(),
+      studentId: student._id, // Correct reference
+    });
+
+    await newFeed.save();
+
+    req.flash("success", "Feed added successfully");
+    res.redirect("/student/add/feed");
+  }),
+);
+
+// show feed
+
+app.get(
+  "/student/show/feed",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    const rollNo = req.session.rollNo;
+    if (!rollNo) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance/login");
+    }
+
+    const student = await Student.findOne({ rollNo: parseInt(rollNo) });
+    if (!student) {
+      req.flash("error", "Student not found");
+      return res.redirect("/student/attendance");
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = 10;
+
+    const totalFeeds = await Feed.countDocuments({ studentId: student._id });
+
+    const feeds = await Feed.find({ studentId: student._id })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    const totalPages = Math.ceil(totalFeeds / limit);
+
+    res.render("students/showFeed.ejs", { feeds, page, totalPages });
+  }),
+);
+
+// delete feed
+
+app.delete(
+  "/student/feed/delete/:id",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    const { id } = req.params;
+    await Feed.findByIdAndDelete(id);
+    req.flash("success", "Delete successfully");
+    res.redirect("/student/show/feed");
+  }),
+);
+
+// show status//
+
+app.get(
+  "/student/attendance/status/check",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    let rollNo = req.session.rollNo;
+    if (!rollNo) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance/login");
+    }
+
+    // ek student ke document ko nikaalo
+    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
+
+    if (!student) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance");
+    }
+    res.render("students/showStatus.ejs", { student });
+  }),
+);
+
+//////  filter attendance
+
+app.get(
+  "/student/attendance/:studentId/:filter",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    const { studentId, filter } = req.params;
+    req.session.studentId = studentId;
+
+    let dateQuery = {};
+    const now = new Date();
+
+    // ===== TODAY (UTC SAFE) =====
+    if (filter === "today") {
+      const start = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate(),
+          0,
+          0,
+          0,
+          0,
+        ),
+      );
+
+      const end = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate(),
+          23,
+          59,
+          59,
+          999,
+        ),
+      );
+
+      dateQuery = { $gte: start, $lte: end };
+    }
+
+    // ===== WEEKLY (Sun–Sat, UTC SAFE) =====
+    if (filter === "weekly") {
+      const day = now.getUTCDay(); // 0=Sun
+      const startOfWeek = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() - day,
+          0,
+          0,
+          0,
+          0,
+        ),
+      );
+
+      const endOfWeek = new Date(
+        Date.UTC(
+          startOfWeek.getUTCFullYear(),
+          startOfWeek.getUTCMonth(),
+          startOfWeek.getUTCDate() + 6,
+          23,
+          59,
+          59,
+          999,
+        ),
+      );
+
+      dateQuery = { $gte: startOfWeek, $lte: endOfWeek };
+    }
+
+    // ===== MONTHLY (1st → last day, UTC SAFE) =====
+    if (filter === "monthly") {
+      const startOfMonth = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0),
+      );
+
+      const endOfMonth = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
+        ),
+      );
+
+      dateQuery = { $gte: startOfMonth, $lte: endOfMonth };
+    }
+
+    const attendance = await Attendance.find({
+      studentId,
+      ...(filter !== "all" && { date: dateQuery }),
+    }).sort({ date: 1, period: 1 });
+
+    res.json({
+      success: true,
+      filter,
+      range: dateQuery,
+      count: attendance.length,
+      data: attendance,
+    });
+  }),
+);
+// ----------------- Date-wise search -----------------
+app.post(
+  "/search/student/attendance/date",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    const studentId = req.session.studentId;
+    const { from, to } = req.body.data; // "YYYY-MM-DD"
+
+    let rollNo = req.session.rollNo;
+    if (!rollNo) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance/status/check");
+    }
+
+    if (!from || !to) {
+      req.flash("error", "Please select From & To date");
+      return res.redirect("/student/attendance/status/check");
+    }
+    const fromDate = parseIndianDate(from);
+
+    const toDate = parseIndianDate(to);
+    toDate.setHours(23, 59, 59, 999);
+
+    // ek student ke document ko nikaalo
+    let student = await Student.findOne({ rollNo: parseInt(rollNo) });
+
+    if (!student) {
+      req.flash("error", "Something went wrong");
+      return res.redirect("/student/attendance/status/check");
+    }
+
+    // ---------- FETCH ATTENDANCE ----------
+    const attendanceRecords = await Attendance.find({
+      studentId,
+      date: {
+        $gte: fromDate,
+        $lt: toDate, // IMPORTANT
+      },
+    }).sort({ date: 1, period: 1 });
+
+    if (!attendanceRecords.length) {
+      req.flash("error", "No attendance found in selected range");
+      return res.redirect("/student/attendance/status/check");
+    }
+
+    // ---------- DAY WISE CALCULATION ----------
+    const dayMap = new Map();
+
+    attendanceRecords.forEach((att) => {
+      const key = new Date(att.date).toDateString();
+      if (!dayMap.has(key)) dayMap.set(key, []);
+      dayMap.get(key).push(att.status);
+    });
+
+    let totalDays = dayMap.size;
+    let presentDays = 0;
+    let absentDays = 0;
+
+    dayMap.forEach((statuses) => {
+      if (statuses.includes("Present")) presentDays++;
+      else absentDays++;
+    });
+
+    // ---------- RENDER ----------
+    res.render("students/DateWiseStatus.ejs", {
+      attendanceRecords,
+      total: totalDays,
+      present: presentDays,
+      absent: absentDays,
+      from,
+      to,
+      student,
+    });
+  }),
+);
+
+// logout student route
+app.get("/student/logout", verifiedAny, (req, res) => {
+   req.session.rollNo = null;
+  req.session.otpVerified = false;
+  req.flash("success", "Logout successfuly");
+  res.redirect("/student/attendance/login");
+});
+
+// ////  student folder closed////
+
 
 
 app.use((req, res, next) => {
