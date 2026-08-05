@@ -1,0 +1,239 @@
+<%- layout("/layouts/boilerplate") -%>
+
+<style>
+  .badge-semester {
+    background: linear-gradient(135deg, #00d2ff 0%, #0066eb 100%);
+    color: #ffffff !important;
+    font-weight: 700;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 10px rgba(0, 102, 235, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .badge-section {
+    background: linear-gradient(135deg, #ffdb01 0%, #e1a100 100%);
+    color: #212529 !important;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 5px 10px;
+    box-shadow: 0 0 10px rgba(225, 161, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .clean-subject-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 0;
+  }
+
+  .clean-subject-text {
+    color: #e11d48;
+    font-weight: 600;
+    font-size: 0.88rem;
+    letter-spacing: 0.8px;
+    padding: 2px 0;
+  }
+
+  .table-main-header {
+    background-color: #2c3e50;
+    color: #ffffff;
+    font-family: monospace;
+    font-size: 1.05rem;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-nav {
+    background-color: #334155;
+    color: #ffffff;
+    border-radius: 50px;
+    font-weight: 500;
+    padding: 0.4rem 1.2rem;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+
+  .btn-nav:hover {
+    background-color: #1e293b;
+    color: white;
+  }
+</style>
+
+<div class="container my-4">
+  <div class="text-center mb-4">
+    <h3 class="fw-bold text-dark">📋  View Temporary Faculty Assignment Portal</h3>
+    <p class="text-muted small">Manage and view temporary subject allocations</p>
+  </div>
+
+  
+
+
+    <div class="d-flex gap-2 flex-wrap mt-4">
+      <a href="/add/teacherData" class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 btn-premium-action" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: none;">
+        <i class="fa-solid fa-plus" style="font-size: 12px;"></i> Add Teacher
+      </a>
+       <a href="/show/teacher" class="btn btn-dark  border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Teacher
+      </a>
+
+      <a href="/assign/teacher/subject/class" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-link" style="font-size: 12px;"></i> Manage Timetable & Assign  
+      </a>
+      
+      <a href="/timetable/dashboard" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+          <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Time Table
+      </a>
+
+      <a href="/admin/show-all-teachers-assignments" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Teachers Subject
+      </a>
+      <a href="/temporary/assign/teacher/subject/class" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-link" style="font-size: 12px;"></i> Add Temp Assign  
+      </a>
+
+    </div> 
+
+
+  <!-- Search Input -->
+  <div class="input-group mb-4 shadow-sm rounded-3 overflow-hidden border mt-3" style="max-width: 500px;">
+    <span class="input-group-text bg-light border-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+    <input type="text" id="portalTableSearch" class="form-control border-0 bg-light py-2.5 small shadow-none" placeholder="Search by teacher, username, class or subject...">
+    <button class="btn btn-outline-secondary border-0 bg-light text-muted small px-3" type="button" id="clearSearchBtn" style="display: none;">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+
+  <div class="card shadow border-0 rounded-4 overflow-hidden">
+    <div class="p-3 table-main-header text-center fw-bold">
+      📋 Temporary Subject Assignments
+    </div>
+
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 text-center" id="assignmentTable">
+          <thead class="table-light text-secondary small fw-bold">
+            <tr>
+              <th class="py-3">Teacher Name</th>
+              <th class="py-3">Class Name</th>
+              <th class="py-3">Semester</th>
+              <th class="py-3">Section</th>
+              <th class="py-3">Temporary Subjects</th>
+              <th class="py-3">Action</th>
+            </tr>
+          </thead>
+
+          <tbody class="small">
+            <% if(!tableRows || tableRows.length === 0) { %>
+              <tr id="noDataRow">
+                <td colspan="6" class="py-5 text-muted fw-semibold">
+                  No temporary allocations found in the database.
+                </td>
+              </tr>
+            <% } else { %>
+              <% for(let row of tableRows) { %>
+                <tr class="assignment-row" 
+                    data-name="<%= String(row.teacherName).toLowerCase() %>" 
+                    data-username="<%= String(row.username).toLowerCase() %>"
+                    data-class="<%= String(row.className).toLowerCase() %>"
+                    data-subjects="<%= row.subjects.map(s => String(s)).join(',').toLowerCase() %>">
+                  
+                  <td class="py-3">
+                    <div class="fw-bold text-dark"><%= row.teacherName %></div>
+                    <small class="text-muted font-monospace d-block mt-0.5"><%= row.username %></small>
+                  </td>
+                  
+                  <td class="fw-bold text-secondary text-uppercase"><%= row.className %></td>
+                  
+                  <td>
+                    <span class="badge-semester"><%= row.semester %></span>
+                  </td>
+                  
+                  <td>
+                    <span class="badge-section"><%= row.section %></span>
+                  </td>
+                  
+                  <td>
+                    <div class="clean-subject-wrapper">
+                      <% row.subjects.forEach(sub => { %>
+                        <div class="clean-subject-text text-uppercase">
+                          <%= sub %> <span class="badge bg-danger ms-1" style="font-size: 0.65rem;">TEMP</span>
+                        </div>
+                      <% }) %>
+                    </div>
+                  </td>
+                  
+                  <td>
+                    <form action="/delete/temporary/teacher/<%= row.teacherId %>/class/<%= row.classId %>/semester/<%= row.semesterId %>/section/<%= row.sectionId %>?_method=DELETE" method="POST" onsubmit="return confirm('Are you sure you want to delete ONLY the temporary assigned subjects? Normal subjects will remain untouched.');">
+                      <button type="submit" class="btn btn-outline-danger btn-sm rounded-3 px-3 py-1.5 fw-semibold shadow-sm">
+                        Delete Temp Assignment
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              <% } %>
+              
+              <tr id="noResultsRow" style="display: none;">
+                <td colspan="6" class="py-5 text-muted fw-semibold">
+                  <i class="fa-solid fa-user-slash me-1"></i> No matching faculty assignments found.
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const portalTableSearch = document.getElementById("portalTableSearch");
+  const clearSearchBtn = document.getElementById("clearSearchBtn");
+  const assignmentRows = document.querySelectorAll(".assignment-row");
+  const noResultsRow = document.getElementById("noResultsRow");
+
+  if (portalTableSearch) {
+    portalTableSearch.addEventListener("input", function() {
+      const query = this.value.toLowerCase().trim();
+      let dynamicMatchCount = 0;
+
+      clearSearchBtn.style.display = (query.length > 0) ? "block" : "none";
+
+      assignmentRows.forEach(row => {
+        const nameAttr = row.getAttribute("data-name") || "";
+        const usernameAttr = row.getAttribute("data-username") || "";
+        const classAttr = row.getAttribute("data-class") || "";
+        const subjectsAttr = row.getAttribute("data-subjects") || "";
+
+        if (
+          nameAttr.includes(query) || 
+          usernameAttr.includes(query) || 
+          classAttr.includes(query) || 
+          subjectsAttr.includes(query)
+        ) {
+          row.style.display = "";
+          dynamicMatchCount++;
+        } else {
+          row.style.display = "none";
+        }
+      });
+
+      if (noResultsRow) {
+        noResultsRow.style.display = (dynamicMatchCount === 0 && assignmentRows.length > 0) ? "" : "none";
+      }
+    });
+
+    clearSearchBtn.addEventListener("click", function() {
+      portalTableSearch.value = "";
+      this.style.display = "none";
+      if (noResultsRow) noResultsRow.style.display = "none";
+      assignmentRows.forEach(row => row.style.display = "");
+    });
+  }
+</script>

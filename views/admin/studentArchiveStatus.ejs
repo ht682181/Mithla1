@@ -1,0 +1,397 @@
+<%- layout("/layouts/boilerplate") -%>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+  body {
+    background: #f4f6f9;
+    color: #334155;
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  /* 🎨 Vibrant Color Palette Cards */
+  .premium-card {
+    background: #ffffff;
+    border: none !important;
+    border-radius: 20px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .gradient-header-card {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    color: white;
+    border-radius: 20px !important;
+    padding: 24px;
+    box-shadow: 0 10px 25px rgba(59, 130, 246, 0.25);
+  }
+
+  .premium-control {
+    border: 2px solid #cbd5e1 !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+  }
+
+  .premium-control:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15) !important;
+  }
+
+  /* Warning State Border for inputs */
+  .control-warning {
+    border-color: #ef4444 !important;
+    background-color: #fef2f2 !important;
+    animation: shake 0.4s ease-in-out;
+  }
+
+  .btn-filter-gradient {
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 12px !important;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
+    transition: all 0.3s ease;
+  }
+
+  .btn-filter-gradient:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+  }
+
+  /* 📊 Colorful Stat Widgets */
+  .widget-gradient-blue { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-left: 6px solid #2563eb; }
+  .widget-gradient-green { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-left: 6px solid #10b981; }
+  .widget-gradient-red { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-left: 6px solid #ef4444; }
+  .widget-gradient-purple { background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-left: 6px solid #8b5cf6; }
+
+  .stat-widget {
+    border-radius: 18px;
+    padding: 24px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+    transition: transform 0.3s;
+  }
+  .stat-widget:hover { transform: translateY(-4px); }
+
+  .table-header-dark {
+    background: #1e293b !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+  }
+
+  .premium-table th {
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 16px !important;
+    background: #f8fafc !important;
+  }
+
+  .badge-present { background: #d1fae5 !important; color: #065f46 !important; border: 1px solid #a7f3d0; font-weight: 700; }
+  .badge-absent { background: #fee2e2 !important; color: #991b1b !important; border: 1px solid #fca5a5; font-weight: 700; }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+</style>
+
+<div class="container my-5">
+
+  <div class="gradient-header-card d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-4">
+    <div>
+      <h2 class="fw-bold m-0"><i class="fa-solid fa-graduation-cap me-2"></i> Archival Attendance Audit</h2>
+      <p class="mb-0 opacity-90 mt-2 fs-5">
+        Student Profile: <span class="fw-bold text-warning"><%= student.name %></span> | Admin No: <span class="badge bg-white text-dark fs-6 px-3 py-1 fw-bold shadow-sm"><%= student.rollNo %></span>
+      </p>
+    </div>
+    <a href="/show/archive/student/record" class="btn btn-light btn-premium-action shadow fw-bold text-primary">
+      <i class="fa-solid fa-arrow-left-long me-2"></i> Back to Registry
+    </a>
+  </div>
+
+  <div class="card p-4 premium-card mb-4">
+    <div class="row text-center text-md-start g-3">
+      <div class="col-md-3">
+        <div class="p-2 rounded bg-light"><i class="fa-solid fa-book text-primary me-2"></i><strong>Core Course:</strong> <span class="text-secondary d-block mt-1 fw-semibold"><%= student.class %></span></div>
+      </div>
+      <div class="col-md-3">
+        <div class="p-2 rounded bg-light"><i class="fa-solid fa-calendar-days text-success me-2"></i><strong>Batch Session:</strong> <span class="text-secondary d-block mt-1 fw-semibold"><%= student.session %></span></div>
+      </div>
+      <div class="col-md-3">
+        <div class="p-2 rounded bg-light"><i class="fa-solid fa-user-shield text-info me-2"></i><strong>Father's Name:</strong> <span class="text-secondary d-block mt-1 fw-semibold"><%= student.fatherName %></span></div>
+      </div>
+      <div class="col-md-3">
+        <div class="p-2 rounded bg-light"><i class="fa-solid fa-box-archive text-danger me-2"></i><strong>Current Status:</strong> <span class="badge bg-danger text-white d-block mt-1 py-2 rounded-pill">ARCHIVED</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card p-4 premium-card mb-4 border-top border-primary border-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold text-dark m-0"><i class="fa-solid fa-sliders text-primary me-2"></i>Smart Filter Panel</h5>
+      <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" onclick="clearFiltersAndReload()">
+        <i class="fa-solid fa-rotate-left me-1"></i> Reset View
+      </button>
+    </div>
+    
+    <div id="searchBoxAlert" class="alert alert-danger d-none align-items-center mb-3 border-0 rounded-3 shadow-sm py-2" style="background: linear-gradient(90deg, #fee2e2 0%, #fca5a5 100%);">
+      <i class="fa-solid fa-triangle-exclamation fs-5 text-danger me-2 animate__animated animate__flash animate__infinite"></i>
+      <div>
+        <strong class="text-dark">Query Action Skipped!</strong> <span class="text-danger small fw-semibold">Please choose either a valid Date Range or an Academic Year to run a specialized filter.</span>
+      </div>
+    </div>
+
+    <form id="archiveFilterForm" class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small fw-bold text-muted">Start Date</label>
+        <input type="date" id="logStartDate" class="form-control premium-control" onchange="clearWarningState()">
+      </div>
+      
+      <div class="col-md-3">
+        <label class="form-label small fw-bold text-muted">End Date</label>
+        <input type="date" id="logEndDate" class="form-control premium-control" onchange="clearWarningState()">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label small fw-bold text-muted">Academic Year Filter</label>
+        <select id="academicYearSelect" class="form-select premium-control" onchange="clearWarningState()">
+          <option value="">-- View All Years Combined Logs (Default) --</option>
+          <option value="1">1st Year Logs (Freshman)</option>
+          <option value="2">2nd Year Logs (Sophomore)</option>
+          <option value="3">3rd Year Logs (Graduate)</option>
+          <option value="4">4th Year Logs (Advanced)</option>
+        </select>
+      </div>
+
+      <div class="col-md-2 d-grid">
+        <button type="button" onclick="triggerArchiveSearch(true)" class="btn btn-filter-gradient btn-premium-action py-3">
+          <i class="fa-solid fa-filter me-2"></i>Filter
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <h4 class="fw-bold text-dark mb-3"><i class="fa-solid fa-chart-pie text-warning me-2"></i>Academic Day Metrics</h4>
+  <div class="row g-4 mb-4 text-center">
+    <div class="col-md-3">
+      <div class="stat-widget widget-gradient-blue">
+        <span class="text-muted small uppercase fw-bold d-block mb-1">Total Academic Days</span>
+        <h2 class="fw-bold text-primary m-0" id="daysTotal">0</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-widget widget-gradient-green">
+        <span class="text-success small uppercase fw-bold d-block mb-1">Present Days</span>
+        <h2 class="fw-bold text-success m-0" id="daysPresent">0</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-widget widget-gradient-red">
+        <span class="text-danger small uppercase fw-bold d-block mb-1">Absent Days</span>
+        <h2 class="fw-bold text-danger m-0" id="daysAbsent">0</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stat-widget widget-gradient-purple" id="percentageCard">
+        <span class="text-purple small uppercase fw-bold d-block mb-1">Attendance Score</span>
+        <h2 class="fw-bold text-purple m-0" id="daysPercentage">0.00%</h2>
+      </div>
+    </div>
+  </div>
+
+  <div class="card premium-card overflow-hidden shadow-sm">
+    <div class="table-header-dark d-flex flex-column flex-md-row justify-content-between align-items-md-center p-3 gap-2">
+      <h5 class="mb-0 fw-bold"><i class="fa-solid fa-clipboard-list me-2"></i>Archived Attendance Ledger Sheets</h5>
+      <span class="badge bg-light text-dark px-3 py-2 fw-semibold rounded shadow-sm fs-7">
+        <i class="fa-solid fa-clock-rotate-left text-primary me-1"></i> 
+        Micro Slots Logs: <span id="slotsPresent" class="text-success fw-bold">0</span> Present / <span id="slotsTotal" class="text-secondary fw-bold">0</span> Total Periods
+      </span>
+    </div>
+    
+    <div class="table-responsive">
+      <table class="table table-hover premium-table align-middle text-center mb-0">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Subject Name</th>
+            <th>Description / Topic</th>
+             <th>Unit</th>
+            <th>Class Status</th>
+            <th>Period Slot</th>
+            <th>Verified By</th>
+            <th>Status Badge</th>
+          </tr>
+        </thead>
+        <tbody id="attendanceTableBody">
+          <tr>
+            <td colspan="7" class="py-5 text-center text-muted">
+              <div class="spinner-border text-primary spinner-border-sm me-2"></div>Initialising full system sync pipeline...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ⚡ Page Load hote hi saara data automatically display karega!
+  document.addEventListener("DOMContentLoaded", () => {
+    triggerArchiveSearch(false); 
+  });
+
+  function clearWarningState() {
+    document.getElementById('searchBoxAlert').classList.add('d-none');
+    document.getElementById('logStartDate').classList.remove('control-warning');
+    document.getElementById('logEndDate').classList.remove('control-warning');
+    document.getElementById('academicYearSelect').classList.remove('control-warning');
+  }
+
+  function clearFiltersAndReload() {
+    document.getElementById('archiveFilterForm').reset();
+    clearWarningState();
+    triggerArchiveSearch(false);
+  }
+
+  // Main fetch function with explicit submit tracking
+  function triggerArchiveSearch(isManualClick) {
+    const startDate = document.getElementById('logStartDate').value;
+    const endDate = document.getElementById('logEndDate').value;
+    const year = document.getElementById('academicYearSelect').value;
+    const tableBody = document.getElementById('attendanceTableBody');
+    const alertBox = document.getElementById('searchBoxAlert');
+
+    const isDateRangeSelected = (startDate && endDate);
+    const isYearSelected = (year !== "");
+
+    // 🛡️ Guard logic if user forces click on filter button without filling any data
+    if (isManualClick && !isDateRangeSelected && !isYearSelected) {
+      alertBox.classList.remove('d-none');
+      document.getElementById('logStartDate').classList.add('control-warning');
+      document.getElementById('logEndDate').classList.add('control-warning');
+      document.getElementById('academicYearSelect').classList.add('control-warning');
+      return;
+    }
+
+    clearWarningState();
+
+    const originalStudentId = "<%= student.originalStudentId %>"; 
+    
+    // Constructing API URLs dynamic parameters string
+    let url = `/archive/attendance/${originalStudentId}/filter?year=${year}`;
+    if (startDate && endDate) {
+      url += `&startDate=${startDate}&endDate=${endDate}`;
+    }
+
+    tableBody.innerHTML = `<tr><td colspan="7" class="py-5 text-muted"><div class="spinner-border text-primary spinner-border-sm me-2"></div>Querying database ledger array...</td></tr>`;
+
+    fetch(url)
+      .then(response => response.json())
+      .then(res => {
+        if (res.success) {
+          
+          // 🧠 DYNAMIC CALCULATOR: 6 PERIODS SYSTEM CONVERTER
+          const dayMap = {};
+          let totalPeriodsCount = res.data.length;
+          let presentPeriodsCount = 0;
+
+          res.data.forEach(log => {
+            const dateKey = new Date(log.date).toISOString().split('T')[0];
+            const currentStatus = log.status?.toLowerCase().trim();
+
+            if (currentStatus === 'present') {
+              presentPeriodsCount++;
+            }
+
+            if (!dayMap[dateKey]) {
+              dayMap[dateKey] = { present: false, logsCount: 0 };
+            }
+            
+            dayMap[dateKey].logsCount++;
+            if (currentStatus === 'present') {
+              dayMap[dateKey].present = true; // Present in at least 1 period means Day is Present
+            }
+          });
+
+          let totalDays = Object.keys(dayMap).length;
+          let presentDays = 0;
+          Object.values(dayMap).forEach(day => {
+            if (day.present) presentDays++;
+          });
+          let absentDays = totalDays - presentDays;
+          let finalDaysPercentage = totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(2) : "0.00";
+
+          // Update Displays (Adapts dynamically to either All data or Filtered data)
+          document.getElementById('daysTotal').innerText = totalDays;
+          document.getElementById('daysPresent').innerText = presentDays;
+          document.getElementById('daysAbsent').innerText = absentDays;
+          document.getElementById('daysPercentage').innerText = `${finalDaysPercentage}%`;
+          document.getElementById('slotsTotal').innerText = totalPeriodsCount;
+          document.getElementById('slotsPresent').innerText = presentPeriodsCount;
+
+          // Color widget updates
+          const percentCard = document.getElementById('percentageCard');
+          const scoreNum = parseFloat(finalDaysPercentage);
+          if (scoreNum >= 75) {
+            percentCard.style.background = "linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)";
+            percentCard.style.borderLeft = "6px solid #10b981";
+          } else if (scoreNum > 0) {
+            percentCard.style.background = "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)";
+            percentCard.style.borderLeft = "6px solid #ef4444";
+          } else {
+            percentCard.style.background = "linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)";
+            percentCard.style.borderLeft = "6px solid #8b5cf6";
+          }
+
+          // Loop & Render HTML Table Elements
+          if (res.data && res.data.length > 0) {
+            let rowHtml = '';
+            res.data.forEach(log => {
+              const formattedDate = new Date(log.date).toLocaleDateString('en-IN', {
+                day: '2-digit', month: '2-digit', year: 'numeric'
+              });
+
+              const badgeClass = log.status?.toLowerCase() === 'present' ? 'badge-present' : 'badge-absent';
+
+              rowHtml += `
+                <tr>
+                  <td class="fw-bold text-dark">${formattedDate}</td>
+                  <td><span class="text-uppercase small fw-semibold text-muted">${log.subject || 'N/A'}</span></td>
+                  <td class="text-uppercase small fw-semibold text-muted">${log.description || 'N/A'}</td>
+                     <td class="text-uppercase small fw-semibold text-muted">${log.unit|| 'N/A'}</td>
+                  <td><span class="badge bg-secondary-subtle text-secondary border px-2.5 py-1 fw-bold rounded-pill">${log.class || 'N/A'}</span></td>
+                  <td><span class="badge bg-success text-white font-monospace px-2.5">${log.period || '1'}</span></td>
+                  <td class="text-secondary small fw-semibold"><i class="fa-solid fa-user-check text-muted me-1"></i>${log.teacherName || 'System'}</td>
+                  <td><span class="badge ${badgeClass} px-3 py-1.5 rounded-pill fs-7">${log.status.toUpperCase()}</span></td>
+                </tr>
+              `;
+            });
+            tableBody.innerHTML = rowHtml;
+          } else {
+            tableBody.innerHTML = `
+              <tr>
+                <td colspan="7" class="text-center py-5 text-muted">
+                  <i class="fa-solid fa-folder-open fs-1 d-block mb-3 text-warning opacity-50"></i>
+                  No historical entries match this query selection inside dataset logs.
+                </td>
+              </tr>`;
+          }
+        } else {
+          alert("Database Error: " + res.message);
+        }
+      })
+      .catch(err => {
+        console.error("AJAX Error:", err);
+        tableBody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-danger"><i class="fa-solid fa-circle-exclamation d-block mb-2 fs-3"></i>Data Sync Interrupted.</td></tr>`;
+      });
+  }
+</script>

@@ -1,0 +1,2814 @@
+<!-- database    -->
+const mongoose = require('mongoose');
+
+// ==========================================
+// 1. FEE LEDGER SCHEMA (Single Student Lifetime Ledger)
+// ==========================================
+const feeLedgerSchema = new mongoose.Schema({
+  student_id: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Student', 
+    required: true, 
+    unique: true 
+  },
+  rollNumber: { type: String, required: true, unique: true, index: true },
+  studentName: { type: String, required: true },
+  fatherName: { type: String, default: '' },
+  
+  // ⚡ Session / Batch Track (e.g. "2026-2029")
+  session: { type: String, required: true, trim: true, index: true },
+
+  currentCourse: { 
+    type: String, 
+    required: true, 
+    uppercase: true, 
+    trim: true 
+  },
+  
+  classesHistory: [
+    {
+      className: { type: String, required: true }, 
+      section: { type: String, required: true, uppercase: true },
+      academicYear: { type: Number, required: true } 
+    }
+  ],
+
+  status: { 
+    type: String, 
+    enum: ['Active', 'Left College'], 
+    default: 'Active' 
+  },
+
+  semesters: [
+    {
+      semNumber: { type: Number, required: true, min: 1, max: 8 },
+      due_amount: { type: Number, default: 0, min: 0 },
+      amount_paid: { type: Number, default: 0, min: 0 },
+     penalty_amount: { type: Number, default: 0, min: 0 },
+      balance_pending: { type: Number, default: 0 }
+    }
+  ],
+
+  // Advance / Excess Funds Management
+  advance_balance: { type: Number, default: 0, min: 0 },
+
+  // Overall Financial Lifetime Trackers
+  total_course_fees: { type: Number, default: 0, min: 0 },
+  total_amount_paid: { type: Number, default: 0, min: 0 },
+  overall_pending_balance: { type: Number, default: 0 }
+}, { timestamps: true });
+
+// Compound Indexes for Super-Fast Lookup Queries
+feeLedgerSchema.index({ "classesHistory.className": 1, "classesHistory.section": 1, "classesHistory.academicYear": 1 });
+feeLedgerSchema.index({ session: 1, currentCourse: 1 });
+feeLedgerSchema.index({ student_id: 1, status: 1 });
+
+
+// ==========================================
+// 2. FEE TRANSACTION SCHEMA (Passbook Logs)
+// ==========================================
+const feeTransactionSchema = new mongoose.Schema({
+  receiptNumber: { type: String, required: true, unique: true, index: true }, 
+  student_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true, index: true },
+  rollNumber: { type: String, required: true },
+  studentName: { type: String, required: true },
+  fatherName: { type: String, default: 'N/A' },
+  semNumber: { type: Number, required: true, min: 1, max: 8 }, 
+  academicYear: { type: Number, required: true },
+  amountPaid: { type: Number, required: true, min: 0 }, 
+  isAdvanceLog: { type: Boolean, default: false }, 
+  paymentMode: { 
+    type: String, 
+    enum: ['Cash', 'UPI', 'Net Banking', 'Cheque', 'Wallet Adjust', 'Online'], 
+    required: true 
+  },
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  paymentDate: { type: Date, default: Date.now } 
+}, { timestamps: true });
+
+feeTransactionSchema.index({ student_id: 1, academicYear: 1 });
+feeTransactionSchema.index({ createdAt: -1 });
+
+const FeeLedger = mongoose.model('FeeLedger', feeLedgerSchema);
+const FeeTransaction = mongoose.model('FeeTransaction', feeTransactionSchema);
+
+module.exports = { FeeLedger, FeeTransaction };           
+
+
+
+
+
+
+<!-- fees   structure save karne wala route   -->
+
+
+
+app.post("/fees/save-bulk-ledger", verifiedAny, validateFeeData, WrapAsync(async (req, res) => {
+  const { fees, semA, semB, className, section } = req.body;
+  const sA = parseInt(semA);
+  const sB = parseInt(semB);
+
+  // 1. Initial Validation Check
+  if (!className || !section || isNaN(sA) || isNaN(sB) || !fees || !Array.isArray(fees) || fees.length === 0) {
+    req.flash("error", "⚠️ Security Error: Crucial input parameters are missing or invalid!");
+    return res.redirect("/add/student/fees");
+  }
+
+  const cleanClass = className.trim();
+  const cleanSection = section.trim();
+  const currentCourseType = cleanClass.split(" ")[0].toUpperCase();
+
+  // MongoDB Transaction Session
+  const dbSession = await mongoose.startSession();
+  dbSession.startTransaction();
+
+  try {
+    // 2. Safe Mongoose ObjectId Conversion & Student Session Lookup
+    const uniqueSubmittedIds = new Set(fees.map(f => f.student_id?.toString()).filter(Boolean));
+    const studentObjectIds = Array.from(uniqueSubmittedIds).map(id => new mongoose.Types.ObjectId(id));
+
+    // Fetch Session Info from Student Model
+    const rawStudentList = await Student.find({ _id: { $in: studentObjectIds } })
+      .select("_id session")
+      .lean();
+    
+    const studentSessionMap = new Map(rawStudentList.map(s => [s._id.toString(), s.session]));
+
+    // ⚡ 3. DYNAMIC ACADEMIC YEAR CALCULATION
+    const sampleRecord = fees.find(f => f.status !== "Left College") || fees[0];
+    const sampleSession = sampleRecord?.session || studentSessionMap.get(sampleRecord?.student_id?.toString()) || "NA";
+    
+    const startYear = parseInt(sampleSession.split("-")[0]) || new Date().getFullYear();
+    const calculatedYearNum = startYear + Math.floor((sA - 1) / 2);
+
+    // 4. GLOBAL DUPLICATE BATCH CHECK
+    const globalBatchExists = await FeeLedger.findOne({
+      "classesHistory": {
+        $elemMatch: {
+          className: cleanClass,
+          section: cleanSection,
+          academicYear: calculatedYearNum
+        }
+      }
+    }).session(dbSession);
+
+    if (globalBatchExists) {
+      await dbSession.abortTransaction();
+      dbSession.endSession();
+      req.flash(
+        "error", 
+        `🚨 DUPLICATE BATCH BLOCKED: Data for "${cleanClass} - Sec ${cleanSection}" for Year (${calculatedYearNum}) ALREADY EXISTS in database!`
+      );
+      return res.redirect(`/add/student/fees?className=${encodeURIComponent(className)}&semester=${sA}&section=${encodeURIComponent(section)}`);
+    }
+
+    // Fetch existing ledgers for submitted students
+    const existingLedgers = await FeeLedger.find({ 
+      student_id: { $in: studentObjectIds } 
+    }).session(dbSession);
+
+    // 5. INDIVIDUAL STUDENT SEMESTER DUPLICATE CHECK
+    for (let ledger of existingLedgers) {
+      const semDuplicate = (ledger.semesters || []).some(
+        s => s.semNumber === sA || s.semNumber === sB
+      );
+
+      if (semDuplicate) {
+        await dbSession.abortTransaction();
+        dbSession.endSession();
+        req.flash(
+          "error", 
+          `⚠️ Semester Conflict: Semester (${sA} or ${sB}) already exists for student!`
+        );
+        return res.redirect(`/add/student/fees?className=${encodeURIComponent(className)}&semester=${sA}&section=${encodeURIComponent(section)}`);
+      }
+    }
+
+    const ledgerMap = new Map(existingLedgers.map(l => [l.student_id.toString(), l]));
+    const bulkOperations = [];
+
+    // 6. BUILD BULK WRITE OPERATIONS
+    for (let record of fees) {
+      if (record.status === "Left College") continue;
+
+      if (!record.student_id || !record.rollNumber || !record.studentName || 
+          record.due_amount_A === undefined || record.due_amount_B === undefined) {
+        throw new Error(`Grid data error for Roll No: ${record.rollNumber || 'Unknown'}`);
+      }
+
+      const dueA = round2(Math.max(0, parseFloat(record.due_amount_A) || 0));
+      const dueB = round2(Math.max(0, parseFloat(record.due_amount_B) || 0));
+      let ledger = ledgerMap.get(record.student_id.toString());
+      
+      const studentSession = record.session || studentSessionMap.get(record.student_id.toString()) || sampleSession;
+      const individualStartYear = parseInt(studentSession.split("-")[0]) || startYear;
+      const individualYearNum = individualStartYear + Math.floor((sA - 1) / 2);
+
+      if (!ledger) {
+        // 🆕 NEW STUDENT LEDGER CREATION
+        const initialTotal = round2(dueA + dueB);
+        const newLedgerDoc = {
+          student_id: new mongoose.Types.ObjectId(record.student_id.toString()),
+          rollNumber: record.rollNumber,
+          studentName: record.studentName,
+          fatherName: record.fatherName || 'N/A',
+          session: studentSession,
+          currentCourse: currentCourseType,
+          status: 'Active',
+          classesHistory: [{ className: cleanClass, section: cleanSection, academicYear: individualYearNum }],
+          
+          semesters: [
+            { semNumber: sA, due_amount: dueA, penalty_amount: 0, amount_paid: 0, balance_pending: dueA },
+            { semNumber: sB, due_amount: dueB, penalty_amount: 0, amount_paid: 0, balance_pending: dueB }
+          ],
+          
+          advance_balance: 0,
+          total_course_fees: initialTotal,
+          total_amount_paid: 0,
+          overall_pending_balance: initialTotal
+        };
+
+        bulkOperations.push({
+          insertOne: { document: newLedgerDoc }
+        });
+      } else {
+        // 🔄 EXISTING STUDENT LEDGER UPDATE
+        if (ledger.currentCourse && ledger.currentCourse !== currentCourseType) {
+          throw new Error(`Course mismatch for ${record.studentName}. Expected ${ledger.currentCourse}, got ${currentCourseType}`);
+        }
+
+        let targetSemesters = [...(ledger.semesters || [])];
+
+        // Add new semesters to existing list
+        [ {num: sA, due: dueA}, {num: sB, due: dueB} ].forEach(item => {
+          targetSemesters.push({ 
+            semNumber: item.num, 
+            due_amount: item.due, 
+            penalty_amount: 0,
+            amount_paid: 0, 
+            balance_pending: item.due 
+          });
+        });
+
+        targetSemesters.sort((a, b) => a.semNumber - b.semNumber);
+
+        let tempAdvance = round2(ledger.advance_balance || 0);
+
+        // ⚡ FIX: Advance absorption taking PENALTY into account
+        if (tempAdvance > 0) {
+          for (let sItem of targetSemesters) {
+            const semPenalty = round2(sItem.penalty_amount || sItem.penalty || 0);
+            const semDue = round2(sItem.due_amount || 0);
+            const totalSemDemand = round2(semDue + semPenalty);
+
+            let pendingDues = round2(Math.max(0, totalSemDemand - (sItem.amount_paid || 0)));
+
+            if (pendingDues > 0 && tempAdvance > 0) {
+              let absorb = round2(Math.min(tempAdvance, pendingDues));
+              sItem.amount_paid = round2((sItem.amount_paid || 0) + absorb);
+              sItem.balance_pending = round2(Math.max(0, totalSemDemand - sItem.amount_paid));
+              tempAdvance = round2(tempAdvance - absorb);
+            }
+          }
+        }
+
+        let targetHistory = [...(ledger.classesHistory || []), { className: cleanClass, section: cleanSection, academicYear: individualYearNum }];
+
+        // ⚡ FIX: Recalculate Course Totals & Balances INCLUDING Penalties
+        let totalCourseFeesAndPenalties = 0;
+        let dynamicSumPaid = 0;
+
+        targetSemesters.forEach(s => {
+          const semDue = round2(s.due_amount || 0);
+          const semPenalty = round2(s.penalty_amount || s.penalty || 0);
+          totalCourseFeesAndPenalties += round2(semDue + semPenalty);
+          dynamicSumPaid += round2(s.amount_paid || 0);
+        });
+
+        totalCourseFeesAndPenalties = round2(totalCourseFeesAndPenalties);
+        dynamicSumPaid = round2(dynamicSumPaid);
+
+        const finalAmountPaid = round2(dynamicSumPaid + tempAdvance); 
+        const overallPending = round2(Math.max(0, totalCourseFeesAndPenalties - dynamicSumPaid));
+
+        bulkOperations.push({
+          updateOne: {
+            filter: { student_id: new mongoose.Types.ObjectId(record.student_id.toString()) },
+            update: {
+              $set: {
+                session: studentSession,
+                semesters: targetSemesters,
+                classesHistory: targetHistory,
+                advance_balance: tempAdvance,
+                total_course_fees: totalCourseFeesAndPenalties,
+                total_amount_paid: finalAmountPaid,
+                overall_pending_balance: overallPending
+              }
+            }
+          }
+        });
+      }
+    }
+
+    if (bulkOperations.length > 0) {
+      await FeeLedger.bulkWrite(bulkOperations, { session: dbSession });
+    }
+
+    await dbSession.commitTransaction();
+    req.flash("success", "🎉 Success! Batch fee structure saved cleanly.");
+    return res.redirect("/add/student/fees");
+
+  } catch (dbError) {
+    await dbSession.abortTransaction();
+    req.flash("error", `❌ Database Refused: ${dbError.message}`);
+    return res.redirect(`/add/student/fees?className=${encodeURIComponent(className)}&semester=${sA}&section=${encodeURIComponent(section)}`);
+  } finally {
+    dbSession.endSession();
+  }  
+}));
+
+
+
+
+
+
+
+
+
+
+
+
+app.post("/fees/process-bulk-payments", verifiedAny, validateBulkPayments, WrapAsync(async (req, res) => {
+  const { payments, semA, semB, className, section, modeSelection, submitToken, academicYear } = req.body;
+  if (!className || !payments || !Array.isArray(payments) || payments.length === 0 || !section || !academicYear || !semA || !modeSelection) {
+    req.flash("error", "⚠️ Security Error: Crucial input parameters are missing!");
+    return res.redirect("/fees/collect-bulk");
+  }
+
+  const sA = parseInt(semA);
+  const sB = semB ? parseInt(semB) : null;
+  const targetYear = parseInt(academicYear);
+
+  // Strict Token Validation Check
+  if (!req.session.lastFeeSubmitToken || req.session.lastFeeSubmitToken !== submitToken) {
+    req.flash("error", "⚠️ Duplicate Transaction Prevented! Fresh Token required.");
+    return res.redirect(`/fees/collect-bulk?className=${encodeURIComponent(className)}&semester=${sA}&section=${encodeURIComponent(section)}&academicYear=${academicYear}&modeSelection=${modeSelection}`);
+  }
+
+  // Clear Token Immediately to prevent concurrency double-clicks
+  req.session.lastFeeSubmitToken = null;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const studentIds = payments.map(p => p.student_id).filter(Boolean);
+    const existingLedgers = await FeeLedger.find({ student_id: { $in: studentIds } }).session(session);
+    const ledgerMap = new Map(existingLedgers.map(l => [l.student_id.toString(), l]));
+
+    const bulkOperations = [];
+    const transactionRecords = [];
+
+    // Counter for guaranteeing bulletproof unique receipt sequence in the same millisecond loop
+    let receiptCounter = 0;
+
+    for (let payRow of payments) {
+      if (payRow.status === "Left College") continue;
+
+      let rawCashPaid = round2(parseFloat(payRow.amountToPay) || 0);
+      let runtimeAllocation = rawCashPaid;
+      
+      let ledger = ledgerMap.get(payRow.student_id.toString());
+      if (!ledger) throw new Error(`Student ledger not found for ID: ${payRow.student_id}`);
+
+      let targetSemesters = [...(ledger.semesters || [])];
+      targetSemesters.sort((a, b) => a.semNumber - b.semNumber);
+
+      let currentAdvance = round2(ledger.advance_balance || 0);
+      let initialAdvanceUsed = currentAdvance;
+      
+      let receiptBreakdown = [];
+
+      // STAGE 1: Process current wallet advance balance across chronological timelines
+      if (currentAdvance > 0) {
+        for (let sItem of targetSemesters) {
+          // ⚡ FIX: Total Demand = Due Amount + Penalty Amount
+          let semPenalty = round2(sItem.penalty_amount || sItem.penalty || 0);
+          let totalSemDemand = round2((sItem.due_amount || 0) + semPenalty);
+          let historyPending = round2(Math.max(0, totalSemDemand - (sItem.amount_paid || 0)));
+
+          if (historyPending > 0 && currentAdvance > 0) {
+            let absorb = round2(Math.min(currentAdvance, historyPending));
+            sItem.amount_paid = round2((sItem.amount_paid || 0) + absorb);
+            
+            // Recalculate Balance Pending including Penalty
+            sItem.balance_pending = round2(Math.max(0, totalSemDemand - sItem.amount_paid));
+            currentAdvance = round2(currentAdvance - absorb);
+            
+            receiptBreakdown.push({ semNumber: sItem.semNumber, amount: absorb, source: "Wallet Adjustment" });
+          }
+        }
+      }
+
+      // STAGE 2: Allocate fresh liquid incoming cash
+      if (runtimeAllocation > 0) {
+        for (let sItem of targetSemesters) {
+          // ⚡ FIX: Total Demand = Due Amount + Penalty Amount
+          let semPenalty = round2(sItem.penalty_amount || sItem.penalty || 0);
+          let totalSemDemand = round2((sItem.due_amount || 0) + semPenalty);
+          let pendingDues = round2(Math.max(0, totalSemDemand - (sItem.amount_paid || 0)));
+
+          if (pendingDues > 0 && runtimeAllocation > 0) {
+            let absorbCash = round2(Math.min(runtimeAllocation, pendingDues));
+            sItem.amount_paid = round2((sItem.amount_paid || 0) + absorbCash);
+            
+            // Recalculate Balance Pending including Penalty
+            sItem.balance_pending = round2(Math.max(0, totalSemDemand - sItem.amount_paid));
+            runtimeAllocation = round2(runtimeAllocation - absorbCash);
+
+            receiptBreakdown.push({ semNumber: sItem.semNumber, amount: absorbCash, source: "Liquid Cash" });
+          }
+        }
+
+        // STAGE 3: Turn remaining extra cash into Wallet Advance Balance
+        if (runtimeAllocation > 0) {
+          currentAdvance = round2(currentAdvance + runtimeAllocation);
+          receiptBreakdown.push({ semNumber: sB || sA, amount: runtimeAllocation, source: "Advance Spillover Saved" });
+        }
+      }
+
+      // ⚡ RECONCILED ACCOUNTING FORMULA:
+      // Total Paid = Sum of all semesters paid + unconsumed active advance in wallet
+      const dynamicSumPaid = round2(targetSemesters.reduce((sum, s) => sum + (s.amount_paid || 0), 0));
+      const overallAmountPaid = round2(dynamicSumPaid + currentAdvance);
+      
+      // ⚡ RECONCILED OVERALL DEMAND & BALANCE FORMULA:
+      // Overall Fee Demand = Sum of (due_amount + penalty_amount) of all semesters
+      const totalCourseFeesWithPenalty = round2(targetSemesters.reduce((sum, s) => {
+        return sum + (s.due_amount || 0) + (s.penalty_amount || s.penalty || 0);
+      }, 0));
+
+      const compositePendingBalance = round2(Math.max(0, totalCourseFeesWithPenalty - dynamicSumPaid));
+
+      const advanceAbsorbed = round2(initialAdvanceUsed - currentAdvance);
+
+      // Create Transaction Receipt only if real cash came in OR advance was consumed
+      if (rawCashPaid > 0 || advanceAbsorbed > 0) {
+        receiptCounter++;
+        // Bulletproof Receipt Number (Timestamp + Nanoseconds Sequence + Crypto Rand)
+        const uniqueReceiptNo = `REC-${Date.now()}-${receiptCounter}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+        transactionRecords.push({
+          receiptNumber: uniqueReceiptNo,
+          student_id: payRow.student_id,
+          rollNumber: payRow.rollNumber,
+          academicYear: targetYear,
+          studentName: payRow.studentName,
+          fatherName: ledger.fatherName,
+          semNumber: sA, 
+          amountPaid: rawCashPaid, 
+          paymentMode: payRow.paymentMode || "Cash",
+          metadata: {
+            breakdown: receiptBreakdown,
+            walletAdvanceSubtracted: advanceAbsorbed,
+            retainedWalletAdvance: currentAdvance
+          }
+        });
+      }
+
+      bulkOperations.push({
+        updateOne: {
+          filter: { student_id: payRow.student_id },
+          update: {
+            $set: {
+              semesters: targetSemesters,
+              advance_balance: currentAdvance,
+              total_amount_paid: overallAmountPaid,
+              overall_pending_balance: compositePendingBalance
+            }
+          }
+        }
+      });
+    }
+
+    if (bulkOperations.length > 0) {
+      if (transactionRecords.length > 0) {
+        await FeeTransaction.insertMany(transactionRecords, { session });
+      }
+      await FeeLedger.bulkWrite(bulkOperations, { session });
+    }
+
+    await session.commitTransaction();
+    req.flash("success", "🚀 Complete Ledger Sequence synced successfully with Single Token Clean Receipts.");
+    return res.redirect(`/fees/collect-bulk?className=${encodeURIComponent(className)}&semester=${sA}&section=${encodeURIComponent(section)}&academicYear=${academicYear}&modeSelection=${modeSelection}`);
+
+  } catch (error) {
+    await session.abortTransaction();
+    req.flash("error", `Error encountered during batch sequence processing: ${error.message}`);
+    return res.redirect(`/fees/collect-bulk?className=${encodeURIComponent(className)}&semester=${sA}&section=${encodeURIComponent(section)}&academicYear=${academicYear}&modeSelection=${modeSelection}`);
+  } finally {
+    // Memory leak protection
+    session.endSession();
+  }
+}));
+
+      <% layout("/layouts/boilerplate") -%>
+
+<div class="container my-5">
+  <h2 class="mb-4 text-dark fw-bold border-bottom pb-2">📦 Unified Batch Fee Collection (Live Ledger Sync)</h2>
+
+  <!-- HIDDEN METADATA FOR JAVASCRIPT -->
+  <input type="hidden" id="metadataClassName" value="<%= (query && query.className) ? query.className : '' %>">
+  <input type="hidden" id="metadataSemester" value="<%= (query && query.semester) ? query.semester : '' %>">
+
+  <!-- SEARCH CONTROLS FRAMEWORK -->
+  <div class="card p-4 shadow-sm mb-4 bg-white border-0">
+    <form action="/fees/collect-bulk" method="GET" class="row g-3 align-items-end needs-validation" novalidate id="filterForm">
+      
+      <!-- Class Selection Dropdown -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold text-secondary">Class / Branch</label>
+        <select name="className" id="classSelect" class="form-select" required onchange="syncSemesterDropdown()">
+          <option value="">Select branch...</option>
+          <% if (typeof classData !== 'undefined' && classData) { %>
+            <% classData.forEach(c => { %>
+              <option value="<%= c.class %>" <%= (query && query.className === c.class) ? 'selected' : '' %>><%= c.class %></option>
+            <% }) %>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- Target Semester -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold text-secondary">Semester</label>
+        <select name="semester" id="semesterSelect" class="form-select" required onchange="syncTimelineScope()">
+          <option value="">Select...</option>
+          <% for(let i=1; i<=8; i++) { %>
+            <option value="<%= i %>" <%= (query && query.semester == i) ? 'selected' : '' %>><%= i %></option>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- Section Selection -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold text-secondary">Section</label>
+        <select name="section" class="form-select" required>
+          <option value="">Select...</option>
+          <% if (typeof sectionData !== 'undefined' && sectionData) { %>
+            <% sectionData.forEach(s => { %>
+              <option value="<%= s.name %>" <%= (query && query.section === s.name) ? 'selected' : '' %>><%= s.name %></option>
+            <% }) %>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- DYNAMIC ACADEMIC YEAR INPUT WITH DATALIST -->
+      <div class="col-md-2">
+        <label for="academicYear" class="form-label fw-bold text-secondary">📅 Academic Year</label>
+        <input 
+          type="number" 
+          placeholder="Session" 
+          name="academicYear" 
+          id="academicYear"
+          class="form-select fw-bold" 
+          value="<%= (query && query.academicYear) ? query.academicYear : '' %>"
+          required 
+          list="yearOptionsList"
+        >
+        <datalist id="yearOptionsList">
+          <% if (typeof academicYearsList !== 'undefined' && academicYearsList.length > 0) { %>
+            <% academicYearsList.forEach(year => { %>
+              <option value="<%= year %>"><%= year %></option>
+            <% }) %>
+          <% } %>
+        </datalist>
+      </div>
+
+      <!-- Timeline Scope Mode -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold text-secondary">Timeline Scope</label>
+        <select name="modeSelection" id="timelineSelect" class="form-select" required>
+          <option value="single" <%= (query && query.modeSelection === 'single') ? 'selected' : '' %>>Current Sem</option>
+          <option value="next" <%= (query && query.modeSelection === 'next') ? 'selected' : '' %>>Next Sem</option>
+          <option value="both" <%= (query && query.modeSelection === 'both') ? 'selected' : '' %>>Both Sem</option>
+        </select>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="col-md-2">
+        <button type="submit" class="btn w-100 fw-bold text-white py-2 shadow-sm" style="background-color: #0f766e;">Load Batch</button>
+      </div>
+    </form>
+  </div>
+
+  <% if (typeof students !== 'undefined' && students && students.length > 0) { %>
+
+    <!-- MASTER CONTROL TOOLKIT -->
+    <div class="card p-4 mb-4 text-white border-0 shadow-sm" style="background-color: #0f766e;">
+      <h5 class="fw-bold mb-3 border-bottom pb-2 text-warning">⚡ Core Automation Control Toolkit</h5>
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">1. OUTSTANDING INJECTOR</label>
+          <button type="button" onclick="executeGlobalDuesClearance()" class="btn btn-warning w-100 fw-bold shadow-sm">
+            Inject All Net Pending Dues
+          </button>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">2. CUSTOM VALUE MULTI-INJECTOR</label>
+          <div class="input-group">
+            <input type="number" id="globalCustomValueInput" min="0" step="0.01" class="form-control" placeholder="Enter custom amount...">
+            <button class="btn btn-dark fw-bold" type="button" onclick="executeCustomAmountInjection()">Inject Value</button>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">3. GLOBAL PAYMENT MODE OVERRIDE</label>
+          <select id="globalPaymentModeSelector" class="form-select fw-bold" onchange="executeGlobalPaymentModeOverride(this.value)">
+            <option value="">Select Mode Override...</option>
+            <option value="Cash">Cash</option>
+            <option value="UPI">UPI</option>
+            <option value="Net Banking">Net Banking</option>
+            <option value="Cheque">Cheque</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATA GRID FORM -->
+    <form action="/fees/process-bulk-payments" method="POST" id="waterfallGridForm">
+      <input type="hidden" name="semA" value="<%= (typeof activeSemesters !== 'undefined' && activeSemesters[0]) ? activeSemesters[0] : '' %>">
+      <input type="hidden" name="semB" value="<%= (typeof activeSemesters !== 'undefined' && activeSemesters[1]) ? activeSemesters[1] : '' %>">
+      <input type="hidden" name="className" value="<%= (query && query.className) ? query.className : '' %>">
+      <input type="hidden" name="section" value="<%= (query && query.section) ? query.section : '' %>">
+      <input type="hidden" name="academicYear" value="<%= (query && query.academicYear) ? query.academicYear : '' %>">
+      <input type="hidden" name="modeSelection" value="<%= (query && query.modeSelection) ? query.modeSelection : '' %>">
+      <input type="hidden" name="submitToken" value="<%= typeof submitToken !== 'undefined' ? submitToken : '' %>">
+
+      <div class="table-responsive shadow rounded">
+        <table class="table align-middle bg-white table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Roll No</th>
+              <th>Student Identity Meta</th>
+              <th class="text-center text-warning bg-secondary">Prev Pending</th>
+              <th class="text-center text-warning bg-secondary">Sem-<%= (typeof activeSemesters !== 'undefined' && activeSemesters[0]) ? activeSemesters[0] : '' %> Dues</th>
+              <% if(query && query.modeSelection === 'both') { %>
+                <th class="text-center text-warning bg-secondary">Sem-<%= (typeof activeSemesters !== 'undefined' && activeSemesters[1]) ? activeSemesters[1] : '' %> Dues</th>
+              <% } %>
+              <th class="text-center" style="width: 28%;">Balance Settlement</th>
+              <th class="text-center text-success" style="width: 18%;">Amount to Pay (₹)</th>
+              <th style="width: 15%;">Payment Method</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% students.forEach((student, index) => { %>
+              <tr class="payment-row-item <%= student.isLocked ? 'table-light opacity-75' : '' %>" data-index="<%= index %>">
+                <td>
+                  <input type="hidden" name="payments[<%= index %>][student_id]" value="<%= student.student_id %>">
+                  <input type="hidden" name="payments[<%= index %>][rollNumber]" value="<%= student.rollNumber %>">
+                  <input type="hidden" name="payments[<%= index %>][studentName]" value="<%= student.studentName %>">
+                  <input type="hidden" name="payments[<%= index %>][status]" value="<%= student.status %>">
+                  <span class="badge bg-dark fs-6"><%= student.rollNumber %></span>
+                </td>
+                <td>
+                  <div class="fw-bold text-dark"><%= student.studentName %></div>
+                  <small class="text-muted">F: <%= student.fatherName %></small>
+                </td>
+
+                <!-- Previous Pending -->
+                <td class="text-center fw-semibold text-danger bg-light">
+                  <span class="label-prev-pending">₹<%= student.previousPendingDues %></span>
+                </td>
+
+                <!-- Sem A Column -->
+                <td class="text-center table-active text-dark fw-bold">
+                  <div class="fs-6 text-primary">₹<%= student.semA.originalDue %></div>
+                  
+                  <% if(student.semA.dbBalancePending > 0) { %>
+                    <div class="text-muted small fw-normal" style="font-size: 0.72rem; display: block; line-height: 1.1; margin-top: 2px;">
+                      (Amount_paid: ₹<%= student.semA.dbAmountPaid %> cut in this semester)
+                    </div>
+                    <div class="badge bg-danger-subtle text-danger border border-danger mt-1 px-2 py-1" style="font-size: 0.78rem; display: inline-block;">
+                      Pending: ₹<%= student.semA.dbBalancePending %>
+                    </div>
+                  <% } else if(student.semA.originalDue > 0) { %>
+                    <div class="badge bg-success-subtle text-success border border-success mt-1 px-2 py-1" style="font-size: 0.78rem; display: inline-block;">
+                      Cleared
+                    </div>
+                  <% } %>
+                </td>
+
+                <!-- Sem B Column -->
+                <% if(query && query.modeSelection === 'both') { %>
+                  <td class="text-center table-active text-dark fw-bold">
+                    <% if(student.semB) { %>
+                      <div class="fs-6 text-primary">₹<%= student.semB.originalDue %></div>
+                      
+                      <% if(student.semB.dbBalancePending > 0) { %>
+                        <div class="text-muted small fw-normal" style="font-size: 0.72rem; display: block; line-height: 1.1; margin-top: 2px;">
+                          (Amount_paid: ₹<%= student.semB.dbAmountPaid %> cut in this semester)
+                        </div>
+                        <div class="badge bg-danger-subtle text-danger border border-danger mt-1 px-2 py-1" style="font-size: 0.78rem; display: inline-block;">
+                          Pending: ₹<%= student.semB.dbBalancePending %>
+                        </div>
+                      <% } else if(student.semB.originalDue > 0) { %>
+                        <div class="badge bg-success-subtle text-success border border-success mt-1 px-2 py-1" style="font-size: 0.78rem; display: inline-block;">
+                          Cleared
+                        </div>
+                      <% } %>
+                    <% } else { %>
+                      <span>₹0</span>
+                    <% } %>
+                  </td>
+                <% } %>
+
+                <!-- Settlement Column -->
+                <td class="text-center bg-light">
+                  <div class="d-flex flex-column gap-1 align-items-center justify-content-center ledger-status-container">
+                    
+                    <!-- Database Wallet Advance Info Display -->
+                    <% if (student.advanceBalance > 0) { %>
+                      <div class="badge w-100 py-2 fs-7 shadow-sm border mb-1 text-wrap" style="background-color: #cff4fc !important; border-color: #b6effb !important; color: #055160 !important; display: inline-block !important;">
+                        💎 ₹<span class="db-advance-val fw-bolder"><%= student.advanceBalance %></span> - Unallocated Advance Wallet
+                      </div>
+                    <% } %>
+
+                    <!-- Live Calculation Status Display Badge -->
+                    <div class="live-status-badge badge w-100 py-2 fs-7 shadow-sm <%= student.isLocked ? 'bg-success text-white' : 'bg-warning-subtle text-warning border border-warning' %>">
+                      <%= student.isLocked ? '🎉 Complete / Clear' : '⚠️ Pending Total: ₹' + student.totalYearDues %>
+                    </div>
+
+                    <!-- Projected Future Wallet Balance -->
+                    <div class="projected-advance-badge badge w-100 py-2 fs-7 shadow-sm border d-none" style="background-color: #d1e7dd !important; border-color: #badbcc !important; color: #0f5132 !important;">
+                      🚀 ₹<span class="projected-advance-val fw-bolder">0</span> - Projected Advance
+                    </div>
+                  </div>
+                </td>
+
+                <!-- Amount Input Matrix -->
+                <td>
+                  <% if(student.isLocked) { %>
+                    <div class="text-center">
+                      <span class="badge bg-success py-2 px-3 shadow-sm rounded-pill">✔️ Cleared</span>
+                    </div>
+                    <input type="hidden" name="payments[<%= index %>][amountToPay]" value="0">
+                  <% } else { %>
+                    <div class="input-group input-group-sm shadow-sm">
+                      <input type="number" name="payments[<%= index %>][amountToPay]"
+                        class="form-control text-center fw-bold input-amount-to-pay border-success text-success"
+                        value="0" min="0" step="0.01" data-outstanding="<%= student.totalYearDues %>"
+                        data-db-advance="<%= student.advanceBalance %>"
+                        data-prev-dues="<%= student.previousPendingDues %>"
+                        data-sema-dues="<%= student.semA.waterfallPending %>"
+                        data-semb-dues="<%= student.semB ? student.semB.waterfallPending : 0 %>"
+                        oninput="processRowLiveCalculations(this)">
+                      <button class="btn btn-outline-danger fw-bold" type="button" onclick="resetTargetRowValue(this)" title="Clear value">&times;</button>
+                    </div>
+                  <% } %>
+                </td>
+
+                <!-- Payment Method (FIXED: Replaced 'disabled' attribute with 'readonly-select' class for locked rows) -->
+                <td>
+                  <% if(student.isLocked) { %>
+                    <input type="hidden" name="payments[<%= index %>][paymentMode]" value="Cash">
+                    <select class="form-select form-select-sm fw-semibold select-row-payment-mode bg-light text-muted pointer-events-none" tabindex="-1">
+                      <option value="Cash" selected>Cash</option>
+                    </select>
+                  <% } else { %>
+                    <select name="payments[<%= index %>][paymentMode]" class="form-select form-select-sm fw-semibold select-row-payment-mode">
+                      <option value="Cash" selected>Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Net Banking">Net Banking</option>
+                      <option value="Cheque">Cheque</option>
+                    </select>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PIPELINE METRICS SUMMARY -->
+      <div class="card my-4 border-0 shadow-sm text-white" style="background-color: #1e293b;">
+        <div class="card-body p-4 text-center">
+          <h5 class="fw-bold mb-3 text-warning border-bottom pb-2 text-start">📈 Live Pipeline Metrics Overview</h5>
+          <div class="row g-3">
+            <div class="col-md-6 border-end border-secondary">
+              <p class="text-muted small mb-1 fw-bold text-uppercase">Total Amount Collecting Right Now</p>
+              <h2 class="fw-bold text-success" id="liveCollectionCounter">₹0.00</h2>
+            </div>
+            <div class="col-md-6">
+              <p class="text-muted small mb-1 fw-bold text-uppercase">Total Batch Track Nodes Loaded</p>
+              <h2 class="fw-bold text-info"><%= students.length %> Profiles Active</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-end mt-4">
+        <button type="submit" class="btn btn-success btn-lg px-5 fw-bold shadow" id="btnBatchSubmit">
+          <i class="bi bi-check-circle-fill me-1"></i>Submit Batch Transaction
+        </button>
+      </div>
+    </form>
+  <% } %>
+</div>
+
+<script>
+  // Fast Danger Blink Animation Injection
+  if (!document.getElementById('custom-blink-styles')) {
+    const style = document.createElement('style');
+    style.id = 'custom-blink-styles';
+    style.innerHTML = `
+      @keyframes fastDangerBlink {
+        0% { opacity: 1; box-shadow: 0 0 12px rgba(176, 42, 55, 0.6); }
+        50% { opacity: 0.35; box-shadow: 0 0 2px rgba(176, 42, 55, 0.1); }
+        100% { opacity: 1; box-shadow: 0 0 12px rgba(176, 42, 55, 0.6); }
+      }
+      .pulse-danger-blink {
+        animation: fastDangerBlink 1s infinite ease-in-out !important;
+        background-color: #b02a37 !important; 
+        border-color: #842029 !important;
+        color: #ffffff !important; 
+        font-size: 0.95rem !important; 
+        font-weight: 800 !important; 
+        padding: 8px 12px !important;
+      }
+      .pointer-events-none {
+        pointer-events: none;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Helper for safe floating point arithmetic & formatting
+  function roundMoney(val) {
+    return Math.round((parseFloat(val) || 0 + Number.EPSILON) * 100) / 100;
+  }
+
+  function resetTargetRowValue(buttonElement) {
+    const inputGroup = buttonElement.closest('.input-group');
+    const targetInput = inputGroup.querySelector('.input-amount-to-pay');
+    if (targetInput) {
+      targetInput.value = 0;
+      processRowLiveCalculations(targetInput);
+    }
+  }
+
+  function processRowLiveCalculations(inputElement) {
+    let enteredAmount = parseFloat(inputElement.value);
+
+    // Sanitize Negative or NaN Values
+    if (isNaN(enteredAmount) || enteredAmount < 0) {
+      enteredAmount = 0;
+      inputElement.value = 0;
+    }
+
+    const row = inputElement.closest('tr');
+
+    const prevDues = parseFloat(inputElement.getAttribute('data-prev-dues')) || 0;
+    const semADues = parseFloat(inputElement.getAttribute('data-sema-dues')) || 0;
+    const semBDues = parseFloat(inputElement.getAttribute('data-semb-dues')) || 0;
+
+    const totalOriginalDues = roundMoney(prevDues + semADues + semBDues);
+
+    const statusBadge = row.querySelector('.live-status-badge');
+    const projAdvanceBadge = row.querySelector('.projected-advance-badge');
+    const projAdvanceVal = row.querySelector('.projected-advance-val');
+
+    let workingCapital = roundMoney(enteredAmount);
+
+    if (totalOriginalDues <= 0) {
+      statusBadge.className = "live-status-badge badge w-100 py-2 fs-7 shadow-sm bg-success text-white";
+      statusBadge.innerHTML = "🎉 Complete / Clear";
+      if (workingCapital > 0) {
+        projAdvanceBadge.classList.remove('d-none');
+        projAdvanceVal.innerText = workingCapital.toFixed(2);
+      } else {
+        projAdvanceBadge.classList.add('d-none');
+      }
+    } else if (workingCapital >= totalOriginalDues) {
+      const spilloverAdvance = roundMoney(workingCapital - totalOriginalDues);
+      statusBadge.className = "live-status-badge badge w-100 py-2 fs-7 shadow-sm bg-success text-white";
+      statusBadge.innerHTML = "🎉 Fully Settled";
+
+      if (spilloverAdvance > 0) {
+        projAdvanceBadge.classList.remove('d-none');
+        projAdvanceVal.innerText = spilloverAdvance.toFixed(2);
+      } else {
+        projAdvanceBadge.classList.add('d-none');
+      }
+    } else {
+      const netPendingAfterPay = roundMoney(totalOriginalDues - workingCapital);
+      statusBadge.className = "live-status-badge badge w-100 py-2 fs-7 shadow-sm bg-danger-subtle text-danger border border-danger pulse-danger-blink";
+      statusBadge.innerHTML = `⚠️ Balance Due: ₹${netPendingAfterPay.toFixed(2)}`;
+      projAdvanceBadge.classList.add('d-none');
+    }
+
+    calculateLiveDashboardMetrics();
+  }
+
+  // Dropdown ranges utility
+  function getRangeByClassName(name) {
+    const upper = name.toUpperCase();
+    if (upper.includes("1ST YEAR")) return [1, 2];
+    if (upper.includes("2ND YEAR")) return [3, 4];
+    if (upper.includes("3RD YEAR")) return [5, 6];
+    if (upper.includes("4TH YEAR")) return [7, 8];
+    return [1, 8];
+  }
+
+  // Dropdown sync utils
+  function syncSemesterDropdown() {
+    const classVal = document.getElementById('classSelect').value;
+    const semesterSelect = document.getElementById('semesterSelect');
+    if (!classVal) return;
+
+    const range = getRangeByClassName(classVal);
+    semesterSelect.innerHTML = '<option value="">Select...</option>';
+    for (let i = range[0]; i <= range[1]; i++) {
+      semesterSelect.innerHTML += `<option value="${i}">${i}</option>`;
+    }
+    syncTimelineScope();
+  }
+
+  function syncTimelineScope() {
+    const classVal = document.getElementById('classSelect').value;
+    const semVal = document.getElementById('semesterSelect').value;
+    const timelineSelect = document.getElementById('timelineSelect');
+    if (!classVal || !semVal) return;
+
+    const range = getRangeByClassName(classVal);
+    const currentSem = parseInt(semVal);
+    const nextSem = (currentSem + 1 <= range[1]) ? currentSem + 1 : currentSem;
+
+    timelineSelect.innerHTML = `
+      <option value="single">Current Semester (Sem ${currentSem})</option>
+      <option value="next">Next Current Semester (Sem ${nextSem})</option>
+      <option value="both">Both Semesters of Current Year (Sem ${range[0]} & ${range[1]})</option>
+    `;
+  }
+
+  function executeGlobalDuesClearance() {
+    document.querySelectorAll('.payment-row-item').forEach(row => {
+      const targetInput = row.querySelector('.input-amount-to-pay');
+      if (targetInput) {
+        const outstandingDues = parseFloat(targetInput.getAttribute('data-outstanding')) || 0;
+        targetInput.value = Math.max(0, outstandingDues);
+        processRowLiveCalculations(targetInput);
+      }
+    });
+  }
+
+  // Multi injectors allocation
+  function executeCustomAmountInjection() {
+    const injectionVal = parseFloat(document.getElementById('globalCustomValueInput').value) || 0;
+    if (injectionVal < 0 || isNaN(injectionVal)) {
+      alert("Alert: Please enter a valid non-negative custom amount allocation.");
+      return;
+    }
+    document.querySelectorAll('.payment-row-item').forEach(row => {
+      const targetInput = row.querySelector('.input-amount-to-pay');
+      if (targetInput) {
+        targetInput.value = injectionVal;
+        processRowLiveCalculations(targetInput);
+      }
+    });
+  }
+
+  function executeGlobalPaymentModeOverride(overrideValue) {
+    if (!overrideValue) return;
+    document.querySelectorAll('.select-row-payment-mode').forEach(dropdown => {
+      if (!dropdown.classList.contains('pointer-events-none')) {
+        dropdown.value = overrideValue;
+      }
+    });
+  }
+
+  function calculateLiveDashboardMetrics() {
+    let combinedAggregateCounter = 0;
+    document.querySelectorAll('.input-amount-to-pay').forEach(input => {
+      combinedAggregateCounter += (parseFloat(input.value) || 0);
+    });
+    combinedAggregateCounter = roundMoney(combinedAggregateCounter);
+    const counterEl = document.getElementById('liveCollectionCounter');
+    if (counterEl) {
+      counterEl.innerText = '₹' + combinedAggregateCounter.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    calculateLiveDashboardMetrics();
+
+    const classInputEl = document.getElementById('metadataClassName');
+    const semInputEl = document.getElementById('metadataSemester');
+
+    const initialClass = classInputEl ? classInputEl.value : '';
+    const initialSem = semInputEl ? semInputEl.value : '';
+
+    if (initialClass && initialSem) {
+      const range = getRangeByClassName(initialClass);
+      const semesterSelect = document.getElementById('semesterSelect');
+      if (semesterSelect) {
+        semesterSelect.innerHTML = '';
+        for (let i = range[0]; i <= range[1]; i++) {
+          const selected = (i == initialSem) ? 'selected' : '';
+          semesterSelect.innerHTML += `<option value="${i}" ${selected}>${i}</option>`;
+        }
+        syncTimelineScope();
+      }
+    }
+
+    // Fast Keyboard Navigation (Enter moves focus to next row amount input)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.classList.contains('input-amount-to-pay')) {
+        e.preventDefault();
+        const inputs = Array.from(document.querySelectorAll('.input-amount-to-pay'));
+        const currentIndex = inputs.indexOf(e.target);
+        if (currentIndex > -1 && currentIndex < inputs.length - 1) {
+          inputs[currentIndex + 1].focus();
+          inputs[currentIndex + 1].select();
+        }
+      }
+    });
+
+    // Anti Double-Submission Protection Guard
+    const gridForm = document.getElementById('waterfallGridForm');
+    gridForm?.addEventListener('submit', function (e) {
+      const btnSubmit = document.getElementById('btnBatchSubmit');
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Processing Batch Transactions...`;
+      }
+    });
+  });
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+<!--------------------------------- add fees data ka poora caode ------------------------------------------------------- -->
+
+
+// Helper for Safe Currency Rounding (Fixes Floating-Point Bugs)
+const round2 = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
+
+// ==========================================
+// 1. GET ROUTE: High-Performance Fetch & Auto-Fill
+// ==========================================
+app.get("/add/student/fees", verifiedAny, WrapAsync(async (req, res) => {
+  // Parallel DB Calls using Promise.all + Lean (Ultra-Fast execution)
+  const [classData, sectionData] = await Promise.all([
+    Class.find({}).lean(),
+    Section.find({}).lean()
+  ]);
+
+  const currentYear = new Date().getFullYear();
+  const { className, semester, section } = req.query;
+
+  let students = [];
+  let activeSemesters = [];
+
+  if (className && semester && section) {
+    const semNum = parseInt(semester);
+    
+    // Dynamic Academic Year Tracking (Pairing logic)
+    const pairGroup = Math.ceil(semNum / 2); 
+    activeSemesters = [(pairGroup * 2) - 1, pairGroup * 2];
+
+    // Selective Projection: Fetching ONLY required fields to save Node.js RAM
+    const studentsRaw = await Student.find({ 
+      class: String(className).trim(),      
+      semester: String(semester).trim(),   
+      section: String(section).trim()      
+    })
+    .select("_id rollNo name fatherName  class semester section session")
+    .lean();
+  
+
+    if (studentsRaw.length > 0) {
+      const studentIds = studentsRaw.map(s => s._id);
+
+      // Single Indexed Query Fetch
+      const existingLedgers = await FeeLedger.find({ 
+        student_id: { $in: studentIds } 
+      })
+      .select("student_id total_course_fees semesters")
+      .lean();
+
+      const ledgerMap = new Map(existingLedgers.map(l => [l.student_id.toString(), l]));
+
+      // Structural Data Mapping
+      students = studentsRaw.map(student => {
+        const ledger = ledgerMap.get(student._id.toString());
+        
+        let semADue = 0;
+        let semBDue = 0;
+        let totalCourseFees = 0;
+
+        if (ledger) {
+          totalCourseFees = ledger.total_course_fees || 0;
+
+          const semAData = ledger.semesters?.find(s => s.semNumber === activeSemesters[0]);
+          const semBData = ledger.semesters?.find(s => s.semNumber === activeSemesters[1]);
+
+          if (semAData || semBData) {
+            semADue = semAData ? semAData.due_amount : 0;
+            semBDue = semBData ? semBData.due_amount : 0;
+          } else if (ledger.semesters && ledger.semesters.length > 0) {
+            // Dynamic historical fetch fallback
+            const sortedSemesters = [...ledger.semesters].sort((a, b) => b.semNumber - a.semNumber);
+            const lastSavedSem = sortedSemesters[0];
+
+            if (lastSavedSem) {
+              semADue = lastSavedSem.due_amount || 0;
+              semBDue = lastSavedSem.due_amount || 0;
+            }
+          }
+        }
+
+        return {
+          ...student,
+          total_course_fees: round2(totalCourseFees),
+          semADue: round2(semADue),
+          semBDue: round2(semBDue),
+          existingYearTotal: round2(semADue + semBDue)
+        };
+      });
+    }
+  }
+
+  res.render("admin/addFeesData", { 
+    classData, 
+    sectionData, 
+    currentYear,
+    students, 
+    selectedSem: semester || null, 
+    activeSemesters,
+    query: req.query || {} 
+  });
+}));
+
+
+app.post("/fees/save-bulk-ledger", verifiedAny, validateFeeData, WrapAsync(async (req, res) => {
+  const { fees, semA, semB, className, section } = req.body;
+  const sA = parseInt(semA);
+  const sB = parseInt(semB);
+
+  // 1. Initial Validation Check
+  if (!className || !section || isNaN(sA) || isNaN(sB) || !fees || !Array.isArray(fees) || fees.length === 0) {
+    req.flash("error", "⚠️ Security Error: Crucial input parameters are missing or invalid!");
+    return res.redirect("/add/student/fees");
+  }
+
+  const cleanClass = className.trim();
+  const cleanSection = section.trim();
+  const currentCourseType = cleanClass.split(" ")[0].toUpperCase();
+
+  // Helper for strict monetary rounding
+  const round2 = (val) => Math.round((parseFloat(val) || 0 + Number.EPSILON) * 100) / 100;
+
+  // MongoDB Transaction Session
+  const dbSession = await mongoose.startSession();
+
+  try {
+    dbSession.startTransaction();
+
+    // 2. Safe Mongoose ObjectId Conversion & Student Session Lookup
+    const uniqueSubmittedIds = new Set(fees.map(f => f.student_id?.toString()).filter(Boolean));
+    const studentObjectIds = Array.from(uniqueSubmittedIds).map(id => new mongoose.Types.ObjectId(id));
+
+    // Fetch Session Info from Student Model
+    const rawStudentList = await Student.find({ _id: { $in: studentObjectIds } })
+      .select("_id session")
+      .lean();
+    
+    const studentSessionMap = new Map(rawStudentList.map(s => [s._id.toString(), s.session]));
+
+    // ⚡ 3. DYNAMIC ACADEMIC YEAR CALCULATION (WITH BUG-FREE FALLBACK)
+    const sampleRecord = fees.find(f => f.status !== "Left College") || fees[0];
+    const sampleSession = sampleRecord?.session || studentSessionMap.get(sampleRecord?.student_id?.toString()) || "";
+    
+    const parsedStartYear = parseInt((sampleSession || "").split("-")[0]);
+    const startYear = !isNaN(parsedStartYear) ? parsedStartYear : new Date().getFullYear();
+    const calculatedYearNum = startYear + Math.floor((sA - 1) / 2);
+
+    // 4. GLOBAL DUPLICATE BATCH CHECK
+    const globalBatchExists = await FeeLedger.findOne({
+      "classesHistory": {
+        $elemMatch: {
+          className: cleanClass,
+          section: cleanSection,
+          academicYear: calculatedYearNum
+        }
+      }
+    }).session(dbSession);
+
+    if (globalBatchExists) {
+      await dbSession.abortTransaction();
+      req.flash(
+        "error", 
+        `🚨 DUPLICATE BATCH BLOCKED: Data for "${cleanClass} - Sec ${cleanSection}" for Year (${calculatedYearNum}) ALREADY EXISTS in database!`
+      );
+      return res.redirect(`/add/student/fees?className=${encodeURIComponent(className)}&semester=${sA}&section=${encodeURIComponent(section)}`);
+    }
+
+    // Fetch existing ledgers for submitted students
+    const existingLedgers = await FeeLedger.find({ 
+      student_id: { $in: studentObjectIds } 
+    }).session(dbSession);
+
+    // 5. INDIVIDUAL STUDENT SEMESTER DUPLICATE CHECK
+    for (let ledger of existingLedgers) {
+      const semDuplicate = (ledger.semesters || []).some(
+        s => s.semNumber === sA || s.semNumber === sB
+      );
+
+      if (semDuplicate) {
+        await dbSession.abortTransaction();
+        req.flash(
+          "error", 
+          `⚠️ Semester Conflict: Semester (${sA} or ${sB}) already exists for student ${ledger.studentName}!`
+        );
+        return res.redirect(`/add/student/fees?className=${encodeURIComponent(className)}&semester=${sA}&section=${encodeURIComponent(section)}`);
+      }
+    }
+
+    const ledgerMap = new Map(existingLedgers.map(l => [l.student_id.toString(), l]));
+    const bulkOperations = [];
+
+    // 6. BUILD BULK WRITE OPERATIONS
+    for (let record of fees) {
+      if (record.status === "Left College") continue;
+
+      if (!record.student_id || !record.rollNumber || !record.studentName || 
+          record.due_amount_A === undefined || record.due_amount_B === undefined) {
+        throw new Error(`Grid data error for Roll No: ${record.rollNumber || 'Unknown'}`);
+      }
+
+      const dueA = round2(Math.max(0, parseFloat(record.due_amount_A) || 0));
+      const dueB = round2(Math.max(0, parseFloat(record.due_amount_B) || 0));
+      let ledger = ledgerMap.get(record.student_id.toString());
+      
+      const studentSession = record.session || studentSessionMap.get(record.student_id.toString()) || sampleSession || `${startYear}-${startYear+3}`;
+      const indParsedYear = parseInt((studentSession || "").split("-")[0]);
+      const individualStartYear = !isNaN(indParsedYear) ? indParsedYear : startYear;
+      const individualYearNum = individualStartYear + Math.floor((sA - 1) / 2);
+
+      if (!ledger) {
+        // 🆕 NEW STUDENT LEDGER CREATION
+        const initialTotal = round2(dueA + dueB);
+        const newLedgerDoc = {
+          student_id: new mongoose.Types.ObjectId(record.student_id.toString()),
+          rollNumber: record.rollNumber,
+          studentName: record.studentName,
+          fatherName: record.fatherName || 'N/A',
+          session: studentSession,
+          currentCourse: currentCourseType,
+          status: 'Active',
+          classesHistory: [{ className: cleanClass, section: cleanSection, academicYear: individualYearNum }],
+          
+          semesters: [
+            { semNumber: sA, due_amount: dueA, penalty_amount: 0, amount_paid: 0, balance_pending: dueA },
+            { semNumber: sB, due_amount: dueB, penalty_amount: 0, amount_paid: 0, balance_pending: dueB }
+          ],
+          
+          advance_balance: 0,
+          total_course_fees: initialTotal,
+          total_amount_paid: 0,
+          overall_pending_balance: initialTotal
+        };
+
+        bulkOperations.push({
+          insertOne: { document: newLedgerDoc }
+        });
+      } else {
+        // 🔄 EXISTING STUDENT LEDGER UPDATE
+        if (ledger.currentCourse && ledger.currentCourse !== currentCourseType) {
+          throw new Error(`Course mismatch for ${record.studentName}. Expected ${ledger.currentCourse}, got ${currentCourseType}`);
+        }
+
+        let targetSemesters = [...(ledger.semesters || [])];
+
+        // Add new semesters to existing list
+        [ {num: sA, due: dueA}, {num: sB, due: dueB} ].forEach(item => {
+          targetSemesters.push({ 
+            semNumber: item.num, 
+            due_amount: item.due, 
+            penalty_amount: 0,
+            amount_paid: 0, 
+            balance_pending: item.due 
+          });
+        });
+
+        targetSemesters.sort((a, b) => a.semNumber - b.semNumber);
+
+        let tempAdvance = round2(ledger.advance_balance || 0);
+
+        // Advance absorption taking PENALTY into account
+        if (tempAdvance > 0) {
+          for (let sItem of targetSemesters) {
+            const semPenalty = round2(sItem.penalty_amount || sItem.penalty || 0);
+            const semDue = round2(sItem.due_amount || 0);
+            const totalSemDemand = round2(semDue + semPenalty);
+
+            let pendingDues = round2(Math.max(0, totalSemDemand - (sItem.amount_paid || 0)));
+
+            if (pendingDues > 0 && tempAdvance > 0) {
+              let absorb = round2(Math.min(tempAdvance, pendingDues));
+              sItem.amount_paid = round2((sItem.amount_paid || 0) + absorb);
+              sItem.balance_pending = round2(Math.max(0, totalSemDemand - sItem.amount_paid));
+              tempAdvance = round2(tempAdvance - absorb);
+            }
+          }
+        }
+
+        // ⚡ DEDUPLICATE History Array to Prevent Duplicate Entries
+        let targetHistory = [...(ledger.classesHistory || [])];
+        const isHistoryPresent = targetHistory.some(
+          h => h.className === cleanClass && h.section === cleanSection && h.academicYear === individualYearNum
+        );
+        if (!isHistoryPresent) {
+          targetHistory.push({ className: cleanClass, section: cleanSection, academicYear: individualYearNum });
+        }
+
+        // Recalculate Course Totals & Balances INCLUDING Penalties
+        let totalCourseFeesAndPenalties = 0;
+        let dynamicSumPaid = 0;
+
+        targetSemesters.forEach(s => {
+          const semDue = round2(s.due_amount || 0);
+          const semPenalty = round2(s.penalty_amount || s.penalty || 0);
+          totalCourseFeesAndPenalties += round2(semDue + semPenalty);
+          dynamicSumPaid += round2(s.amount_paid || 0);
+        });
+
+        totalCourseFeesAndPenalties = round2(totalCourseFeesAndPenalties);
+        dynamicSumPaid = round2(dynamicSumPaid);
+
+        const finalAmountPaid = round2(dynamicSumPaid + tempAdvance); 
+        const overallPending = round2(Math.max(0, totalCourseFeesAndPenalties - dynamicSumPaid));
+
+        bulkOperations.push({
+          updateOne: {
+            filter: { student_id: new mongoose.Types.ObjectId(record.student_id.toString()) },
+            update: {
+              $set: {
+                session: studentSession,
+                semesters: targetSemesters,
+                classesHistory: targetHistory,
+                advance_balance: tempAdvance,
+                total_course_fees: totalCourseFeesAndPenalties,
+                total_amount_paid: finalAmountPaid,
+                overall_pending_balance: overallPending
+              }
+            }
+          }
+        });
+      }
+    }
+
+    if (bulkOperations.length > 0) {
+      await FeeLedger.bulkWrite(bulkOperations, { session: dbSession });
+    }
+
+    await dbSession.commitTransaction();
+    req.flash("success", "🎉 Success! Batch fee structure saved cleanly.");
+    return res.redirect("/add/student/fees");
+
+  } catch (dbError) {
+    if (dbSession.inTransaction()) {
+      await dbSession.abortTransaction();
+    }
+    req.flash("error", `❌ Database Refused: ${dbError.message}`);
+    return res.redirect(`/add/student/fees?className=${encodeURIComponent(className)}&semester=${sA}&section=${encodeURIComponent(section)}`);
+  } finally {
+    // ⚡ ALWAYS END SESSION IN FINALLY BLOCK
+    dbSession.endSession();
+  } 
+}));
+
+
+<% layout("/layouts/boilerplate") -%>
+
+<div class="container my-5">
+  
+  <h2 class="mb-4 text-dark fw-bold border-bottom pb-2">Student Fees Initialization Board</h2>
+
+  <!-- SEARCH FILTERS PANEL -->
+  <div class="card p-4 shadow-sm mb-4 bg-white border-0">
+    <form action="/add/student/fees" method="GET" class="row g-3 needs-validation" novalidate>
+      
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Class / Branch</label>
+        <select name="className" class="form-select" required>
+          <option value="">Choose class...</option>
+          <% classData.forEach(c => { %>
+            <option value="<%= c.class %>" <%= query.className === c.class ? 'selected' : '' %>><%= c.class %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Semester</label>
+        <select name="semester" class="form-select" required>
+          <option value="">Choose semester...</option>
+          <% for(let i=1; i<=8; i++) { %>
+            <option value="<%= i %>" <%= query.semester == i ? 'selected' : '' %>><%= i %></option>
+          <% } %>
+        </select>
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Section</label>
+        <select name="section" class="form-select" required>
+          <option value="">Choose section...</option>
+          <% sectionData.forEach(s => { %>
+            <option value="<%= s.name %>" <%= query.section === s.name ? 'selected' : '' %>><%= s.name %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn w-100 fw-bold py-2 shadow-sm text-white" style="background-color: #0f766e;">
+          Load Batch Ledger
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <% if (students && students.length > 0) { %>
+    
+    <!-- SINGLE INJECTOR ENGINE -->
+    <div class="card p-3 mb-4 text-white border-0 shadow-sm" style="background-color: #0f766e;">
+      <div class="row align-items-center g-3">
+        <div class="col-lg-5">
+          <span class="fw-bold fs-5">⚡ Global Year-Fees Injector (Sem-<%= activeSemesters[0] %> & Sem-<%= activeSemesters[1] %>):</span>
+        </div>
+        <div class="col-lg-4">
+          <input type="number" id="masterYearFee" class="form-control" placeholder="Enter Full Year Fees Amount (e.g. 40000)">
+        </div>
+        <div class="col-lg-3">
+          <button type="button" onclick="applyGlobalYearFee()" class="btn btn-dark w-100 fw-bold">Inject & Auto-Divide</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN STUDENT LEDGER MATRIX FORM -->
+    <form action="/fees/save-bulk-ledger" method="POST" id="ledgerGridForm" onsubmit="return validateGridForm()" class="needs-validation" novalidate>
+      <input type="hidden" name="semA" value="<%= activeSemesters[0] %>">
+      <input type="hidden" name="semB" value="<%= activeSemesters[1] %>">
+      <input type="hidden" name="className" value="<%= query.className %>">
+      <input type="hidden" name="section" value="<%= query.section %>">
+
+      <div class="table-responsive shadow-sm rounded">
+        <table class="table align-middle bg-white table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th style="width: 10%;">Roll No</th>
+              <th style="width: 15%;">Student Name</th>
+              <th style="width: 15%;">Father Name</th>
+              <th style="width: 10%;">Session</th>
+              <th style="width: 12%;">Year Total Fees (₹)</th>
+              <th style="width: 13%;">Semester <%= activeSemesters[0] %> (₹)</th>
+              <th style="width: 13%;">Semester <%= activeSemesters[1] %> (₹)</th>
+              <th style="width: 12%;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% students.forEach((student, index) => { %>
+              <tr class="student-row-item">
+                <td>
+                  <input type="hidden" name="fees[<%= index %>][student_id]" value="<%= student._id %>">
+                  <input type="hidden" name="fees[<%= index %>][rollNumber]" value="<%= student.rollNo %>">
+                  <input type="hidden" name="fees[<%= index %>][studentName]" value="<%= student.name %>">
+                  <input type="hidden" name="fees[<%= index %>][fatherName]" value="<%= student.fatherName || 'N/A' %>">
+                  <!-- ⚡ Hidden Session Passed Cleanly -->
+                  <input type="hidden" name="fees[<%= index %>][session]" value="<%= student.session %>">
+                  
+                  <span class="badge bg-secondary fs-6"><%= student.rollNo %></span>
+                </td>
+                <td class="fw-semibold text-dark"><%= student.name %></td>
+                <td class="text-secondary"><%= student.fatherName || 'N/A' %></td>
+                
+                <!-- Display Session Badge -->
+                <td>
+                  <span class="badge bg-info text-dark fw-bold"><%= student.session || 'N/A' %></span>
+                </td>
+                
+                <td>
+                  <input type="number" class="form-control form-control-sm row-year-total" value="<%= student.existingYearTotal %>" oninput="divideRowFeesEqually(this)">
+                </td>
+                
+                <td>
+                  <input type="number" name="fees[<%= index %>][due_amount_A]" class="form-control form-control-sm row-semA-input" value="<%= student.semADue %>" oninput="recalculateRowTotal(this)">
+                </td>
+                <td>
+                  <input type="number" name="fees[<%= index %>][due_amount_B]" class="form-control form-control-sm row-semB-input" value="<%= student.semBDue %>" oninput="recalculateRowTotal(this)">
+                </td>
+                
+                <td>
+                  <select name="fees[<%= index %>][status]" class="form-select form-select-sm row-status-select" onchange="toggleRowState(this)">
+                    <option value="Active">Active</option>
+                    <option value="Left College">Left College</option>
+                  </select>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- LIVE EXPECTED COLLECTION DASHBOARD -->
+      <div class="card my-4 border-0 shadow-sm text-white" style="background-color: #1e293b;">
+        <div class="card-body p-4">
+          <h5 class="fw-bold mb-3 text-warning border-bottom pb-2">📈 Live Grid Summary (Expected Collection)</h5>
+          <div class="row g-3 text-center">
+            
+            <div class="col-md-4 border-end border-secondary">
+              <p class="text-muted small mb-1 fw-semibold text-uppercase">Grand Total Year Collection</p>
+              <h3 class="fw-bold text-success" id="grandYearTotal">₹0</h3>
+            </div>
+
+            <div class="col-md-4 border-end border-secondary">
+              <p class="text-muted small mb-1 fw-semibold text-uppercase">Total Semester <%= activeSemesters[0] %> Collection</p>
+              <h3 class="fw-bold text-info" id="grandSemATotal">₹0</h3>
+            </div>
+
+            <div class="col-md-4">
+              <p class="text-muted small mb-1 fw-semibold text-uppercase">Total Semester <%= activeSemesters[1] %> Collection</p>
+              <h3 class="fw-bold text-info" id="grandSemBTotal">₹0</h3>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="text-end mt-4">
+        <button type="submit" class="btn btn-success btn-lg px-5 fw-bold shadow">Save Batch Matrix Allocations</button>
+      </div>
+    </form>
+
+  <% } else if (selectedSem) { %>
+    <div class="alert alert-warning text-center fw-semibold">No active student profiles discovered matching the requested query parameters.</div>
+  <% } %>
+
+</div>
+
+<!-- GRID CONTROLLER LOGIC SCRIPTS -->
+<script>
+function updateGrandTotals() {
+  let totalYear = 0;
+  let totalSemA = 0;
+  let totalSemB = 0;
+
+  const rows = document.querySelectorAll('.student-row-item');
+  
+  rows.forEach(row => {
+    if (row.querySelector('.row-status-select').value === "Active") {
+      const yearVal = parseFloat(row.querySelector('.row-year-total').value) || 0;
+      const semAVal = parseFloat(row.querySelector('.row-semA-input').value) || 0;
+      const semBVal = parseFloat(row.querySelector('.row-semB-input').value) || 0;
+
+      totalYear += yearVal;
+      totalSemA += semAVal;
+      totalSemB += semBVal;
+    }
+  });
+
+  document.getElementById('grandYearTotal').innerText = '₹' + totalYear.toLocaleString('en-IN');
+  document.getElementById('grandSemATotal').innerText = '₹' + totalSemA.toLocaleString('en-IN');
+  document.getElementById('grandSemBTotal').innerText = '₹' + totalSemB.toLocaleString('en-IN');
+}
+
+function applyGlobalYearFee() {
+  const annualAmount = parseFloat(document.getElementById('masterYearFee').value) || 0;
+  if(annualAmount <= 0) {
+    alert("Kripya ek valid price enter karein!");
+    return;
+  }
+  
+  const splitShare = annualAmount / 2;
+  const rows = document.querySelectorAll('.student-row-item');
+  
+  rows.forEach(row => {
+    if(row.querySelector('.row-status-select').value === "Active") {
+      row.querySelector('.row-year-total').value = annualAmount;
+      row.querySelector('.row-semA-input').value = splitShare;
+      row.querySelector('.row-semB-input').value = splitShare;
+    }
+  });
+  
+  updateGrandTotals();
+}
+
+function divideRowFeesEqually(inputElement) {
+  const row = inputElement.closest('.student-row-item');
+  const totalAmt = parseFloat(inputElement.value) || 0;
+  row.querySelector('.row-semA-input').value = totalAmt / 2;
+  row.querySelector('.row-semB-input').value = totalAmt / 2;
+  
+  updateGrandTotals();
+}
+
+function recalculateRowTotal(inputElement) {
+  const row = inputElement.closest('.student-row-item');
+  const sA = parseFloat(row.querySelector('.row-semA-input').value) || 0;
+  const sB = parseFloat(row.querySelector('.row-semB-input').value) || 0;
+  row.querySelector('.row-year-total').value = sA + sB;
+  
+  updateGrandTotals();
+}
+
+function toggleRowState(selectElement) {
+  const row = selectElement.closest('.student-row-item');
+  const inputs = row.querySelectorAll('input[type="number"]');
+  if(selectElement.value === "Left College") {
+    row.style.opacity = "0.4";
+    inputs.forEach(i => {
+      i.readOnly = true;
+      i.style.backgroundColor = "#e9ecef";
+    });
+  } else {
+    row.style.opacity = "1";
+    inputs.forEach(i => {
+      i.readOnly = false;
+      i.style.backgroundColor = "#fff";
+    });
+  }
+  
+  updateGrandTotals();
+}
+
+function validateGridForm() {
+  const rows = document.querySelectorAll('.student-row-item');
+  let valid = true;
+
+  rows.forEach(row => {
+    if(row.querySelector('.row-status-select').value === "Active") {
+      const yearFee = parseFloat(row.querySelector('.row-year-total').value) || 0;
+      if(yearFee <= 0) {
+        valid = false;
+        row.querySelector('.row-year-total').style.border = "2px solid red";
+      } else {
+        row.querySelector('.row-year-total').style.border = "1px solid #dee2e6";
+      }
+    }
+  });
+
+  if(!valid) {
+    alert("⚠️ Validation Warning: Sabhi active bacchon ki fees ₹0 se badi honi chahiye!");
+    return false;
+  }
+  return true;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  updateGrandTotals();
+});
+</script>
+
+
+
+<!-- --------------------------------------------------------------------------------------------- -->
+
+
+
+
+
+<!-- show fees data ki ejs -->
+
+<%- layout("/layouts/boilerplate") %>
+
+<style>
+  .table-fixed-layout th,
+  .table-fixed-layout td {
+    vertical-align: middle;
+    padding: 10px 8px !important;
+  }
+  .stat-card {
+    border-left: 5px solid #0d6efd;
+    transition: transform 0.2s ease-in-out;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-card-success { border-left-color: #198754; }
+  .stat-card-info { border-left-color: #0dcaf0; }
+  .stat-card-warning { border-left-color: #ffc107; }
+  .stat-card-danger { border-left-color: #dc3545; }
+
+  .sticky-section-nav {
+    position: sticky;
+    top: 10px;
+    z-index: 1020;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(5px);
+    border-radius: 12px;
+  }
+  .sem-due-badge {
+    font-size: 0.78rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .btn-remove-penalty {
+    line-height: 1;
+    font-size: 0.85rem;
+    padding: 1px 5px;
+    border-radius: 50%;
+  }
+</style>
+
+<!-- 🔔 DYNAMIC TOAST NOTIFICATION CONTAINER -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+  <div id="dynamicToast" class="toast align-items-center text-white border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body fw-bold" id="toastMessage">--</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid my-4">
+
+  <!-- 🔍 MAIN COURSE/BATCH FILTER -->
+  <div class="card shadow-sm border-0 bg-white p-4 mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-5">
+        <h3 class="fw-bold text-dark m-0">Fee Management Dashboard</h3>
+        <p class="text-muted small m-0">Select Course & Batch Session to load student ledgers.</p>
+      </div>
+      <div class="col-md-7 mt-3 mt-md-0">
+        <form id="feeFilterForm" action="/show/fee/dashboard" method="GET" class="row g-2 justify-content-md-end">
+          <div class="col-md-5">
+            <select name="baseCourse" id="classSelector" class="form-select form-select-lg fw-bold border-2" onchange="checkAndSubmitForm()">
+              <option value="" <%= !selectedBaseCourse ? 'selected' : '' %> disabled>-- Select Course --</option>
+              <% allBaseCourses.forEach(course => { %>
+                <option value="<%= course %>" <%= selectedBaseCourse === course ? 'selected' : '' %>><%= course %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div class="col-md-5">
+            <select name="batchSession" id="yearSelector" class="form-select form-select-lg fw-bold border-2" onchange="checkAndSubmitForm()">
+              <option value="" <%= !selectedBatch ? 'selected' : '' %> disabled>-- Select Batch Session --</option>
+              <% allBatches.forEach(batch => { %>
+                <option value="<%= batch %>" <%= selectedBatch === batch ? 'selected' : '' %>><%= batch %></option>
+              <% }); %>
+            </select>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <% if (selectedBaseCourse && selectedBatch && Object.keys(sectionwiseData).length > 0) { %>
+
+    <!-- 📊 GRAND OVERALL SUMMARY CARD -->
+    <div class="card border-0 shadow-sm bg-dark text-white p-3 mb-4">
+      <div class="d-flex justify-content-between align-items-center mb-2 border-bottom border-secondary pb-2">
+        <h5 class="fw-bold m-0 text-warning">
+          <i class="fa-solid fa-chart-line me-2"></i>Overall Collection Summary (<%= selectedBaseCourse %> - <%= selectedBatch %>)
+        </h5>
+        <span class="badge bg-success fs-6 px-3 py-2 fw-bold">
+          Total Collected: ₹<%= (overallDashboard.totalCollected || 0).toLocaleString('en-IN') %>
+        </span>
+      </div>
+      <div class="row text-center g-2 pt-1">
+        <div class="col">
+          <small class="text-light-50 d-block text-uppercase fw-semibold" style="font-size: 0.75rem;">Total Demand</small>
+          <span class="fw-bold fs-6">₹<%= (overallDashboard.totalFee || 0).toLocaleString('en-IN') %></span>
+        </div>
+        <div class="col">
+          <small class="text-light-50 d-block text-uppercase fw-semibold text-success" style="font-size: 0.75rem;">Sem Paid</small>
+          <span class="fw-bold fs-6 text-success">₹<%= (overallDashboard.totalPaid || 0).toLocaleString('en-IN') %></span>
+        </div>
+        <div class="col">
+          <small class="text-light-50 d-block text-uppercase fw-semibold text-info" style="font-size: 0.75rem;">Total Advance</small>
+          <span class="fw-bold fs-6 text-info">₹<%= (overallDashboard.totalAdvance || 0).toLocaleString('en-IN') %></span>
+        </div>
+        <div class="col">
+          <small class="text-light-50 d-block text-uppercase fw-semibold text-warning" style="font-size: 0.75rem;">Total Penalty</small>
+          <span class="fw-bold fs-6 text-warning">₹<%= (overallDashboard.totalPenalty || 0).toLocaleString('en-IN') %></span>
+        </div>
+        <div class="col">
+          <small class="text-light-50 d-block text-uppercase fw-semibold text-danger" style="font-size: 0.75rem;">Net Pending</small>
+          <span class="fw-bold fs-6 text-danger">₹<%= (overallDashboard.netPending || 0).toLocaleString('en-IN') %></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🔘 JUMP TO SECTION NAVIGATION TABS -->
+    <div class="card sticky-section-nav p-2 mb-4 shadow-sm border">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span class="fw-bold text-muted ms-2 small text-uppercase">
+          <i class="fa-solid fa-compass me-1"></i> Jump To Section:
+        </span>
+        <div class="d-flex gap-2">
+          <% Object.keys(sectionwiseData).sort().forEach(sec => { %>
+            <button type="button" class="btn btn-dark fw-bold btn-sm px-3" onclick="scrollToSec('SEC_BLOCK_<%= sec %>')">
+              🚩 Section <%= sec %>
+            </button>
+          <% }); %>
+        </div>
+      </div>
+    </div>
+
+    <!-- 📦 ITERATE SECTIONS -->
+    <% Object.keys(sectionwiseData).sort().forEach(sec => { %>
+      <% const secInfo = sectionwiseData[sec]; %>
+      <% const secSummary = secInfo.summary; %>
+      <% const secStudents = secInfo.students; %>
+      <% const yrData = secInfo.yearlyBreakdown; %>
+
+      <div id="SEC_BLOCK_<%= sec %>" class="mb-5 pt-3 border-top">
+        
+        <!-- SUMMARY DASHBOARD CARDS -->
+        <div class="mb-3">
+          <h5 class="fw-bold text-dark mb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><span class="badge bg-primary fs-6 me-1">Section <%= sec %></span> Summary Dashboard</span>
+            <span class="badge bg-success fs-6 fw-bold">Section Total Collected: ₹<%= (secSummary.totalCollected || 0).toLocaleString('en-IN') %></span>
+          </h5>
+          <div class="row g-2">
+            <div class="col-md-2 col-6">
+              <div class="card shadow-sm border-0 p-3 stat-card bg-white">
+                <span class="text-muted small fw-bold text-uppercase">Total Demand</span>
+                <h4 class="fw-bold text-dark mb-0 mt-1">₹<%= (secSummary.totalFee || 0).toLocaleString('en-IN') %></h4>
+              </div>
+            </div>
+            <div class="col-md-2 col-6">
+              <div class="card shadow-sm border-0 p-3 stat-card stat-card-success bg-white">
+                <span class="text-muted small fw-bold text-uppercase">Collected</span>
+                <h4 class="fw-bold text-success mb-0 mt-1">₹<%= (secSummary.totalPaid || 0).toLocaleString('en-IN') %></h4>
+              </div>
+            </div>
+            <div class="col-md-3 col-6">
+              <div class="card shadow-sm border-0 p-3 stat-card stat-card-warning bg-white">
+                <span class="text-muted small fw-bold text-uppercase">⚠️ Total Penalty</span>
+                <h4 class="fw-bold text-warning mb-0 mt-1">₹<%= (secSummary.totalPenalty || 0).toLocaleString('en-IN') %></h4>
+              </div>
+            </div>
+            <div class="col-md-2 col-6">
+              <div class="card shadow-sm border-0 p-3 stat-card stat-card-info bg-white">
+                <span class="text-muted small fw-bold text-uppercase">Advance</span>
+                <h4 class="fw-bold text-info mb-0 mt-1">₹<%= (secSummary.totalAdvance || 0).toLocaleString('en-IN') %></h4>
+              </div>
+            </div>
+            <div class="col-md-3 col-6">
+              <div class="card shadow-sm border-0 p-3 stat-card stat-card-danger bg-white">
+                <span class="text-muted small fw-bold text-uppercase">Net Pending</span>
+                <h4 class="fw-bold text-danger mb-0 mt-1">₹<%= (secSummary.netPending || 0).toLocaleString('en-IN') %></h4>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- OVERVIEW BAR (YEAR-WISE SPLIT) -->
+        <div class="card bg-light border-0 shadow-sm p-3 mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="fw-bold m-0 text-dark">
+              <span class="badge bg-dark me-1"><%= selectedBaseCourse %></span> Section <%= sec %> Overview (Year-wise Split)
+            </h5>
+          </div>
+          <div class="row g-2 text-center">
+            <% ["1ST YEAR", "2ND YEAR", "3RD YEAR", "4TH YEAR"].forEach(yTag => { %>
+              <% const yMetrics = yrData[yTag]; %>
+              <% if (yMetrics && (yMetrics.demand > 0 || yMetrics.paid > 0)) { %>
+                <div class="col-md-3">
+                  <div class="bg-white p-2 rounded border shadow-sm">
+                    <span class="fw-bold text-primary border-bottom d-block mb-1"><%= yTag %></span>
+                    <div class="d-flex justify-content-between px-2 small">
+                      <span>Demand: <b>₹<%= yMetrics.demand.toLocaleString('en-IN') %></b></span>
+                      <span class="text-success">Paid: <b>₹<%= yMetrics.paid.toLocaleString('en-IN') %></b></span>
+                    </div>
+                    <div class="d-flex justify-content-between px-2 small mt-1">
+                      <span class="text-warning">Fine: <b>₹<%= yMetrics.penalty.toLocaleString('en-IN') %></b></span>
+                      <span class="text-danger">Pending: <b>₹<%= yMetrics.pending.toLocaleString('en-IN') %></b></span>
+                    </div>
+                  </div>
+                </div>
+              <% } %>
+            <% }); %>
+          </div>
+        </div>
+
+        <!-- SECTION ACTION BAR -->
+        <div class="card bg-dark text-white p-3 mb-3 shadow-sm border-0">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3">
+              <div class="form-check m-0 ms-1">
+                <input type="checkbox" class="form-check-input sec-master-cb" data-sec="<%= sec %>" id="masterSelect_<%= sec %>" style="transform: scale(1.2); cursor: pointer;">
+                <label class="form-check-label fw-bold text-light ms-1" for="masterSelect_<%= sec %>" style="cursor: pointer;">Select All Section <%= sec %></label>
+              </div>
+              <span class="badge bg-warning text-dark fw-bold px-3 py-2" id="counter_<%= sec %>">0 Selected</span>
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap">
+              <button class="btn btn-warning btn-sm fw-bold px-3" onclick="togglePenaltyDrawer('<%= sec %>')">
+                ⚠️ Add Penalty (Sec <%= sec %>)
+              </button>
+              <button class="btn btn-outline-light btn-sm fw-bold px-3" onclick="openBulkModal('<%= sec %>')">
+                ✏️ Edit Structure (Bulk)
+              </button>
+              <button class="btn btn-outline-danger btn-sm fw-bold px-3" onclick="handleBulkDeleteStructure('<%= sec %>')">
+                🗑️ Delete Structure
+              </button>
+              <button class="btn btn-outline-warning btn-sm fw-bold px-3" onclick="handleBulkWipePayments('<%= sec %>')">
+                ⚠️ Wipe Payments
+              </button>
+            </div>
+          </div>
+
+          <!-- PENALTY DRAWER -->
+          <div id="penaltyDrawer_<%= sec %>" class="bg-light p-3 mt-3 text-dark rounded d-none">
+            <div class="row align-items-center g-2">
+              <div class="col-md-3">
+                <label class="fw-bold small mb-1">Target Semester:</label>
+                <select id="penaltySem_<%= sec %>" class="form-select form-select-sm fw-bold">
+                  <option value="1">Semester 1</option>
+                  <option value="2">Semester 2</option>
+                  <option value="3">Semester 3</option>
+                  <option value="4">Semester 4</option>
+                  <option value="5">Semester 5</option>
+                  <option value="6">Semester 6</option>
+                  <option value="7">Semester 7</option>
+                  <option value="8">Semester 8</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <span class="small text-muted fw-bold">Penalty enter karke "Save Penalties" par click karein.</span>
+              </div>
+              <div class="col-md-3 text-end">
+                <button type="button" class="btn btn-success btn-sm fw-bold px-4" onclick="saveSectionPenalties('<%= sec %>', event)">
+                  💾 Save Penalties
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEARCH & UNPAID PDF FILTER BAR -->
+        <div class="card p-3 bg-white mb-3 shadow-sm border">
+          <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+              <div class="input-group">
+                <span class="input-group-text bg-light"><i class="fa-solid fa-magnifying-glass"></i></span>
+                <input type="text" class="form-control fw-bold" id="searchInp_<%= sec %>" placeholder="Search Student Name / Roll No..." onkeyup="filterSectionTable('<%= sec %>')">
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="fw-bold small text-muted">Unpaid Fee Sem Filter:</span>
+                <% [1,2,3,4,5,6,7,8].forEach(sNum => { %>
+                  <div class="form-check form-check-inline m-0">
+                    <input class="form-check-input sem-filter-cb-<%= sec %>" type="checkbox" value="<%= sNum %>" id="sem_<%= sec %>_<%= sNum %>" onchange="filterSectionTable('<%= sec %>')">
+                    <label class="form-check-label small fw-bold" for="sem_<%= sec %>_<%= sNum %>">Sem <%= sNum %></label>
+                  </div>
+                <% }); %>
+              </div>
+            </div>
+
+            <div class="col-md-2 text-end">
+              <button class="btn btn-danger btn-sm fw-bold w-100" onclick="exportRouteUnpaidPDF('<%= sec %>')">
+                <i class="fa-solid fa-file-pdf me-1"></i> Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- UNIFIED TABLE -->
+        <div class="card shadow-sm border">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-bordered table-striped table-hover align-middle text-center table-fixed-layout mb-0" id="table_<%= sec %>">
+                <thead class="table-dark">
+                  <tr>
+                    <th style="width: 40px;">#</th>
+                    <th style="width: 110px;">Roll No</th>
+                    <th class="text-start" style="width: 200px;">Student Details</th>
+                    <th class="text-start" style="width: 40%;">Semesters, Dues & Penalty</th>
+                    <th style="width: 25%;">Total Paid, Advance, Balance & Receipts</th>
+                    <th class="action-col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% secStudents.forEach((student) => { %>
+                    <tr class="student-row-<%= sec %>" 
+                        data-name="<%= (student.studentName || '').toLowerCase() %>" 
+                        data-roll="<%= (student.rollNumber || '').toString().toLowerCase() %>">
+                      <td>
+                        <input type="checkbox" class="form-check-input student-cb-<%= sec %>" value="<%= student._id %>" onchange="updateSectionCount('<%= sec %>')">
+                      </td>
+                      <td class="fw-bold text-dark"><%= student.rollNumber %></td>
+                      <td class="text-start">
+                        <div class="fw-bold text-primary"><%= student.studentName %></div>
+                        <small class="text-muted"><i class="fa-solid fa-user-group me-1"></i><%= student.fatherName || 'N/A' %></small>
+                      </td>
+                      
+                      <!-- Semesters & Dues Row -->
+                      <td class="text-start">
+                        <% if (student.semesters && student.semesters.length > 0) { %>
+                          <% student.semesters.forEach(sem => { %>
+                            <% const penAmt = sem.penalty_amount || sem.penalty || 0; %>
+                            <% const paidAmt = sem.amount_paid || 0; %>
+                            <div class="sem-due-badge border bg-light mb-1 d-flex justify-content-between align-items-center" data-semnum="<%= sem.semNumber %>" data-sempending="<%= sem.calculated_pending %>">
+                              <div>
+                                <span class="badge bg-secondary me-1">Sem <%= sem.semNumber %></span>
+                                <span class="fw-bold">Due: ₹<%= (sem.due_amount || 0).toLocaleString('en-IN') %></span>
+                                <% if (penAmt > 0) { %>
+                                  <span class="badge bg-danger ms-1 d-inline-flex align-items-center gap-1">
+                                    +Fine: ₹<%= penAmt %>
+                                    
+                                    <!-- 🛑 SAFE DATA-ATTRIBUTE PENALTY REMOVE BUTTON -->
+                                    <button type="button" 
+                                            class="btn btn-dark text-white btn-remove-penalty ms-1" 
+                                            title="Remove Penalty"
+                                            data-studentid="<%= student._id %>"
+                                            data-semnum="<%= sem.semNumber %>"
+                                            data-paidamt="<%= paidAmt %>"
+                                            onclick="handlePenaltyClick(this)">
+                                      &times;
+                                    </button>
+                                  </span>
+                                <% } %>
+                              </div>
+                              <span class="small text-muted">(Paid: ₹<%= paidAmt.toLocaleString('en-IN') %>)</span>
+                            </div>
+                          <% }); %>
+                        <% } else { %>
+                          <span class="text-muted small">No Structure Added</span>
+                        <% } %>
+
+                        <!-- Dynamic Penalty Input -->
+                        <div class="penalty-input-box-<%= sec %> d-none mt-2">
+                          <input type="number" 
+                                 class="form-control form-control-sm border-danger penalty-val-<%= sec %>" 
+                                 data-studentid="<%= student._id %>" 
+                                 placeholder="Enter Penalty ₹" 
+                                 min="0">
+                        </div>
+                      </td>
+
+                      <!-- COMBINED COLUMN -->
+                      <td>
+                        <div class="fw-bold text-success fs-6">
+                          Paid: ₹<%= (student.total_allocated_paid || 0).toLocaleString('en-IN') %>
+                        </div>
+
+                        <% if (student.advance_balance && student.advance_balance > 0) { %>
+                          <div class="mt-1">
+                            <span class="badge bg-info-subtle text-info border border-info px-2 py-1" style="font-size: 0.75rem;">
+                              ⚡ Advance: ₹<%= student.advance_balance.toLocaleString('en-IN') %>
+                            </span>
+                          </div>
+                        <% } %>
+
+                        <div class="mt-1 fw-bold <%= student.overall_pending_balance > 0 ? 'text-danger' : 'text-success' %>" style="font-size: 0.9rem;">
+                          Pending: ₹<%= (student.overall_pending_balance || 0).toLocaleString('en-IN') %>
+                        </div>
+
+                        <div class="mt-1">
+                          <% if (student.paymentHistory && student.paymentHistory.length > 0) { %>
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-primary border-0 p-0 fw-bold small text-decoration-underline" 
+                                    data-stname="<%= student.studentName %>"
+                                    data-stroll="<%= student.rollNumber %>"
+                                    data-txs="<%= encodeURIComponent(JSON.stringify(student.paymentHistory)) %>"
+                                    onclick="openReceiptsModal(this)">
+                              <i class="fa-solid fa-receipt me-1"></i>Receipts (<%= student.paymentHistory.length %>)
+                            </button>
+                          <% } else { %>
+                            <span class="text-muted small" style="font-size: 0.75rem;">No Receipts</span>
+                          <% } %>
+                        </div>
+
+                        <!-- TOTAL PAID AMOUNT -->
+                        <div class="mt-2 pt-1 border-top">
+                          <span class="badge bg-dark text-warning border border-warning px-2 py-1 fw-bold" style="font-size: 0.75rem;">
+                            💰 Total Paid Amount: ₹<%= (student.total_amount_paid || 0).toLocaleString('en-IN') %>
+                          </span>
+                        </div>
+                      </td>
+
+                      <!-- Actions Column -->
+                      <td>
+                        <div class="d-flex flex-column gap-1">
+                          <div class="btn-group btn-group-sm w-100">
+                            <button class="btn btn-outline-primary fw-bold" onclick="editSingleStructure('<%= student._id %>')">✏️ Struct</button>
+                            <button class="btn btn-outline-danger" onclick="deleteSingleStructure('<%= student._id %>')">🗑️</button>
+                          </div>
+                          <div class="btn-group btn-group-sm w-100">
+                            <button class="btn btn-outline-success fw-bold" onclick="editSinglePayment('<%= student._id %>')">💳 Paid</button>
+                            <button class="btn btn-outline-warning text-dark" onclick="deleteSinglePayment('<%= student._id %>')">🗑️</button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    <% }); %>
+
+  <% } else { %>
+    <div class="card p-5 text-center text-muted shadow-sm border border-dashed">
+      <h5 class="fw-bold mb-1 text-dark">Welcome to Fee Dashboard</h5>
+      <p class="m-0 small">Select Course and Batch Session above to load Section-wise data.</p>
+    </div>
+  <% } %>
+
+</div>
+
+<!-- RECEIPT PASSBOOK MODAL -->
+<div class="modal fade" id="receiptsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title fw-bold">
+          <i class="fa-solid fa-receipt me-2 text-warning"></i>Payment Receipts
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="bg-light p-3 rounded mb-3 border d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="fw-bold mb-0 text-dark" id="modalStudentName">--</h6>
+            <small class="text-muted">Roll No: <span id="modalRollNo" class="fw-bold text-primary">--</span></small>
+          </div>
+          <span class="badge bg-primary px-3 py-2" id="modalReceiptCount">0 Receipts</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-bordered table-striped align-middle text-center mb-0">
+            <thead class="table-dark">
+              <tr>
+                <th>Receipt No</th>
+                <th>Date</th>
+                <th>Sem</th>
+                <th>Amount Paid</th>
+                <th>Mode</th>
+              </tr>
+            </thead>
+            <tbody id="receiptsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ✏️ EDIT STRUCTURE MODAL (Single & Bulk) -->
+<div class="modal fade" id="editStructureModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title fw-bold">
+          <i class="fa-solid fa-pen-to-square me-2"></i>Edit Fee Structure
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <input type="hidden" id="structTargetStudentId">
+        <input type="hidden" id="structTargetSection">
+        <input type="hidden" id="structIsBulk" value="false">
+
+        <div class="alert alert-info small fw-bold">
+          <i class="fa-solid fa-circle-info me-1"></i>
+          Note: Structure amount cannot be reduced lower than the already collected fees.
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold small">Select Semester:</label>
+          <select id="structSemSelect" class="form-select fw-bold">
+            <option value="1">Semester 1</option>
+            <option value="2">Semester 2</option>
+            <option value="3">Semester 3</option>
+            <option value="4">Semester 4</option>
+            <option value="5">Semester 5</option>
+            <option value="6">Semester 6</option>
+            <option value="7">Semester 7</option>
+            <option value="8">Semester 8</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold small">New Base Fee Amount (₹):</label>
+          <input type="number" id="structNewAmount" class="form-control fw-bold fs-5" placeholder="e.g. 45000" min="0">
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary fw-bold px-4" id="btnSaveStructure" onclick="submitStructureEdit()">
+          💾 Update Structure
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 💳 EDIT PAYMENT / RECEIPT MODAL -->
+<div class="modal fade" id="editPaymentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title fw-bold">
+          <i class="fa-solid fa-credit-card me-2"></i>Edit Student Payment & Ledger
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <input type="hidden" id="payStudentId">
+
+        <div class="bg-light p-3 rounded mb-3 border">
+          <div class="row align-items-center">
+            <div class="col-md-6">
+              <span class="text-muted small d-block">Student Name:</span>
+              <strong class="text-dark fs-6" id="payModalStName">--</strong>
+            </div>
+            <div class="col-md-6 text-md-end">
+              <span class="text-muted small d-block">Roll Number:</span>
+              <strong class="text-primary fs-6" id="payModalStRoll">--</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-bold small">Target Semester:</label>
+            <select id="paySemSelect" class="form-select fw-bold">
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
+              <option value="3">Semester 3</option>
+              <option value="4">Semester 4</option>
+              <option value="5">Semester 5</option>
+              <option value="6">Semester 6</option>
+              <option value="7">Semester 7</option>
+              <option value="8">Semester 8</option>
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-bold small">Receipt / Txn Number:</label>
+            <input type="text" id="payReceiptNo" class="form-control fw-bold" placeholder="REC-10293">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-bold small">Paid Amount (₹):</label>
+            <input type="number" id="payAmount" class="form-control fw-bold text-success fs-5" placeholder="e.g. 25000" min="0">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-bold small">Payment Mode:</label>
+            <select id="payMode" class="form-select fw-bold">
+              <option value="Cash">Cash</option>
+              <option value="Online / UPI">Online / UPI</option>
+              <option value="Cheque">Cheque</option>
+              <option value="DD">Demand Draft (DD)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success fw-bold px-4" id="btnSavePayment" onclick="submitPaymentEdit()">
+          💳 Save & Adjust Ledger
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // -------------------------------------------------------------
+  // 1. STRUCTURE LOGIC (SINGLE & BULK EDIT/DELETE)
+  // -------------------------------------------------------------
+
+  // Single Edit Structure Trigger
+  function editSingleStructure(studentId) {
+    document.getElementById('structTargetStudentId').value = studentId;
+    document.getElementById('structIsBulk').value = "false";
+    document.getElementById('structNewAmount').value = "";
+    
+    const modal = new bootstrap.Modal(document.getElementById('editStructureModal'));
+    modal.show();
+  }
+
+  // Bulk Edit Structure Trigger
+  function openBulkModal(sec) {
+    const selectedCBs = document.querySelectorAll(`.student-cb-${sec}:checked`);
+    if (selectedCBs.length === 0) {
+      return showToast("⚠️ Pehle kam se kam ek student select karein!", false);
+    }
+
+    document.getElementById('structTargetSection').value = sec;
+    document.getElementById('structIsBulk').value = "true";
+    document.getElementById('structNewAmount').value = "";
+
+    const modal = new bootstrap.Modal(document.getElementById('editStructureModal'));
+    modal.show();
+  }
+
+  // Submit Structure Edit (Single & Bulk)
+  async function submitStructureEdit() {
+    const isBulk = document.getElementById('structIsBulk').value === "true";
+    const semNum = document.getElementById('structSemSelect').value;
+    const newAmount = parseFloat(document.getElementById('structNewAmount').value);
+
+    if (isNaN(newAmount) || newAmount < 0) {
+      return showToast("⚠️ Valid fee amount daalein!", false);
+    }
+
+    let payload = {
+      semNumber: semNum,
+      newFeeAmount: newAmount,
+      isBulk: isBulk
+    };
+
+    if (isBulk) {
+      const sec = document.getElementById('structTargetSection').value;
+      const studentIds = Array.from(document.querySelectorAll(`.student-cb-${sec}:checked`)).map(cb => cb.value);
+      payload.studentIds = studentIds;
+    } else {
+      payload.studentId = document.getElementById('structTargetStudentId').value;
+    }
+
+    const btn = document.getElementById('btnSaveStructure');
+    btn.disabled = true;
+    btn.innerText = "⏳ Updating...";
+
+    try {
+      const response = await fetch('/update/fee/structure', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast(result.message || "🎉 Fee Structure Updated Successfully!", true);
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        showToast("❌ Error: " + result.message, false);
+        btn.disabled = false;
+        btn.innerText = "💾 Update Structure";
+      }
+    } catch (err) {
+      console.error("Structure Update Error:", err);
+      showToast("❌ Server communication failed!", false);
+      btn.disabled = false;
+      btn.innerText = "💾 Update Structure";
+    }
+  }
+
+  // Single Delete Structure
+  async function deleteSingleStructure(studentId) {
+    if (!confirm("⚠️ Kya aap is student ki un-paid Structure Demand delete karna chahte hain?")) return;
+
+    try {
+      const response = await fetch('/delete/fee/structure/single', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast(result.message || "🗑️ Structure Deleted Successfully!", true);
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        showToast("🛑 Action Blocked: " + result.message, false);
+      }
+    } catch (err) {
+      console.error("Single Structure Delete Error:", err);
+      showToast("❌ Server communication failure!", false);
+    }
+  }
+
+  // Bulk Delete Structure
+  async function handleBulkDeleteStructure(sec) {
+    const selectedCBs = document.querySelectorAll(`.student-cb-${sec}:checked`);
+    if (selectedCBs.length === 0) {
+      return showToast("⚠️ Select at least one student to delete structure!", false);
+    }
+
+    if (!confirm(`🛑 CRITICAL WARNING: Section ${sec} ke selected (${selectedCBs.length}) students ka Un-Paid Fee Structure DELETE kar rahe hain. Rule 1 apply hoga (Zero Paid candidates structure strictly reset ho jayenge). Continue?`)) return;
+
+    const studentIds = Array.from(selectedCBs).map(cb => cb.value);
+
+    try {
+      const response = await fetch('/delete/fee/structure/bulk', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentIds })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast(result.message || "🗑️ Bulk Structure Deleted!", true);
+        setTimeout(() => window.location.reload(), 1000000 );
+      } else {
+        showToast("🛑 Error: " + result.message, false);
+      }
+    } catch (err) {
+      console.error("Bulk Structure Delete Error:", err);
+      showToast("❌ Server communication failure!", false);
+    }
+  }
+
+
+  // -------------------------------------------------------------
+  // 2. PAYMENT / RECEIPT & LEDGER LOGIC (SINGLE & WIPE ROLLBACK)
+  // -------------------------------------------------------------
+
+  // Open Edit Payment Modal
+  function editSinglePayment(studentId) {
+    document.getElementById('payStudentId').value = studentId;
+
+    // Fetch Student basic row data for display
+    const row = document.querySelector(`input[value="${studentId}"]`)?.closest('tr');
+    if (row) {
+      const name = row.getAttribute('data-name')?.toUpperCase() || '--';
+      const roll = row.getAttribute('data-roll')?.toUpperCase() || '--';
+      document.getElementById('payModalStName').innerText = name;
+      document.getElementById('payModalStRoll').innerText = roll;
+    }
+
+    document.getElementById('payAmount').value = "";
+    document.getElementById('payReceiptNo').value = "";
+
+    const modal = new bootstrap.Modal(document.getElementById('editPaymentModal'));
+    modal.show();
+  }
+
+  // Submit Payment / Receipt
+  async function submitPaymentEdit() {
+    const studentId = document.getElementById('payStudentId').value;
+    const semNumber = document.getElementById('paySemSelect').value;
+    const receiptNumber = document.getElementById('payReceiptNo').value.trim();
+    const amountPaid = parseFloat(document.getElementById('payAmount').value);
+    const paymentMode = document.getElementById('payMode').value;
+
+    if (isNaN(amountPaid) || amountPaid <= 0) {
+      return showToast("⚠️ Valid positive amount enter karein!", false);
+    }
+
+    const btn = document.getElementById('btnSavePayment');
+    btn.disabled = true;
+    btn.innerText = "⏳ Adjusting Ledger...";
+
+    try {
+      const response = await fetch('/edit/fee/payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId,
+          semNumber,
+          receiptNumber,
+          amountPaid,
+          paymentMode
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast(result.message || "💳 Payment saved & Ledger adjusted!", true);
+        setTimeout(() => window.location.reload(), 100000);
+      } else {
+        showToast("❌ Error: " + result.message, false);
+        btn.disabled = false;
+        btn.innerText = "💳 Save & Adjust Ledger";
+      }
+    } catch (err) {
+      console.error("Payment Edit Error:", err);
+      showToast("❌ Server communication error!", false);
+      btn.disabled = false;
+      btn.innerText = "💳 Save & Adjust Ledger";
+    }
+  }
+
+  // Delete / Wipe Single Student Payment (Rollback)
+  async function deleteSinglePayment(studentId) {
+    if (!confirm("🚨 DANGER ZONE: Kya aap is student ki SARI Jama Fees (Paid Receipts) KO WIPE / ROLLBACK karna chahte hain? Isse Pending Amount dobara full ho jayega!")) return;
+
+    try {
+      const response = await fetch('/wipe/fee/payment/single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast(result.message || "⚠️ Payment Wiped & Ledger Rolled Back!", true);
+        setTimeout(() => window.location.reload(), 100000);
+      } else {
+        showToast("❌ Error: " + result.message, false);
+      }
+    } catch (err) {
+      console.error("Single Payment Wipe Error:", err);
+      showToast("❌ Server communication error!", false);
+    }
+  }
+
+  // Bulk Wipe Payments (Section Level)
+  async function handleBulkWipePayments(sec) {
+    const selectedCBs = document.querySelectorAll(`.student-cb-${sec}:checked`);
+    if (selectedCBs.length === 0) {
+      return showToast("⚠️ Pehle students select karein!", false);
+    }
+
+    if (!confirm(`🚨 EXTREME DANGER: Section ${sec} ke selected (${selectedCBs.length}) students ki SARI PAID RECEIPTS KO RESET / WIPE kiya ja raha hai. Kya aap sure hain?`)) return;
+
+    const studentIds = Array.from(selectedCBs).map(cb => cb.value);
+
+    try {
+      const response = await fetch('/wipe/fee/payment/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentIds })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast(result.message || "⚠️ Bulk Payments Wiped Successfully!", true);
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        showToast("❌ Error: " + result.message, false);
+      }
+    } catch (err) {
+      console.error("Bulk Payment Wipe Error:", err);
+      showToast("❌ Server communication failure!", false);
+    }
+  }
+
+
+
+  // 🔔 CUSTOM DYNAMIC TOAST ALERT
+  function showToast(message, isSuccess = true) {
+    const toastEl = document.getElementById('dynamicToast');
+    const msgEl = document.getElementById('toastMessage');
+    
+    msgEl.innerText = message;
+    toastEl.className = `toast align-items-center text-white border-0 shadow ${isSuccess ? 'bg-success' : 'bg-danger'}`;
+    
+    const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+    toast.show();
+  }
+
+  function checkAndSubmitForm() {
+    const classVal = document.getElementById('classSelector').value;
+    const yearVal = document.getElementById('yearSelector').value;
+    if (classVal && yearVal) {
+      document.getElementById('feeFilterForm').submit();
+    }
+  }
+
+  function scrollToSec(elementId) {
+    const targetEl = document.getElementById(elementId);
+    if (targetEl) {
+      const yOffset = -70;
+      const y = targetEl.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  }
+
+  // Master Checkbox Logic
+  document.querySelectorAll('.sec-master-cb').forEach(master => {
+    master.addEventListener('change', function() {
+      const sec = this.getAttribute('data-sec');
+      document.querySelectorAll(`.student-cb-${sec}`).forEach(cb => cb.checked = this.checked);
+      updateSectionCount(sec);
+    });
+  });
+
+  function updateSectionCount(sec) {
+    const selectedCount = document.querySelectorAll(`.student-cb-${sec}:checked`).length;
+    const counterEl = document.getElementById(`counter_${sec}`);
+    if (counterEl) counterEl.innerText = `${selectedCount} Selected`;
+  }
+
+  // Filter Section Table
+  function filterSectionTable(sec) {
+    const searchVal = document.getElementById(`searchInp_${sec}`).value.toLowerCase().trim().replace(/\s+/g, ' ');
+    const checkedSems = Array.from(document.querySelectorAll(`.sem-filter-cb-${sec}:checked`)).map(cb => parseInt(cb.value));
+
+    const rows = document.querySelectorAll(`.student-row-${sec}`);
+
+    rows.forEach(row => {
+      const name = (row.getAttribute('data-name') || '').replace(/\s+/g, ' ');
+      const roll = (row.getAttribute('data-roll') || '').replace(/\s+/g, ' ');
+      const matchesSearch = name.includes(searchVal) || roll.includes(searchVal);
+
+      let matchesSem = true;
+      if (checkedSems.length > 0) {
+        matchesSem = false;
+        const semBadges = row.querySelectorAll('.sem-due-badge');
+        semBadges.forEach(badge => {
+          const semNum = parseInt(badge.getAttribute('data-semnum'));
+          const semPending = parseFloat(badge.getAttribute('data-sempending') || '0');
+          if (checkedSems.includes(semNum) && semPending > 0) {
+            matchesSem = true;
+          }
+        });
+      }
+
+      if (matchesSearch && matchesSem) {
+        row.classList.remove('d-none');
+      } else {
+        row.classList.add('d-none');
+      }
+    });
+  }
+
+  function exportRouteUnpaidPDF(sec) {
+    const baseCourse = "<%= selectedBaseCourse %>";
+    const batchSession = "<%= selectedBatch %>";
+    const checkedSems = Array.from(document.querySelectorAll(`.sem-filter-cb-${sec}:checked`)).map(cb => cb.value);
+
+    let baseUrl = `${window.location.origin}/export/fee/unpaid-pdf`;
+    let params = new URLSearchParams();
+
+    params.append("baseCourse", baseCourse);
+    params.append("batchSession", batchSession);
+    params.append("section", sec);
+
+    checkedSems.forEach(s => params.append("sem", s));
+
+    window.location.href = `${baseUrl}?${params.toString()}`;
+  }
+
+  function togglePenaltyDrawer(sec) {
+    document.getElementById(`penaltyDrawer_${sec}`).classList.toggle('d-none');
+    document.querySelectorAll(`.penalty-input-box-${sec}`).forEach(box => box.classList.toggle('d-none'));
+  }
+
+  async function saveSectionPenalties(sec, event) {
+    const semSelect = document.getElementById(`penaltySem_${sec}`);
+    const semNum = semSelect ? semSelect.value : "1";
+    
+    const inputs = document.querySelectorAll(`.penalty-val-${sec}`);
+    const payload = [];
+
+    inputs.forEach(inp => {
+      const val = parseFloat(inp.value);
+      if (!isNaN(val) && val > 0) {
+        payload.push({ 
+          studentId: inp.getAttribute('data-studentid'), 
+          penalty: val 
+        });
+      }
+    });
+
+    if (payload.length === 0) {
+      return showToast("⚠️ No valid penalty amount (₹ > 0) was provided for any student.", false);
+    }
+
+    const btn = event.currentTarget || event.target;
+    const originalTxt = btn.innerText;
+    btn.innerText = "⏳ Saving...";
+    btn.disabled = true;
+
+    try {
+      const response = await fetch('/add/fee/penalty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetSem: semNum, penalties: payload })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast(result.message || "🎉 Penalties added successfully!", true);
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        showToast("❌ Error: " + result.message, false);
+        btn.innerText = originalTxt;
+        btn.disabled = false;
+      }
+    } catch (err) {
+      console.error("Penalty Add Error:", err);
+      showToast("❌ Server connection issue!", false);
+      btn.innerText = originalTxt;
+      btn.disabled = false;
+    }
+  }
+
+  // 🛑 SAFE HANDLER FOR PENALTY REMOVE BUTTON
+  function handlePenaltyClick(btnEl) {
+    const studentId = btnEl.getAttribute('data-studentid');
+    const semNumber = btnEl.getAttribute('data-semnum');
+    const paidAmount = parseFloat(btnEl.getAttribute('data-paidamt') || '0');
+
+    if (!studentId || studentId === 'undefined' || studentId.trim() === '') {
+      console.error("Missing or Invalid Student ID on Element:", btnEl);
+      return showToast("❌ Error: Invalid Student ID! Please refresh the page.", false);
+    }
+
+    // Immediately disable button to prevent double clicks
+    btnEl.disabled = true;
+    btnEl.style.opacity = '0.5';
+
+    removePenalty(studentId, semNumber, paidAmount, btnEl);
+  }
+
+  // 🛑 PENALTY REMOVE LOGIC WITH PAID FEES CHECK
+  async function removePenalty(studentId, semNumber, paidAmount, btnEl) {
+    if (!studentId || studentId === 'undefined') {
+      if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1'; }
+      return showToast("❌ Invalid Student ID!", false);
+    }
+
+    if (paidAmount > 0) {
+      if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1'; }
+      return showToast(`🚨 Cannot remove penalty! Fees (₹${paidAmount}) are already paid for Semester ${semNumber}.`, false);
+    }
+
+    try {
+      const response = await fetch('/remove/fee/penalty', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId, targetSem: semNumber })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast(result.message || "✅ Penalty removed successfully!", true);
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        showToast("❌ Error: " + result.message, false);
+        if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1'; }
+      }
+    } catch (err) {
+      console.error("Penalty Remove Error:", err);
+      showToast("❌ Server communication failure!", false);
+      if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1'; }
+    }
+  }
+
+  function openReceiptsModal(btnEl) {
+    const stName = btnEl.getAttribute('data-stname') || '--';
+    const stRoll = btnEl.getAttribute('data-stroll') || '--';
+    const txRaw = btnEl.getAttribute('data-txs');
+    
+    let transactions = [];
+    try {
+      if (txRaw) {
+        transactions = JSON.parse(decodeURIComponent(txRaw));
+      }
+    } catch(err) {
+      console.error("Receipt JSON Parsing Error:", err);
+      showToast("⚠️ Could not load receipt history properly.", false);
+    }
+
+    document.getElementById('modalStudentName').innerText = stName;
+    document.getElementById('modalRollNo').innerText = stRoll;
+    document.getElementById('modalReceiptCount').innerText = `${transactions.length} Receipts`;
+
+    const tbody = document.getElementById('receiptsTableBody');
+    tbody.innerHTML = '';
+
+    if (transactions && transactions.length > 0) {
+      transactions.forEach(tx => {
+        const dateStr = tx.paymentDate ? new Date(tx.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
+        tbody.innerHTML += `
+          <tr>
+            <td class="fw-bold text-primary">${tx.receiptNumber || 'N/A'}</td>
+            <td class="small">${dateStr}</td>
+            <td><span class="badge bg-secondary">Sem ${tx.semNumber || '-'}</span></td>
+            <td class="fw-bold text-success">₹${(tx.amountPaid || 0).toLocaleString('en-IN')}</td>
+            <td><span class="badge bg-info text-dark">${tx.paymentMode || 'Cash'}</span></td>
+          </tr>
+        `;
+      });
+    } else {
+      tbody.innerHTML = `<tr><td colspan="5" class="text-muted p-3">No receipt transactions found.</td></tr>`;
+    }
+
+    new bootstrap.Modal(document.getElementById('receiptsModal')).show();
+  }
+
+  function editSingleStructure(id) { showToast("Edit Structure: " + id, true); }
+  function deleteSingleStructure(id) { showToast("Deleted Structure: " + id, false); }
+  function editSinglePayment(id) { showToast("Edit Payment: " + id, true); }
+  function deleteSinglePayment(id) { showToast("Wiped Payment: " + id, false); }
+</script>

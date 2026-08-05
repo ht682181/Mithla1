@@ -1,0 +1,311 @@
+<%- layout("/layouts/boilerplate") -%>
+
+<style>
+  .custom-card {
+    border: none;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+  .form-label-custom {
+    font-weight: 600;
+    color: #334155;
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+  }
+  .form-select-custom {
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.2s;
+  }
+  .form-select-custom:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+  .data-container {
+    background-color: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    max-height: 250px;
+    min-height: 250px;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  .data-row {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s;
+  }
+  .data-row:hover {
+    background-color: #f1f5f9;
+    border-color: #94a3b8;
+  }
+  .btn-premium {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 0.6rem 2.5rem;
+    font-weight: 600;
+    border-radius: 50px;
+    transition: all 0.2s;
+  }
+  .btn-premium:hover {
+    background: #1d4ed8;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+    color: white;
+  }
+  .btn-nav {
+    background-color: #334155;
+    color: #ffffff;
+    border-radius: 50px;
+    font-weight: 500;
+    padding: 0.4rem 1.2rem;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .btn-nav:hover {
+    background-color: #1e293b;
+    color: white;
+  }
+</style>
+
+<div class="container my-4">
+
+  <div class="text-center mb-4">
+    <h3 class="fw-bold text-dark mb-1">👩‍🏫 Temporary Faculty Assignment Portal </h3>
+    <p class="text-muted small">Bulk temporary map courses and subjects to faculty members efficiently</p>
+  </div>
+
+  <!-- <div class="d-flex gap-2 mb-3">
+    <a href="/show/teacher" class="btn btn-nav shadow-sm">
+      <i class="fa-solid fa-plus me-1"></i> Show Teacher
+    </a>
+   </a>
+      <a href="" class="btn btn-nav shadow-sm">
+     <i class="fa-solid fa-eye fa-beat me-1"></i> Show Temporary Assignment
+    </a>
+      <a href="" class="btn btn-nav shadow-sm">
+     <i class="fa-solid fa-xmark fa-spin-pulse me-1"></i> S
+    </a>
+  </div> -->
+
+
+  
+    <div class="d-flex gap-2 flex-wrap mt-5">
+      <a href="/add/teacherData" class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 btn-premium-action" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: none;">
+        <i class="fa-solid fa-plus" style="font-size: 12px;"></i> Add Teacher
+      </a>
+       <a href="/show/teacher" class="btn btn-dark  border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Teacher
+      </a>
+
+      <a href="/assign/teacher/subject/class" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-link" style="font-size: 12px;"></i> Manage Timetable & Assign  
+      </a>
+      <a href="/timetable/dashboard" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+          <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Time Table
+      </a>
+      
+      <a href="/admin/show-all-teachers-assignments" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Teachers Subject
+      </a>
+      
+
+      <a href="/show-temporary-teachers-assignments" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Temporary Assign
+      </a>
+      
+    </div> 
+
+
+
+
+  <div class="row mt-5">
+    <div class="col-lg-12">
+      <div class="card custom-card">
+        <div class="card-body p-4">
+
+          <h5 class="fw-bold text-dark mb-4"><i class="fa-solid fa-book-open text-primary me-2"></i>Configure Subject Allocation Matrix</h5>
+
+          <form action="/temporary/assign/teacher/subject/class" method="post" id="bulkForm" novalidate class="needs-validation">
+
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label-custom">Class / Course</label>
+                <select name="data[className]" id="class" class="form-select form-select-custom" required>
+                  <option value="">Choose class</option>
+                  <% for(let c of classData){ %>
+                    <option value="<%= c.class %>"><%= c.class %></option>
+                  <% } %>
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label-custom">Semester</label>
+                <select name="data[semester]" id="semester" class="form-select form-select-custom" required>
+                  <option value="">Choose semester</option>
+                  <% for(let i=1;i<=8;i++){ %>
+                    <option value="<%= i %>"><%= i %></option>
+                  <% } %>
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label-custom">Section</label>
+                <select name="data[section]" id="section" class="form-select form-select-custom" required>
+                  <option value="">Choose section</option>
+                  <% for(let s of sectionData){ %>
+                    <option value="<%= s.name %>"><%= s.name %></option>
+                  <% } %>
+                </select>
+              </div>
+            </div>
+
+            <hr class="my-4 opacity-25">
+
+            <div class="row g-4">
+              
+              <div class="col-md-6">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label-custom mb-0"><i class="fa-solid fa-graduation-cap text-muted me-2"></i> Select Subjects</label>
+                  <div class="form-check">
+                    <input type="checkbox" id="selectAllSubjects" class="form-check-input border-secondary">
+                    <label class="form-check-label small fw-semibold text-secondary" for="selectAllSubjects">Select All</label>
+                  </div>
+                </div>
+
+                <div id="subject-container" class="data-container d-flex flex-column justify-content-center align-items-center text-center text-muted">
+                  <div class="p-2">
+                    <i class="fa-solid fa-folder-open display-6 text-muted opacity-50 mb-2"></i>
+                    <p class="small m-0 fw-medium text-secondary">Please select class & semester options to pull matching subjects.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label-custom mb-0"><i class="fa-solid fa-user-tie text-muted me-2"></i> Select Faculty Members</label>
+                  <div class="form-check">
+                    <input type="checkbox" id="selectAllTeachers" class="form-check-input border-secondary">
+                    <label class="form-check-label small fw-semibold text-secondary" for="selectAllTeachers">Select All</label>
+                  </div>
+                </div>
+
+                <div id="teacher-container" class="data-container">
+                  <div class="d-flex fw-bold border-bottom pb-2 mb-2 text-secondary small px-2">
+                    <div class="col-6">Username</div>
+                    <div class="col-6">Faculty Name</div>
+                  </div>
+                  <% for(let i=0; i < teacherData.length; i++) { %>
+                    <div class="data-row">
+                      <input class="form-check-input teacher-checkbox border-secondary me-3 shadow-sm"
+                             type="checkbox"
+                             name="data[usernames][]"
+                             value="<%= teacherData[i].username %>"
+                             id="teacher<%= i %>">
+                      <label class="w-100 d-flex m-0 align-items-center cursor-pointer" for="teacher<%= i %>" style="cursor: pointer;">
+                        <span class="col-6 text-dark fw-semibold small"><%= teacherData[i].username %></span>
+                        <span class="col-6 text-muted small"><%= teacherData[i].name || 'Faculty Member' %></span>
+                      </label>
+                    </div>
+                  <% } %>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="text-center mt-4 pt-2">
+              <button type="submit" class="btn btn-premium shadow-sm">
+                <i class="fa-solid fa-shield-halved me-2"></i>Execute  Assigning
+              </button>
+            </div>
+
+          </form>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadSubjects() {
+  let className = document.getElementById("class").value;
+  let semester = document.getElementById("semester").value;
+  let subContainer = document.getElementById("subject-container");
+  
+  if (!className || !semester) {
+    subContainer.className = "data-container d-flex flex-column justify-content-center align-items-center text-center text-muted";
+    subContainer.innerHTML = `
+      <div class="p-2">
+        <i class="fa-solid fa-folder-open display-6 text-muted opacity-50 mb-2"></i>
+        <p class="small m-0 fw-medium text-secondary">Please select class & semester options to pull matching subjects.</p>
+      </div>`;
+    return;
+  }
+
+  subContainer.className = "data-container d-flex flex-column justify-content-center align-items-center text-center";
+  subContainer.innerHTML = `<p class="text-primary m-0 small fw-semibold"><i class="fa-solid fa-spinner fa-spin me-2"></i>Fetching subject list dynamically...</p>`;
+
+  try {
+    let resSub = await fetch(`/get-subjects/${className}/${semester}`);
+    let subjects = await resSub.json();
+    subContainer.innerHTML = "";
+
+    if(subjects.length === 0) {
+      subContainer.innerHTML = `<p class="text-danger text-center m-0 small fw-bold py-3"><i class="fa-solid fa-circle-exclamation me-2"></i>No matching subjects found in database!</p>`;
+      return;
+    }
+
+    subContainer.className = "data-container";
+    subjects.forEach((sub, i) => {
+      subContainer.innerHTML += `
+        <div class="data-row">
+          <input class="form-check-input subject-checkbox border-secondary me-3 shadow-sm"
+                 type="checkbox"
+                 name="data[subjects][]"
+                 value="${sub.name}"
+                 id="subject${i}">
+          <label class="text-dark fw-semibold small m-0 w-100" for="subject${i}" style="cursor: pointer;">
+            ${sub.name}
+          </label>
+        </div>
+      `;
+    });
+
+  } catch (err) {
+    console.error("Error loading subjects:", err);
+    subContainer.className = "data-container d-flex flex-column justify-content-center align-items-center text-center";
+    subContainer.innerHTML = `<p class="text-danger text-center m-0 small fw-bold"><i class="fa-solid fa-triangle-exclamation me-2"></i>Failed to load dynamic data pipeline.</p>`;
+  }
+}
+
+// Event hooks
+document.getElementById("class").addEventListener("change", loadSubjects);
+document.getElementById("semester").addEventListener("change", loadSubjects);
+
+// Select All Triggers
+document.getElementById("selectAllSubjects").addEventListener("change", e => {
+  document.querySelectorAll(".subject-checkbox").forEach(cb => cb.checked = e.target.checked);
+});
+
+document.getElementById("selectAllTeachers").addEventListener("change", e => {
+  document.querySelectorAll(".teacher-checkbox").forEach(cb => cb.checked = e.target.checked);
+});
+
+// Submit Block Validation
+document.getElementById("bulkForm").addEventListener("submit", function(e) {     
+  if(document.querySelectorAll(".subject-checkbox:checked").length === 0 || 
+     document.querySelectorAll(".teacher-checkbox:checked").length === 0) {       
+    e.preventDefault();       
+    alert("⚠️ Execution Halted: Please ensure you select at least one Subject and one Faculty Member before submitting.");     
+  }   
+});
+</script>

@@ -1,0 +1,219 @@
+<%- layout("/layouts/boilerplate") %>
+
+  <style>
+    /* Alignment aur spacing sahi rakhne ke liye zaroori simple CSS */
+    .table-fixed-layout th,
+    .table-fixed-layout td {
+      min-width: 160px;
+      max-width: 200px;
+      word-wrap: break-word;
+      white-space: normal;
+      vertical-align: middle;
+      padding: 12px 8px !important;
+    }
+
+    .day-col-width {
+      min-width: 90px !important;
+      max-width: 100px !important;
+      font-weight: 700;
+    }
+
+    .action-col-width {
+      min-width: 90px !important;
+      max-width: 100px !important;
+    }
+
+    .time-header-text {
+      font-size: 0.95rem !important;
+      font-weight: 400;
+      color: #cbd5e1 !important;
+      margin-top: 2px;
+    }
+
+    .subject-display {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1e293b;
+      display: block;
+    }
+
+    .teacher-display {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #475569;
+      background-color: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-top: 4px;
+    }
+  </style>
+
+  <div class="container-fluid my-4">
+
+    
+
+
+    <div class="card shadow-sm border-0 bg-white p-4 mb-4">
+      <div class="row align-items-center">
+        <div class="col-md-7 text-center text-md-start">
+          <h3 class="fw-bold text-dark m-0">Timetable Dashboard</h3>
+          <p class="text-muted small m-0">Select a course to view and manage all active schedules.</p>
+        </div>
+        <div class="col-md-5 mt-3 mt-md-0">
+          <select id="courseSelector" class="form-select form-select-lg fw-bold border-2">
+            <option value="" <%=!selectedCourse ? 'selected' : '' %> disabled>-- Select Course (BCA / BTech) --</option>
+            <% allCourses.forEach(course=> { %>
+              <option value="<%= course %>" <%=selectedCourse===course ? 'selected' : '' %>><%= course %>
+              </option>
+              <% }); %>
+          </select>
+        </div>
+      </div>
+    </div>
+
+      
+
+
+    <div class="d-flex gap-2 flex-wrap mt-4">
+      <a href="/add/teacherData" class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 btn-premium-action" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: none;">
+        <i class="fa-solid fa-plus" style="font-size: 12px;"></i> Add Teacher
+      </a>
+       <a href="/show/teacher" class="btn btn-dark  border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Teacher
+      </a>
+
+      <a href="/assign/teacher/subject/class" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-link" style="font-size: 12px;"></i> Manage Timetable & Assign  
+      </a>
+      
+      <a href="/admin/show-all-teachers-assignments" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Teachers Subject
+      </a>
+      <a href="/temporary/assign/teacher/subject/class" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-link" style="font-size: 12px;"></i> Add Temporary Assign  
+      </a>
+
+      <a href="/show-temporary-teachers-assignments" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Temporary Assign
+      </a>
+
+      <a href="/timetable/dashboard" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-rotate me-1"></i> Refresh page
+      </a>
+      
+    </div> 
+
+
+    <% if (selectedCourse && Object.keys(groupedTimetable).length> 0) { %>
+
+      <% Object.keys(groupedTimetable).sort().forEach(sem=> { %>
+        <% Object.keys(groupedTimetable[sem]).sort().forEach(sec=> { %>
+
+          <div class="card shadow-sm border mb-5  mt-4">
+
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+              <h5 class="m-0 fw-bold">
+                <%= selectedCourse %> — Semester <%= sem %> <span class="badge bg-warning text-dark ms-2">Section <%=
+                        sec %></span>
+              </h5>
+
+              <!-- ⚡ ULTIMATE BULK ACTION BUTTON -->
+              <form action="/timetable/delete-section" method="POST"
+                onsubmit="return confirm('⚠️ Warning: Are you sure you want to delete this section complete schedule? All weekly timetable data and linked teacher assignments will be removed.');"
+                class="m-0">
+                <input type="hidden" name="className" value="<%= selectedCourse %>">
+                <input type="hidden" name="semester" value="<%= sem %>">
+                <input type="hidden" name="section" value="<%= sec %>">
+                <button type="submit" class="btn btn-danger btn-sm fw-bold">✕ Delete Entire Section</button>
+              </form>
+            </div>
+
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-bordered table-striped text-center align-middle table-fixed-layout mb-0">
+                  <thead class="table-dark">
+                    <tr>
+                      <th class="day-col-width">Day</th>
+                      <% groupedTimetable[sem][sec].periods.forEach(period=> { %>
+                        <th>
+                          <div class="fs-6 fw-bold">Lecture <%= period.id %>
+                          </div>
+                          <div class="time-header-text">
+                            <%= period.displayTime %>
+                          </div>
+                        </th>
+                        <% }); %>
+                          <th class="action-col-width">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% days.forEach(day=> { %>
+                      <tr>
+                        <td class="fw-bold bg-light text-start ps-3 day-col-width">
+                          <%= dayNames[day] %>
+                        </td>
+
+                        <% groupedTimetable[sem][sec].periods.forEach(period=> { %>
+                          <% let slot=groupedTimetable[sem][sec].timetableMap[day][period.id]; %>
+
+                            <% if (slot) { %>
+                              <% if (slot.subject.includes('LUNCH')) { %>
+                                <td class="table-warning fw-bold text-warning-emphasis">
+                                  🍔 LUNCH BREAK
+                                </td>
+                                <% } else { %>
+                                  <td>
+                                    <span class="subject-display">
+                                      <%= slot.subject %>
+                                    </span>
+                                    <span class="teacher-display">
+                                      <%= slot.teacher %>
+                                    </span>
+                                  </td>
+                                  <% } %>
+                                    <% } else { %>
+                                      <td class="text-muted fw-light">-</td>
+                                      <% } %>
+                                        <% }); %>
+
+                                          <td class="action-col-width">
+                                            <!-- ✏️ SINGLE CLEAN EDIT LINK -->
+                                            <a href="/assign/teacher/subject/class?className=<%= encodeURIComponent(selectedCourse) %>&semester=<%= encodeURIComponent(sem) %>&section=<%= encodeURIComponent(sec) %>&day=<%= day %>&mode=edit"
+                                              class="btn btn-sm btn-outline-primary fw-bold w-100">
+                                              ✏️ Edit
+                                            </a>
+                                          </td>
+                      </tr>
+                      <% }); %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          <% }); %>
+            <% }); %>
+
+              <% } else if (selectedCourse) { %>
+                <div class="alert alert-warning text-center mt-4 p-4 shadow-sm">
+                  <h5>No Timetable Found</h5>
+                  <p class="m-0 text-muted">No records found for this course.</p>
+                </div>
+                <% } else { %>
+                  <div class="card p-5 text-center text-muted shadow-sm border border-dashed mt-4">
+                    <h5 class="fw-bold mb-1 text-dark">Welcome to Timetable Portal</h5>
+                    <p class="m-0 small">Choose your course from the dropdown above to load the full schedule.</p>
+                  </div>
+                  <% } %>
+
+  </div>
+
+  <script>
+    document.getElementById('courseSelector').addEventListener('change', function () {
+      if (this.value) {
+        window.location.href = `/timetable/dashboard?className=${encodeURIComponent(this.value)}`;
+      }
+    });
+  </script>

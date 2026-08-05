@@ -1,0 +1,455 @@
+<%- layout("/layouts/boilerplateTeacher") -%>
+
+<style>
+  /* Screen Canvas Styling */
+  .page-container {
+    max-width: 1320px;
+    margin: 0 auto;
+  }
+  
+  .glass-card {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 24px;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.05);
+  }
+
+  .sidebar-gradient {
+    background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 20px;
+    color: #ffffff;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sidebar-gradient::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .step-badge {
+    background: #e0e7ff;
+    color: #3730a3;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    padding: 6px 14px;
+    border-radius: 30px;
+    text-transform: uppercase;
+  }
+
+  .form-control-pro, .form-select-pro {
+    border: 1.5px solid #e2e8f0;
+    background-color: #f8fafc;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-weight: 600;
+    color: #1e293b;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .form-control-pro:focus, .form-select-pro:focus {
+    background-color: #ffffff;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+  }
+
+  .form-control-pro:disabled, .form-select-pro:disabled {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .pro-label {
+    font-size: 0.825rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  .btn-gradient-submit {
+    background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+    border: none;
+    border-radius: 14px;
+    padding: 14px 28px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);
+    transition: all 0.25s ease;
+  }
+
+  .btn-gradient-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 30px rgba(79, 70, 229, 0.4);
+  }
+
+  .info-pill {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 12px 16px;
+  }
+</style>
+
+<div class="page-container my-4 px-3">
+
+  <div class="text-center mb-4 pb-2">
+    <h3 class="fw-bold text-dark mb-1"> 🚩 Student Add Marks</h3>
+    <p class="text-muted small mb-0">Select class filters below to view published marksheets and academic records</p>
+  </div>
+
+  <div class="w-100">
+    <div class="card glass-card p-3 p-lg-4">
+      <div class="row g-4 align-items-stretch">
+        
+        <!-- LEFT PANEL: Dark Hero Dashboard Summary -->
+        <div class="col-lg-4 d-flex">
+          <div class="sidebar-gradient p-4 p-xl-5 w-100 d-flex flex-column justify-content-between">
+            <div>
+              <span class="badge bg-primary rounded-pill px-3 py-2 mb-3 fw-bold fs-7">
+                Marks Entry Portal
+              </span>
+              <h2 class="fw-extrabold text-white mb-2">Examination Setup</h2>
+              <p class="text-white-50 fs-6">Configure target class parameters and assessment rubrics to generate student marksheets.</p>
+
+              <div class="mt-4 pt-3 d-flex flex-column gap-3">
+                <div class="info-pill">
+                  <div class="text-white-50 small text-uppercase fw-bold">Logged Teacher</div>
+                  <div class="fw-bold text-white fs-6 mt-1"><%= classData.name || "Teacher" %></div>
+                </div>
+
+                <div class="info-pill">
+                  <div class="text-white-50 small text-uppercase fw-bold">Active Session</div>
+                  <div class="fw-bold text-warning fs-6 mt-1"><%= new Date().getFullYear() %> Academic Session</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-4 border-top border-secondary border-opacity-25 mt-4">
+              <small class="text-white-50">⚡ Dynamic cascading logic auto-fetches real-time academic years & exam rules from ExamConfig.</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT PANEL: Full Form -->
+        <div class="col-lg-8 ps-lg-4">
+          <form action="/add/student/marks-setup" method="POST" class="needs-validation h-100 d-flex flex-column justify-content-between" novalidate>
+            
+            <div>
+              <!-- STEP 1 HEADER -->
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="step-badge">Phase 01</span>
+                <h5 class="fw-bold text-dark mb-0">Class & Subject Mapping</h5>
+              </div>
+
+              <!-- Class & Semester -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="pro-label">Class</label>
+                  <select name="data[className]" id="class" class="form-select form-select-pro shadow-none" required>
+                    <option value="">-- Choose Class --</option>
+                    <% if (classData?.class?.length) { %>
+                      <% classData.class.forEach(cls => { %>
+                        <option value="<%= cls.className %>"><%= cls.className %></option>
+                      <% }) %>
+                    <% } %>
+                  </select>
+                  <div class="invalid-feedback">Please select class</div>
+                </div>
+
+                <div class="col-md-6">
+                  <label class="pro-label">Semester</label>
+                  <select name="data[semester]" id="semester" class="form-select form-select-pro shadow-none" required disabled>
+                    <option value="">-- Choose Semester --</option>
+                  </select>
+                  <div class="invalid-feedback">Please select semester</div>
+                </div>
+              </div>
+
+              <!-- Section & Subject -->
+              <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                  <label class="pro-label">Section</label>
+                  <select name="data[section]" id="section" class="form-select form-select-pro shadow-none" required disabled>
+                    <option value="">-- Choose Section --</option>
+                  </select>
+                  <div class="invalid-feedback">Please select section</div>
+                </div>
+
+                <div class="col-md-6">
+                  <label class="pro-label">Subject</label>
+                  <select name="data[subject]" id="subject" class="form-select form-select-pro shadow-none" required disabled>
+                    <option value="">-- Choose Subject --</option>
+                  </select>
+                  <div class="invalid-feedback">Please select subject</div>
+                </div>
+              </div>
+
+              <hr class="my-4" style="border-top: 1.5px dashed #cbd5e1;">
+
+              <!-- STEP 2 HEADER -->
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="step-badge" style="background:#fef3c7; color:#92400e;">Phase 02</span>
+                <h5 class="fw-bold text-dark mb-0">Exam Evaluation Rules</h5>
+              </div>
+
+              <!-- Academic Year & Exam Name (Dynamic Cascading Drops) -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="pro-label">Academic Year</label>
+                  <select name="data[academicYear]" id="academicYear" class="form-select form-select-pro shadow-none" required disabled>
+                    <option value="">-- Choose Academic Year --</option>
+                  </select>
+                  <div class="invalid-feedback">Please select academic year</div>
+                </div>
+
+                <div class="col-md-6">
+                  <label class="pro-label">Exam Title / Name</label>
+                  <select name="data[examName]" id="examName" class="form-select form-select-pro shadow-none" required disabled>
+                    <option value="">-- Choose Exam Name --</option>
+                  </select>
+                  <div class="invalid-feedback">Please select exam title</div>
+                </div>
+              </div>
+
+              <!-- Exam Type, Max & Pass Marks -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                  <label class="pro-label">Exam Type</label>
+                  <select name="data[examType]" class="form-select form-select-pro shadow-none" required>
+                    <option value="Theory" selected>Theory</option>
+                    <option value="Practical">Practical</option>
+                  </select>
+                </div>
+
+                <div class="col-md-4">
+                  <label class="pro-label">Max Marks</label>
+                  <input type="number" name="data[maxMarks]" id="maxMarks" class="form-control form-control-pro shadow-none" placeholder="Auto fetched" required readonly>
+                </div>
+
+                <div class="col-md-4">
+                  <label class="pro-label">Pass Marks</label>
+                  <input type="number" name="data[passMarks]" id="passMarks" class="form-control form-control-pro shadow-none" placeholder="Auto fetched" required readonly>
+                </div>
+              </div>
+            </div>
+
+            <!-- UNCHANGED HIDDEN FIELD -->
+            <input type="hidden" name="data[teacherName]" value="<%= classData.name %>">
+
+            <!-- Submit Action Bar -->
+            <div class="pt-4 border-top mt-4 d-flex justify-content-end">
+              <button type="submit" class="btn btn-primary btn-gradient-submit text-white w-100 w-md-auto">
+                Generate Marks Sheet <i class="bi bi-arrow-right-circle-fill ms-2"></i>
+              </button>
+            </div>
+
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Element references
+const classSelect = document.getElementById("class");
+const semesterSelect = document.getElementById("semester");
+const sectionSelect = document.getElementById("section");
+const subjectSelect = document.getElementById("subject");
+const academicYearSelect = document.getElementById("academicYear");
+const examNameSelect = document.getElementById("examName");
+const maxMarksInput = document.getElementById("maxMarks");
+const passMarksInput = document.getElementById("passMarks");
+
+// Safe dropdown reset utility
+function resetDropdown(element, defaultText) {
+  element.innerHTML = `<option value="">-- ${defaultText} --</option>`;
+  element.disabled = true;
+}
+
+// Reset exam related controls
+function resetExamFields() {
+  resetDropdown(academicYearSelect, "Choose Academic Year");
+  resetDropdown(examNameSelect, "Choose Exam Name");
+  if(maxMarksInput) maxMarksInput.value = '';
+  if(passMarksInput) passMarksInput.value = '';
+}
+
+// 1. Class Selection Event
+classSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+  resetDropdown(semesterSelect, "Choose Semester");
+  resetDropdown(sectionSelect, "Choose Section");
+  resetDropdown(subjectSelect, "Choose Subject");
+  resetExamFields();
+
+  if (!className) return;
+
+  try {
+    semesterSelect.innerHTML = '<option value="">Loading...</option>';
+    const res = await fetch(`/get-semesters?class=${encodeURIComponent(className)}`);
+    const semesters = await res.json();
+
+    resetDropdown(semesterSelect, "Choose Semester");
+    if (Array.isArray(semesters) && semesters.length > 0) {
+      semesters.forEach(s => {
+        semesterSelect.innerHTML += `<option value="${s}">${s}</option>`;
+      });
+      semesterSelect.disabled = false;
+    }
+  } catch (err) {
+    console.error("Error fetching semesters:", err);
+    resetDropdown(semesterSelect, "Error Loading Semesters");
+  }
+});
+
+// 2. Semester Selection Event
+semesterSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+  const semester = semesterSelect.value;
+
+  resetDropdown(sectionSelect, "Choose Section");
+  resetDropdown(subjectSelect, "Choose Subject");
+  resetExamFields();
+
+  if (!className || !semester) return;
+
+  try {
+    sectionSelect.innerHTML = '<option value="">Loading...</option>';
+    const res = await fetch(`/get-sections?class=${encodeURIComponent(className)}&semester=${encodeURIComponent(semester)}`);
+    const sections = await res.json();
+
+    resetDropdown(sectionSelect, "Choose Section");
+    if (Array.isArray(sections) && sections.length > 0) {
+      sections.forEach(sec => {
+        sectionSelect.innerHTML += `<option value="${sec}">${sec}</option>`;
+      });
+      sectionSelect.disabled = false;
+    }
+  } catch (err) {
+    console.error("Error fetching sections:", err);
+    resetDropdown(sectionSelect, "Error Loading Sections");
+  }
+});
+
+// 3. Section Selection Event -> Fetches Subjects & Academic Years
+sectionSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+  const semester = semesterSelect.value;
+  const section = sectionSelect.value;
+
+  resetDropdown(subjectSelect, "Choose Subject");
+  resetExamFields();
+
+  if (!className || !semester || !section) return;
+
+  // A. Fetch Subjects
+  try {
+    subjectSelect.innerHTML = '<option value="">Loading Subjects...</option>';
+    const res = await fetch(`/get-subjects?class=${encodeURIComponent(className)}&semester=${encodeURIComponent(semester)}&section=${encodeURIComponent(section)}`);
+    const subjects = await res.json();
+
+    resetDropdown(subjectSelect, "Choose Subject");
+    if (Array.isArray(subjects) && subjects.length > 0) {
+      subjects.forEach(sub => {
+        subjectSelect.innerHTML += `<option value="${sub}">${sub}</option>`;
+      });
+      subjectSelect.disabled = false;
+    }
+  } catch (err) {
+    console.error("Error fetching subjects:", err);
+    resetDropdown(subjectSelect, "Error Loading Subjects");
+  }
+
+  // B. Fetch Academic Years from ExamConfig
+  try {
+    academicYearSelect.innerHTML = '<option value="">Loading Academic Years...</option>';
+    const yearRes = await fetch(`/get-exam-academic-years?class=${encodeURIComponent(className)}&semester=${encodeURIComponent(semester)}&section=${encodeURIComponent(section)}`);
+    const years = await yearRes.json();
+
+    resetDropdown(academicYearSelect, "Choose Academic Year");
+    if (Array.isArray(years) && years.length > 0) {
+      years.forEach(yr => {
+        academicYearSelect.innerHTML += `<option value="${yr}">${yr}</option>`;
+      });
+      academicYearSelect.disabled = false;
+    } else {
+      academicYearSelect.innerHTML = '<option value="">No Configured Exam Rules Found</option>';
+    }
+  } catch (err) {
+    console.error("Error fetching academic years:", err);
+    resetDropdown(academicYearSelect, "Error Loading Academic Years");
+  }
+});
+
+// 4. Academic Year Selection Event -> Fetches Exam Names
+academicYearSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+  const semester = semesterSelect.value;
+  const section = sectionSelect.value;
+  const academicYear = academicYearSelect.value;
+
+  resetDropdown(examNameSelect, "Choose Exam Name");
+  if(maxMarksInput) maxMarksInput.value = '';
+  if(passMarksInput) passMarksInput.value = '';
+
+  if (!className || !semester || !section || !academicYear) return;
+
+  try {
+    examNameSelect.innerHTML = '<option value="">Loading Exams...</option>';
+    const res = await fetch(`/get-exam-names?class=${encodeURIComponent(className)}&semester=${encodeURIComponent(semester)}&section=${encodeURIComponent(section)}&academicYear=${encodeURIComponent(academicYear)}`);
+    const exams = await res.json();
+
+    resetDropdown(examNameSelect, "Choose Exam Name");
+    if (Array.isArray(exams) && exams.length > 0) {
+      exams.forEach(ex => {
+        examNameSelect.innerHTML += `<option value="${ex}">${ex}</option>`;
+      });
+      examNameSelect.disabled = false;
+    } else {
+      examNameSelect.innerHTML = '<option value="">No Exams Configured For This Year</option>';
+    }
+  } catch (err) {
+    console.error("Error fetching exams:", err);
+    resetDropdown(examNameSelect, "Error Loading Exams");
+  }
+});
+
+// 5. Exam Name Selection Event -> Fetches Max & Pass Marks
+examNameSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+  const semester = semesterSelect.value;
+  const section = sectionSelect.value;
+  const academicYear = academicYearSelect.value;
+  const examName = examNameSelect.value;
+
+  if(maxMarksInput) maxMarksInput.value = '';
+  if(passMarksInput) passMarksInput.value = '';
+
+  if (!className || !semester || !section || !academicYear || !examName) return;
+
+  try {
+    const res = await fetch(`/get-exam-marks-details?class=${encodeURIComponent(className)}&semester=${encodeURIComponent(semester)}&section=${encodeURIComponent(section)}&academicYear=${encodeURIComponent(academicYear)}&examName=${encodeURIComponent(examName)}`);
+    const details = await res.json();
+
+    if (details && details.maxMarks !== undefined && details.maxMarks !== "") {
+      if(maxMarksInput) maxMarksInput.value = details.maxMarks;
+      if(passMarksInput) passMarksInput.value = details.passingMarks;
+    }
+  } catch (err) {
+    console.error("Error fetching exam mark details:", err);
+  }
+});
+</script>

@@ -1,0 +1,448 @@
+<% layout("/layouts/boilerplate") -%>
+
+<style>
+  /* 🌟 Elite Light Ice-Blue Canvas Vibe */
+  body {
+    background: linear-gradient(135deg, #f4f7fa 0%, #e9eff5 100%);
+    color: #1e293b;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ✨ Smooth Core Entrance Animation */
+  .animate-entrance {
+    animation: smoothSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes smoothSlideUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 💎 Glossy Premium Soft Cards */
+  .premium-card {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.8) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .premium-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  /* 🎛️ Modern Form Controls */
+  .premium-control {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    padding: 12px 18px !important;
+    font-size: 15px;
+    transition: all 0.2s ease;
+  }
+
+  .premium-control:focus {
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1) !important;
+  }
+
+  /* Inline Clearable Wrapper Logic */
+  .search-wrapper-container {
+    position: relative;
+    width: 100%;
+  }
+
+  .inline-reset-trigger {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    display: none;
+    font-size: 18px;
+    transition: color 0.15s;
+  }
+  .inline-reset-trigger:hover {
+    color: #ef4444;
+  }
+
+  /* 🚀 Interactive Action Buttons (Scale Effect) */
+  .btn-premium-action {
+    border-radius: 10px !important;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 11px 24px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-premium-action:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+  }
+
+  /* 📊 High-End Gradient Header Data Grid */
+  .grid-header-gradient {
+    background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%) !important;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    padding: 20px !important;
+  }
+
+  /* 🔤 Enhanced Table Fonts & Sizing */
+  .premium-table th {
+    background-color: #f8fafc !important;
+    color: #334155 !important;
+    font-weight: 700;
+    font-size: 13px; /* Slightly bumped for premium structure headers */
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 18px 16px !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+  }
+
+  .premium-table td {
+    padding: 16px 16px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    font-size: 15px; /* Increased font size from 14px for better readability */
+    color: #334155;
+  }
+
+  .premium-table tbody tr {
+    transition: background-color 0.2s ease, transform 0.15s ease;
+  }
+
+  .premium-table tbody tr:hover {
+    background-color: rgba(37, 99, 235, 0.025) !important; /* Made hover effect slightly crisper */
+  }
+
+  /* ⚙️ Smooth Circular Action Triggers with explicit branding colors */
+  .action-icon-trigger {
+    width: 36px; /* Increased frame canvas dimensions */
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    font-size: 14px;
+  }
+  
+  .action-trigger-edit {
+    color: #d97706;
+    background-color: rgba(217, 119, 6, 0.06);
+    border: 1px solid rgba(217, 119, 6, 0.15);
+  }
+  .action-trigger-edit:hover {
+    background-color: #d97706;
+    color: #ffffff;
+    transform: scale(1.1);
+  }
+
+  .action-trigger-delete {
+    color: #dc2626;
+    background-color: rgba(220, 38, 38, 0.06);
+    border: 1px solid rgba(220, 38, 38, 0.15);
+  }
+  .action-trigger-delete:hover {
+    background-color: #dc2626;
+    color: #ffffff;
+    transform: scale(1.1);
+  }
+
+  /* 📄 Minimalist Polished Pagination Controls */
+  .premium-page-link {
+    color: #475569;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 10px 18px;
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+  }
+
+  .premium-page-link:hover {
+    background-color: #f8fafc;
+    color: #2563eb;
+    border-color: #cbd5e1;
+  }
+
+  .premium-page-item.active .premium-page-link {
+    background-color: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  }
+
+  .premium-dots {
+    padding: 8px 12px;
+    color: #94a3b8;
+    font-weight: 700;
+    user-select: none;
+  }
+
+  /* ⚠️ Premium Floating Validation Banner */
+  .validation-banner {
+    display: none;
+    font-size: 14px;
+    font-weight: 600;
+    color: #c2410c;
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+    border: 1px solid #fed7aa;
+    padding: 14px 22px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.05);
+    animation: smoothSlideUp 0.3s ease forwards;
+  }
+</style>
+
+<div class="container my-5 animate-entrance">
+
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+    <div>
+      <h2 class="fw-bold text-dark m-0" style="letter-spacing: -0.8px;">👩‍🏫 Teacher Management</h2>
+      <p class="text-muted mb-0 mt-1" style="font-size: 14px;">Add, Search & Manage Teacher Information</p>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 flex-wrap mt-4">
+      <a href="/add/teacherData" class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 btn-premium-action" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: none;">
+        <i class="fa-solid fa-plus" style="font-size: 12px;"></i> Add Teacher
+      </a>
+      <a href="/assign/teacher/subject/class" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-link" style="font-size: 12px;"></i> Manage Timetable & Assign  
+      </a>
+      <a href="/timetable/dashboard" class="btn btn-dark  border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Time Table
+      </a>
+      <a href="/admin/show-all-teachers-assignments" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Teachers Subject
+      </a>
+      <a href="/temporary/assign/teacher/subject/class" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-link" style="font-size: 12px;"></i> Add Temporary Assign  
+      </a>
+
+      <a href="/show-temporary-teachers-assignments" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Temporary Assign
+      </a>
+      
+    </div>
+
+
+
+  <div class="card p-4 premium-card mb-4 mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="fw-bold text-secondary m-0" style="font-size: 1.35rem;">🔍 Search Teacher</h3>
+        <p class="text-muted small m-0">Find records using name, unique username or registered email logs</p>
+      </div>
+      
+      <% if(search) { %>
+        <a href="/show/teacher" class="btn btn-sm btn-danger px-3 py-1.5 rounded-pill fw-semibold d-inline-flex align-items-center gap-1 shadow-sm btn-premium-action" style="font-size: 13px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none;">
+          <i class="fa-solid fa-arrow-rotate-left"></i> Back default
+        </a>
+      <% } %>
+    </div>
+    
+    <form action="/show/teacher" method="GET" class="row justify-content-center g-3" id="searchForm" novalidate>
+      
+      <div class="col-12">
+        <div class="validation-banner" id="validationAlert">
+          <i class="fa-solid fa-triangle-exclamation me-2 text-warning"></i> Input string required! Please type search criteria parameter keywords before executing.
+        </div>
+      </div>
+
+      <div class="col-md-9">
+        <label class="form-label small fw-bold text-secondary">Search Query String</label>
+        <div class="search-wrapper-container">
+          <input type="text" name="search" id="searchTeacherField" value="<%= search %>" class="form-control shadow-none premium-control" placeholder="Type inside to query profile parameters..." autocomplete="off">
+          <button type="button" id="inlineResetBtn" class="inline-reset-trigger" title="Reset Field Entry">
+            <i class="fa-solid fa-circle-xmark"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div class="col-md-3 d-grid align-items-end">
+        <button type="submit" class="btn btn-primary btn-premium-action shadow-sm text-white" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border: none; height: 48px;">Execute Query</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card premium-card overflow-hidden">
+    <div class="grid-header-gradient text-center">
+      <h5 class="mb-0 fw-bold text-white" style="letter-spacing: 0.5px; font-size: 1.1rem;">Teacher Information Registry</h5>
+    </div>
+    
+    <div class="table-responsive">
+      <table class="table table-hover premium-table align-middle text-center mb-0" style="border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Mobile</th>
+            <th>Edit</th>
+            <th>Delete</th>
+            <th>Subject & Class Mappings</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if(datas && datas.length > 0) { %>
+            <% for (let data of datas) { %>
+              <tr>
+                <td>
+                  <a href="/teacher/profile/<%= data._id %>" class="fw-bold text-decoration-none" style="color: #1e3a8a !important; font-size: 15.5px;"><%= data.name %></a>
+                </td>
+                <td>
+                  <span class="badge bg-light text-dark border px-2.5 py-1.5 rounded-2 fw-semibold" style="border-color: #cbd5e1 !important; font-family: monospace; font-size: 13.5px;">
+                    <%= data.username %>
+                  </span>
+                </td>
+                <td class="text-lowercase" style="color: #475569;"><%= data.email %></td>
+                <td class="text-muted fw-medium"><%= data.mobile || '—' %></td>
+                
+                <td>
+                  <a href="/edit/teacher/<%= data._id %>" class="action-icon-trigger action-trigger-edit" title="Edit Properties"><i class="fa-solid fa-pen"></i></a>
+                </td>
+                <td>
+                  <form action="/delete/teacher/<%= data._id %>?_method=Delete" method="post" style="display:inline;" onsubmit="return confirm('System Warning: Are you sure you want to completely drop this teacher registry record?');">
+                    <button type="submit" class="action-icon-trigger action-trigger-delete border-0" style="background: none;" title="Purge Profile"><i class="fa-solid fa-trash"></i></button>
+                  </form>
+                </td>
+                <td>
+                  <a href="/show/teacher/class/<%= data._id %>" class="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-semibold btn-premium-action" style="font-size: 13px; padding: 6px 16px;">
+                    <i class="fa-solid fa-eye me-1" style="font-size: 12px;"></i> View
+                  </a>
+                </td>
+              </tr>
+            <% } %>
+          <% } else { %>
+            <tr>
+              <td colspan="7" class="text-center py-5 text-muted" style="font-size: 15px;">
+                <i class="fa-solid fa-box-open fs-2 d-block mb-2 opacity-40"></i>
+                No active base matches found inside the directory logs.
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if (totalPages > 1) { %>
+      <div class="card-footer bg-white border-0 py-4 d-flex justify-content-center border-top">
+        <nav>
+          <ul class="pagination pagination-sm gap-2 mb-0 align-items-center">
+            
+            <% if (currentPage > 1) { %>
+              <li class="premium-page-item">
+                <a class="premium-page-link btn-premium-action" style="padding: 9px 16px;" href="?page=<%= currentPage - 1 %>&search=<%= search %>">Previous</a>
+              </li>
+            <% } %>
+
+            <% 
+              let delta = 1; 
+              let left = currentPage - delta;
+              let right = currentPage + delta + 1;
+              let range = [];
+              let rangeWithDots = [];
+              let l;
+
+              for (let i = 1; i <= totalPages; i++) {
+                  if (i == 1 || i == totalPages || (i >= left && i < right)) {
+                      range.push(i);
+                  }
+              }
+
+              for (let i of range) {
+                  if (l) {
+                      if (i - l === 2) {
+                          rangeWithDots.push(l + 1);
+                      } else if (i - l !== 1) {
+                          rangeWithDots.push('...');
+                      }
+                  }
+                  rangeWithDots.push(i);
+                  l = i;
+              }
+            %>
+
+            <% for(let pageNumber of rangeWithDots) { %>
+              <% if(pageNumber === '...') { %>
+                <li class="premium-dots">...</li>
+              <% } else { %>
+                <li class="premium-page-item <%= currentPage === pageNumber ? 'active' : '' %>">
+                  <a class="premium-page-link" href="?page=<%= pageNumber %>&search=<%= search %>"><%= pageNumber %></a>
+                </li>
+              <% } %>
+            <% } %>
+
+            <% if (currentPage < totalPages) { %>
+              <li class="premium-page-item">
+                <a class="premium-page-link btn-premium-action" style="padding: 9px 16px;" href="?page=<%= currentPage + 1 %>&search=<%= search %>">Next</a>
+              </li>
+            <% } %>
+
+          </ul>
+        </nav>
+      </div>
+    <% } %>
+
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const searchForm = document.getElementById('searchForm');
+    const searchInput = document.getElementById('searchTeacherField');
+    const inlineResetBtn = document.getElementById('inlineResetBtn');
+    const alertBanner = document.getElementById('validationAlert');
+
+    // 🔄 Engine: Inline Clear Button Visibility controller
+    const evalClearBtnState = () => {
+      if (searchInput.value.trim().length > 0) {
+        inlineResetBtn.style.display = "block";
+      } else {
+        inlineResetBtn.style.display = "none";
+      }
+    };
+
+    // Initialize state mapping on loading step
+    evalClearBtnState();
+
+    searchInput.addEventListener('input', () => {
+      evalClearBtnState();
+      if(searchInput.value.trim().length > 0) {
+        alertBanner.style.display = "none";
+        searchInput.style.borderColor = "#cbd5e1";
+      }
+    });
+
+    // ❌ Engine: Clear logic configuration without causing dirty page reload loops
+    inlineResetBtn.addEventListener('click', () => {
+      searchInput.value = "";
+      evalClearBtnState();
+      alertBanner.style.display = "none";
+      searchInput.style.borderColor = "#cbd5e1";
+      
+      // Instantly wipe parameters states by forcing redirect to base dashboard
+      window.location.href = "/show/teacher";
+    });
+
+    // 🔍 Pure Clean Client Interception Loop Validation Engine
+    searchForm.addEventListener('submit', function (e) {
+      const searchVal = searchInput.value.trim();
+
+      if (!searchVal) {
+        e.preventDefault(); 
+        searchInput.style.borderColor = "#fca5a5";
+        alertBanner.style.display = "block";
+        searchInput.focus();
+      }
+    });
+  });
+</script>
