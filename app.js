@@ -514,6 +514,175 @@ app.get("/student/attendance/login", (req, res) => {
 //   })
 // );
 
+// app.post(
+//   "/student/attendance/login",
+//   WrapAsync(async (req, res) => {
+//     const { role, username, password } = req.body || {};
+
+//     const adminRole = process.env.ROLE_1 || "Admin";
+//     const teacherRole = process.env.ROLE_2 || "Teacher";
+//     const studentRole = process.env.ROLE_3 || "Student";
+
+//     // 🔴 1. ROLE VALIDATION & TRIMMING
+//     if (!role || !username || !password) {
+//       req.flash("error", "All fields are required.");
+//       return res.redirect("/student/attendance/login");
+//     }
+
+//     const cleanUsername = String(username).trim();
+//     const cleanPassword = String(password).trim();
+
+//     // =========================================================================
+//     // 👑 1. ADMIN LOGIN
+//     // =========================================================================
+//     if (role === adminRole) {
+//       // Database se Admin find karo
+//       let admin = await Admin.findOne({ username: cleanUsername }).select(
+//         "+password",
+//       );
+
+//       if (!admin) {
+//         req.flash("error", "Invalid username or password");
+//         return res.redirect("/student/attendance/login");
+//       }
+
+//       let isMatch = false;
+
+//       // 👑 DB Admin Password Check (Bcrypt + Legacy Plain-Text Fallback)
+//       if (admin.password) {
+//         try {
+//           isMatch = await bcrypt.compare(cleanPassword, admin.password);
+//         } catch (bcryptErr) {
+//           isMatch = admin.password === cleanPassword;
+//         }
+//       }
+
+//       if (!isMatch) {
+//         req.flash("error", "Invalid username or password");
+//         return res.redirect("/student/attendance/login");
+//       }
+
+//       // Check Blocked Status
+//       if (admin.status === "Blocked") {
+//         req.flash(
+//           "error",
+//           "Your account is blocked. Please contact super admin.",
+//         );
+//         return res.redirect("/student/attendance/login");
+//       }
+
+//       // 🔴 SESSION FIXATION & CLEANUP
+//       delete req.session.passport;
+//       delete req.session.otpVerified;
+//       delete req.session.rollNo;
+//       delete req.session.studentId;
+
+//       req.session.adminVerified = true;
+//       req.session.userId = admin._id.toString();
+//       req.session.role = adminRole;
+//       req.session.loginTime = new Date().toISOString(); // 👈 String format prevents MongoStore serialization drop
+
+//       return req.session.save((err) => {
+//         if (err) console.error("Session Save Error:", err);
+//         req.flash("success", "Login successfully");
+//         return res.redirect("/admin/student/attendance");
+//       });
+//     }
+
+//     // =========================================================================
+//     // 👨‍🏫 2. TEACHER LOGIN
+//     // =========================================================================
+//     if (role === teacherRole) {
+//       // 🔴 Session Cleanup before modal redirect
+//       delete req.session.adminVerified;
+//       delete req.session.otpVerified;
+//       delete req.session.rollNo;
+//       delete req.session.studentId;
+//       delete req.session.userId;
+
+//       // 307 Redirect for Modal POST handling
+//       return res.redirect(307, "/login/modal");
+//     }
+
+//     // =========================================================================
+//     // 🎓 3. STUDENT LOGIN
+//     // =========================================================================
+//     if (role === studentRole) {
+//       const rollNoNum = parseInt(cleanUsername, 10);
+//       if (isNaN(rollNoNum)) {
+//         req.flash("error", "Invalid username or password");
+//         return res.redirect("/student/attendance/login");
+//       }
+
+//       // 🔴 DB Query
+//       const student = await Student.findOne({ rollNo: rollNoNum }).select(
+//         "+password",
+//       );
+
+//       if (!student) {
+//         req.flash("error", "Invalid username or password");
+//         return res.redirect("/student/attendance/login");
+//       }
+
+//       // 🔴 BCRYPT & LEGACY PASSWORD COMPARISON
+//       let isPasswordValid = false;
+
+//       try {
+//         isPasswordValid = await bcrypt.compare(cleanPassword, student.password);
+//       } catch (bcryptErr) {
+//         isPasswordValid = student.password === cleanPassword;
+//       }
+
+//       if (!isPasswordValid) {
+//         req.flash("error", "Invalid username or password");
+//         return res.redirect("/student/attendance/login");
+//       }
+
+//       // 🔴 BLOCKED STATUS CHECK
+//       if (student.status === "Blocked") {
+//         req.flash("error", "Your account is blocked. Please contact admin.");
+//         return res.redirect("/student/attendance/login");
+//       }
+
+//       // 🔴 SESSION CLEANUP
+//       delete req.session.passport;
+//       delete req.session.adminVerified;
+
+//       // 🔴 SET STUDENT SESSION DATA
+//       req.session.userId = student._id.toString();
+//       req.session.studentId = student._id.toString();
+//       req.session.rollNo = student.rollNo;
+//       req.session.role = studentRole;
+//       req.session.loginTime = new Date().toISOString(); // 👈 String format avoids session save loss
+
+//       // 🔥 FIRST TIME PASSWORD UPDATE CHECK
+//       if (student.check !== "update") {
+//         req.session.otpVerified = false;
+//         return req.session.save((err) => {
+//           if (err) console.error("Session Save Error:", err);
+//           return res.redirect("/student/update/password");
+//         });
+//       }
+
+//       req.session.otpVerified = true;
+
+//       return req.session.save((err) => {
+//         if (err) console.error("Session Save Error:", err);
+//         req.flash("success", "Login Successfully");
+//         return res.redirect("/student/attendance");
+//       });
+//     }
+
+//     // =========================================================================
+//     // ❌ 4. INVALID ROLE FALLBACK
+//     // =========================================================================
+//     req.flash("error", "Role not matched");
+//     return res.redirect("/student/attendance/login");
+//   }),
+// );
+
+
+
 app.post(
   "/student/attendance/login",
   WrapAsync(async (req, res) => {
@@ -532,14 +701,42 @@ app.post(
     const cleanUsername = String(username).trim();
     const cleanPassword = String(password).trim();
 
+    // 🔴 BULLETPROOF PASSPORT & SESSION PURGE HELPER
+    const purgePreviousSession = (req, callback) => {
+      // 1. Force Passport Logout if passport active
+      if (typeof req.logout === "function") {
+        req.logout((err) => {
+          if (err) console.error("Passport logout error during session purge:", err);
+          
+          // Clear All Keys
+          delete req.session.passport;
+          delete req.session.userId;
+          delete req.session.studentId;
+          delete req.session.rollNo;
+          delete req.session.adminVerified;
+          delete req.session.otpVerified;
+          delete req.session.role;
+
+          return callback();
+        });
+      } else {
+        delete req.session.passport;
+        delete req.session.userId;
+        delete req.session.studentId;
+        delete req.session.rollNo;
+        delete req.session.adminVerified;
+        delete req.session.otpVerified;
+        delete req.session.role;
+
+        return callback();
+      }
+    };
+
     // =========================================================================
     // 👑 1. ADMIN LOGIN
     // =========================================================================
     if (role === adminRole) {
-      // Database se Admin find karo
-      let admin = await Admin.findOne({ username: cleanUsername }).select(
-        "+password",
-      );
+      let admin = await Admin.findOne({ username: cleanUsername }).select("+password");
 
       if (!admin) {
         req.flash("error", "Invalid username or password");
@@ -548,12 +745,11 @@ app.post(
 
       let isMatch = false;
 
-      // 👑 DB Admin Password Check (Bcrypt + Legacy Plain-Text Fallback)
       if (admin.password) {
         try {
           isMatch = await bcrypt.compare(cleanPassword, admin.password);
         } catch (bcryptErr) {
-          isMatch = admin.password === cleanPassword;
+          isMatch = (admin.password === cleanPassword);
         }
       }
 
@@ -562,30 +758,23 @@ app.post(
         return res.redirect("/student/attendance/login");
       }
 
-      // Check Blocked Status
       if (admin.status === "Blocked") {
-        req.flash(
-          "error",
-          "Your account is blocked. Please contact super admin.",
-        );
+        req.flash("error", "Your account is blocked. Please contact super admin.");
         return res.redirect("/student/attendance/login");
       }
 
-      // 🔴 SESSION FIXATION & CLEANUP
-      delete req.session.passport;
-      delete req.session.otpVerified;
-      delete req.session.rollNo;
-      delete req.session.studentId;
+      // 🔴 PURGE OLD TEACHER/STUDENT SESSION BEFORE CREATING ADMIN SESSION
+      return purgePreviousSession(req, () => {
+        req.session.adminVerified = true;
+        req.session.userId = admin._id.toString();
+        req.session.role = adminRole;
+        req.session.loginTime = new Date().toISOString();
 
-      req.session.adminVerified = true;
-      req.session.userId = admin._id.toString();
-      req.session.role = adminRole;
-      req.session.loginTime = new Date().toISOString(); // 👈 String format prevents MongoStore serialization drop
-
-      return req.session.save((err) => {
-        if (err) console.error("Session Save Error:", err);
-        req.flash("success", "Login successfully");
-        return res.redirect("/admin/student/attendance");
+        req.session.save((err) => {
+          if (err) console.error("Session Save Error:", err);
+          req.flash("success", "Login successfully");
+          return res.redirect("/admin/student/attendance");
+        });
       });
     }
 
@@ -593,7 +782,7 @@ app.post(
     // 👨‍🏫 2. TEACHER LOGIN
     // =========================================================================
     if (role === teacherRole) {
-      // 🔴 Session Cleanup before modal redirect
+      // 🔴 PURGE CUSTOM SESSION KEYS BEFORE PASSPORT MODAL REDIRECT
       delete req.session.adminVerified;
       delete req.session.otpVerified;
       delete req.session.rollNo;
@@ -614,23 +803,19 @@ app.post(
         return res.redirect("/student/attendance/login");
       }
 
-      // 🔴 DB Query
-      const student = await Student.findOne({ rollNo: rollNoNum }).select(
-        "+password",
-      );
+      const student = await Student.findOne({ rollNo: rollNoNum }).select("+password");
 
       if (!student) {
         req.flash("error", "Invalid username or password");
         return res.redirect("/student/attendance/login");
       }
 
-      // 🔴 BCRYPT & LEGACY PASSWORD COMPARISON
       let isPasswordValid = false;
 
       try {
         isPasswordValid = await bcrypt.compare(cleanPassword, student.password);
       } catch (bcryptErr) {
-        isPasswordValid = student.password === cleanPassword;
+        isPasswordValid = (student.password === cleanPassword);
       }
 
       if (!isPasswordValid) {
@@ -638,38 +823,34 @@ app.post(
         return res.redirect("/student/attendance/login");
       }
 
-      // 🔴 BLOCKED STATUS CHECK
       if (student.status === "Blocked") {
         req.flash("error", "Your account is blocked. Please contact admin.");
         return res.redirect("/student/attendance/login");
       }
 
-      // 🔴 SESSION CLEANUP
-      delete req.session.passport;
-      delete req.session.adminVerified;
+      // 🔴 PURGE OLD TEACHER/ADMIN SESSION BEFORE CREATING STUDENT SESSION
+      return purgePreviousSession(req, () => {
+        req.session.userId = student._id.toString();
+        req.session.studentId = student._id.toString();
+        req.session.rollNo = student.rollNo;
+        req.session.role = studentRole;
+        req.session.loginTime = new Date().toISOString();
 
-      // 🔴 SET STUDENT SESSION DATA
-      req.session.userId = student._id.toString();
-      req.session.studentId = student._id.toString();
-      req.session.rollNo = student.rollNo;
-      req.session.role = studentRole;
-      req.session.loginTime = new Date().toISOString(); // 👈 String format avoids session save loss
+        if (student.check !== "update") {
+          req.session.otpVerified = false;
+          return req.session.save((err) => {
+            if (err) console.error("Session Save Error:", err);
+            return res.redirect("/student/update/password");
+          });
+        }
 
-      // 🔥 FIRST TIME PASSWORD UPDATE CHECK
-      if (student.check !== "update") {
-        req.session.otpVerified = false;
+        req.session.otpVerified = true;
+
         return req.session.save((err) => {
           if (err) console.error("Session Save Error:", err);
-          return res.redirect("/student/update/password");
+          req.flash("success", "Login Successfully");
+          return res.redirect("/student/attendance");
         });
-      }
-
-      req.session.otpVerified = true;
-
-      return req.session.save((err) => {
-        if (err) console.error("Session Save Error:", err);
-        req.flash("success", "Login Successfully");
-        return res.redirect("/student/attendance");
       });
     }
 
@@ -678,9 +859,8 @@ app.post(
     // =========================================================================
     req.flash("error", "Role not matched");
     return res.redirect("/student/attendance/login");
-  }),
+  })
 );
-
 // ================= 1. FORGOT PASSWORD GET & POST =================
 
 app.get(
