@@ -1,0 +1,55 @@
+<% layout("layouts/boilerplate") %>
+
+<div class="container mt-4">
+  <h2>Student Message Inbox</h2>
+
+  <div class="row mt-3">
+    <% messages.forEach(msg => { %>
+      <div class="col-md-6 mb-3">
+        <div class="card shadow-sm border-start border-4 border-primary">
+          <div class="card-body">
+            <div class="d-flex justify-content-between">
+              <h6 class="card-subtitle text-muted">From: <%= msg.senderName %> (<%= msg.senderRole %>)</h6>
+              <small class="text-muted"><%= new Date(msg.createdAt).toLocaleDateString() %></small>
+            </div>
+            <p class="card-text mt-2"><%= msg.messageText %></p>
+
+            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#replyModal<%= msg._id %>">
+              Replies (<%= msg.replies.length %>)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reply Modal Box -->
+      <div class="modal fade" id="replyModal<%= msg._id %>" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Thread</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <% msg.replies.forEach(r => { %>
+                  <div class="border-bottom py-1">
+                    <strong><%= r.senderName %> (<%= r.senderRole %>):</strong> <%= r.message %>
+                  </div>
+                <% }) %>
+              </div>
+
+              <% if(isReplyAllowed) { %>
+                <form action="/student/messages/<%= msg._id %>/reply" method="POST">
+                  <input type="text" name="replyText" class="form-control mb-2" placeholder="Write reply..." required>
+                  <button type="submit" class="btn btn-primary w-100">Send Reply</button>
+                </form>
+              <% } else { %>
+                <div class="alert alert-warning text-center">Admin has disabled student replies.</div>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+</div>

@@ -1,0 +1,288 @@
+<%- layout("/layouts/boilerplateTeacher") -%>
+
+<div class="container mt-3">
+  <div class="text-center mb-4">
+    <h3 class="fw-bold text-primary">📝 Mark Attendance</h3>
+    <p class="text-muted small">Date: <%= new Date().toDateString() %></p>
+  </div>
+
+
+  <div class="row g-3 mb-3">
+
+    
+  <input type="hidden" id="className" value="<%= className %>">
+  <input type="hidden" id="semester" value="<%= semester %>">
+  <input type="hidden" id="section" value="<%= section %>">
+  <input type="hidden" id="teacherName" value="<%= teacherName %>">
+  
+    <div class="col-md-4">
+      <label for="period" class="form-label fw-bold">Period</label>
+      <input id="period" type="number" min="1" max="6" class="form-control shadow-sm" placeholder="Enter period number" required list="option">
+      <datalist id="option">
+        <% for(let i=1;i<=6;i++){ %>
+          <option value="<%= i %>"></option>
+        <% } %>
+      </datalist>
+    </div>
+
+    <div class="col-md-4">
+      <label for="unit" class="form-label fw-bold">Unit</label>
+      <input id="unit" type="text" class="form-control shadow-sm" placeholder="Enter unit number" required>
+    </div>
+
+    <div class="col-md-4">
+      <label for="subject" class="form-label fw-bold">Subject</label>
+      <input 
+        id="subject" 
+        type="text" 
+        class="form-control shadow-sm bg-light fw-semibold text-primary" 
+        value="<%= selectedSubject %>" 
+        readonly 
+        required
+      >
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label for="description" class="form-label fw-bold">
+      Description <small class="text-muted">(max 200 characters)</small>
+    </label>
+    <textarea
+      id="description"
+      name="description"
+      rows="3"
+      class="form-control shadow-sm"
+      placeholder="Enter description... max 200 characters only"
+      maxlength="200"
+      required
+    ></textarea>
+    <div class="d-flex justify-content-between mt-1">
+      <small class="text-muted">Max 200 characters</small>
+      <small id="charCount" class="fw-semibold text-secondary">0 / 200</small>
+    </div>
+  </div>
+
+  <div class="row mb-3 align-items-center g-2">
+    <div class="col-md-6 d-flex">
+      <input type="text" id="searchInput" class="form-control me-2 shadow-sm" placeholder="Search by name...">
+      <button type="button" id="searchBtn" class="btn btn-primary shadow-sm">Search</button>
+      <button type="button" id="backBtn" class="btn btn-secondary ms-2 shadow-sm" style="display:none;">Back</button>
+    </div>
+    
+    <div class="col-md-6 text-md-end mt-2 mt-md-0">
+      <button type="button" class="btn btn-success me-2 shadow-sm btn-sm py-2 px-3" id="markAllPresent">All Present</button>
+      <button type="button" class="btn btn-danger shadow-sm btn-sm py-2 px-3" id="markAllAbsent">All Absent</button>
+    </div>
+  </div>
+
+  <div id="searchMsg" class="text-danger fw-bold text-center mb-2" style="display:none;"></div>
+
+  <div class="table-responsive shadow rounded p-2 bg-white">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-dark text-center">
+        <tr>
+          <th>Roll No</th>
+          <th>Name</th>
+          <th>Father Name</th>
+          <th>Attendance</th>
+        </tr>
+      </thead>
+      <tbody id="studentTableBody">
+        <% for(let data of students){ %>
+          <tr class="text-center">
+            <td class="fw-bold"><%= data.rollNo %></td>
+            <td><%= data.name %></td>
+            <td><%= data.fatherName %></td>
+            <td>
+              <div class="d-flex justify-content-center align-items-center gap-2">
+                <button class="btn btn-sm btn-success mark-btn px-3" data-id="<%= data._id %>" data-status="Present">P</button>
+                <button class="btn btn-sm btn-danger mark-btn px-3" data-id="<%= data._id %>" data-status="Absent">A</button>
+                <div style="min-width: 75px;" class="text-center ms-2">
+                  <span class="status fw-bold"></span>
+                </div>
+              </div>
+            </td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="text-center mt-3 mb-5">
+    <button class="btn btn-primary col-md-3 col-6 fw-bold shadow-sm py-2" id="doneBtn">Done</button>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const description = document.getElementById("description");
+  const charCount = document.getElementById("charCount");
+  const doneBtn = document.getElementById("doneBtn");
+  const msgBox = document.getElementById("searchMsg");
+  const backBtn = document.getElementById("backBtn");
+  const tableBody = document.getElementById("studentTableBody");
+  const studentsData = {};
+  const originalTableBody = tableBody.innerHTML;
+
+  // Description Length Count
+  description.addEventListener("input", () => {
+    const length = description.value.length;
+    charCount.textContent = `${length} / 200`;
+    if (length >= 200) {
+      charCount.className = "fw-semibold text-danger";
+    } else {
+      charCount.className = "fw-semibold text-secondary";
+    }
+  });
+
+  // Simple Status Function
+  function markStudent(studentId, status, td) {
+    const statusSpan = td.querySelector(".status");
+    statusSpan.textContent = status;
+    statusSpan.className = status === "Present" ? "status fw-bold text-success" : "status fw-bold text-danger";
+    studentsData[studentId] = status;
+  }
+
+  function attachEvents() {
+    document.querySelectorAll(".mark-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        markStudent(btn.getAttribute("data-id"), btn.getAttribute("data-status"), btn.closest("td"));
+      });
+    });
+  }
+
+  attachEvents();
+
+  // Bulk buttons
+  document.getElementById("markAllPresent").addEventListener("click", () => {
+    document.querySelectorAll("#studentTableBody tr").forEach(tr => {
+      const btn = tr.querySelector(".mark-btn[data-status='Present']");
+      if(btn) markStudent(btn.getAttribute("data-id"), "Present", tr);
+    });
+  });
+
+  document.getElementById("markAllAbsent").addEventListener("click", () => {
+    document.querySelectorAll("#studentTableBody tr").forEach(tr => {
+      const btn = tr.querySelector(".mark-btn[data-status='Absent']");
+      if(btn) markStudent(btn.getAttribute("data-id"), "Absent", tr);
+    });
+  });
+
+  // Search API Logic
+  document.getElementById("searchBtn").addEventListener("click", async () => {
+    const searchVal = document.getElementById("searchInput").value.trim();
+    if (!searchVal) return;
+
+    const res = await fetch(`/search/attendance/student?name=${encodeURIComponent(searchVal)}`);
+    const response = await res.json();
+
+    tableBody.innerHTML = "";
+    msgBox.style.display = "none";
+
+    if (!response.success) {
+      msgBox.innerText = response.message;
+      msgBox.style.display = "block";
+      backBtn.style.display = "inline-block";
+      return;
+    }
+
+    response.data.forEach(s => {
+      let currentBadge = "";
+      if (studentsData[s._id]) {
+        const clr = studentsData[s._id] === "Present" ? "text-success" : "text-danger";
+        currentBadge = `<span class="status fw-bold ${clr}">${studentsData[s._id]}</span>`;
+      } else {
+        currentBadge = `<span class="status fw-bold"></span>`;
+      }
+
+      tableBody.innerHTML += `
+        <tr class="text-center">
+          <td class="fw-bold">${s.rollNo}</td>
+          <td>${s.name}</td>
+          <td>${s.fatherName}</td>
+          <td>
+            <div class="d-flex justify-content-center align-items-center gap-2">
+              <button class="btn btn-sm btn-success mark-btn px-3" data-id="${s._id}" data-status="Present">P</button>
+              <button class="btn btn-sm btn-danger mark-btn px-3" data-id="${s._id}" data-status="Absent">A</button>
+              <div style="min-width: 75px;" class="text-center ms-2">
+                ${currentBadge}
+              </div>
+            </div>
+          </td>
+        </tr>`;
+    });
+
+    attachEvents();
+    backBtn.style.display = "inline-block";
+  });
+
+  // Back button 
+  backBtn.onclick = () => {
+    tableBody.innerHTML = originalTableBody;
+    
+    document.querySelectorAll("#studentTableBody tr").forEach(tr => {
+      const btn = tr.querySelector(".mark-btn");
+      if (btn) {
+        const id = btn.getAttribute("data-id");
+        if (studentsData[id]) markStudent(id, studentsData[id], tr);
+      }
+    });
+
+    attachEvents();
+    msgBox.style.display = "none";
+    backBtn.style.display = "none";
+    document.getElementById("searchInput").value = "";
+  };
+
+  // Done button submit
+  doneBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+
+    const period = parseInt(document.getElementById("period").value, 10);
+    const unit = document.getElementById("unit").value.trim();
+    const description = document.getElementById("description").value.trim();
+   
+    const subject = document.getElementById("subject").value.trim();
+       const className = document.getElementById("className").value.trim();
+         const semester= document.getElementById("semester").value.trim();
+           const section = document.getElementById("section").value.trim();
+             const teacherName = document.getElementById("teacherName").value.trim();
+
+
+
+// 
+
+    if (!period || period < 1 || period > 6) { alert("Enter valid period 1-6"); return; }
+    if (!unit) { alert("Unit is required!"); return; }
+    if (!description || description.length > 200) { alert("Description max 200 chars!"); return; }
+    if (!subject) { alert("Subject is required!"); return; }
+
+    const rows = originalTableBody.match(/data-id="([^"]+)"/g);
+    let allMarked = true;
+    if (rows) {
+      for (let match of rows) {
+        const id = match.split('"')[1];
+        if (!studentsData[id]) { allMarked = false; break; }
+      }
+    }
+
+    if (!allMarked) { alert("Mark all students first!"); return; }
+
+    try {
+      doneBtn.disabled = true;
+      doneBtn.innerText = "Saving...";
+      
+      await fetch("/attendance/saveAll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ students: studentsData, period, unit, description, subject,className, semester,section,teacherName })
+      });
+      window.location.href = "/student/attendance/record";
+    } catch (err) { 
+      console.error(err);
+      doneBtn.disabled = false;
+      doneBtn.innerText = "Done";
+    }
+  });
+});
+</script>

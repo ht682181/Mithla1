@@ -1,0 +1,116 @@
+<% layout("layouts/boilerplate") %>
+
+<div class="container mt-4">
+  <h2>Teacher Communication Hub</h2>
+
+  <!-- Send Form -->
+  <div class="card p-4 shadow-sm mb-4">
+    <h5>Send Message to Assigned Classes</h5>
+    <form action="/teacher/messages/send" method="POST">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Class</label>
+          <select name="className" id="tClass" class="form-select" required>
+            <% assignedClasses.forEach(c => { %>
+              <option value="<%= c.className %>"><%= c.className %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Semester</label>
+          <input type="text" name="semester" class="form-control" placeholder="e.g. 1st Sem" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Section</label>
+          <input type="text" name="section" class="form-control" placeholder="e.g. A" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Subject</label>
+          <input type="text" name="subjectName" class="form-control" placeholder="Subject Name" required>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Student Target</label>
+          <select name="studentId" class="form-select">
+            <option value="ALL">ALL Assigned Students (Bulk)</option>
+            <!-- Dynamic populating logic supported via JS -->
+          </select>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Message</label>
+          <textarea name="messageText" class="form-control" rows="3" required></textarea>
+        </div>
+
+        <div class="col-12 text-end">
+          <button type="submit" class="btn btn-success">Send Message</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Inbox / Sent Messages Tabs -->
+  <h4>Received & Sent Messages</h4>
+  <div class="table-responsive bg-white shadow-sm p-3 rounded">
+    <table class="table table-bordered">
+      <thead class="table-dark">
+        <tr>
+          <th>Sender / Target</th>
+          <th>Message</th>
+          <th>Replies</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% receivedMessages.concat(sentMessages).forEach(msg => { %>
+          <tr>
+            <td>
+              <strong>From: <%= msg.senderName %> (<%= msg.senderRole %>)</strong><br>
+              <small class="text-muted">Target: <%= msg.targetType %></small>
+            </td>
+            <td><%= msg.messageText %></td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#replyModal<%= msg._id %>">
+                View & Reply (<%= msg.replies.length %>)
+              </button>
+            </td>
+            <td>
+              <% if(msg.senderId.toString() === teacher._id.toString()) { %>
+                <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<%= msg._id %>">Edit</button>
+                <form action="/teacher/messages/<%= msg._id %>?_method=DELETE" method="POST" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+
+          <!-- Reply Modal Box -->
+          <div class="modal fade" id="replyModal<%= msg._id %>" tabindex="-1">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Reply Thread</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <p><strong>Original:</strong> <%= msg.messageText %></p>
+                  <div class="mb-3">
+                    <% msg.replies.forEach(r => { %>
+                      <div class="border-bottom py-1">
+                        <strong><%= r.senderName %>:</strong> <%= r.message %>
+                      </div>
+                    <% }) %>
+                  </div>
+                  <form action="/teacher/messages/<%= msg._id %>/reply" method="POST">
+                    <input type="text" name="replyText" class="form-control mb-2" placeholder="Write reply..." required>
+                    <button type="submit" class="btn btn-primary w-100">Send Reply</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>

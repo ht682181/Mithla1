@@ -1,0 +1,276 @@
+<%- layout("/layouts/boilerplateTeacher") -%>
+
+<style>
+  body {
+    background-color: #f8fafc;
+  }
+
+  /* Premium Glassmorphism Navigation Tabs */
+  .nav-tabs-premium {
+    border-bottom: 2px solid #e2e8f0;
+    gap: 10px;
+  }
+
+  .nav-tabs-premium .nav-link {
+    border: none !important;
+    color: #64748b;
+    font-weight: 600;
+    padding: 12px 24px;
+    border-radius: 8px 8px 0 0;
+    position: relative;
+    transition: all 0.3s ease;
+  }
+
+  .nav-tabs-premium .nav-link.active {
+    color: #4f46e5 !important;
+    background-color: transparent !important;
+  }
+
+  .nav-tabs-premium .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, #4f46e5 0%, #06b6d4 100%);
+    border-radius: 3px;
+  }
+
+  /* Form & UI Enhancement */
+  .premium-card {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.04);
+    background: #ffffff;
+  }
+
+  .form-label-premium {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .form-select-premium {
+    border-radius: 10px;
+    padding: 10px 14px;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .form-select-premium:focus {
+    border-color: #818cf8;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+  }
+
+  .btn-premium {
+    background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 12px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    transition: all 0.3s ease;
+  }
+
+  .btn-premium:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.35);
+    background: linear-gradient(135deg, #4338ca 0%, #2e2685 100%);
+  }
+
+  .icon-box {
+    width: 45px;
+    height: 45px;
+    border-radius: 10px;
+    background: rgba(79, 70, 229, 0.08);
+    color: #4f46e5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+  }
+</style>
+
+<div class="container my-4 px-3">
+  
+  <!-- ⚡ DUAL VIEW NAVIGATION TABS -->
+  <ul class="nav nav-tabs nav-tabs-premium mb-4" id="timetableTab" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="personal-tab" data-bs-toggle="tab" data-bs-target="#personal-view" type="button" role="tab">
+        <i class="fa-solid fa-calendar-day me-2"></i>My Personal Routine
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="class-tab" data-bs-toggle="tab" data-bs-target="#class-view" type="button" role="tab">
+        <i class="fa-solid fa-users-rectangle me-2"></i>Class-Wise Schedule
+      </button>
+    </li>
+  </ul>
+
+  <!-- ⚡ TAB CONTENTS -->
+  <div class="tab-content" id="timetableTabContent">
+    
+    <!-- VIEW 1: PERSONAL ROUTINE (Auto Loads Teacher's Own Day Schedule) -->
+    <div class="tab-pane fade show active" id="personal-view" role="tabpanel">
+      <div class="card premium-card p-4">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="icon-box"><i class="fa-solid fa-clock-rotate-left"></i></div>
+          <div>
+            <h4 class="fw-bold m-0 text-dark">Today's Lectures</h4>
+            <p class="text-muted m-0 small">Your chronological personal assignments across all classes</p>
+          </div>
+        </div>
+        <hr class="text-muted opacity-25">
+        
+        <!-- Quick Action Redirect Trigger -->
+        <div class="text-center py-4">
+          <p class="text-secondary fw-medium">View your full personal integrated weekly routing breakdown</p>
+          <a href="/teacher/my-schedule" class="btn btn-outline-primary px-4 py-2 rounded-3 fw-bold shadow-sm">
+            <i class="fa-solid fa-eye me-2"></i>Open Full Personal Matrix
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 2: CLASS WISE TIMETABLE SEARCH (Aapka Modified Form) -->
+    <div class="tab-pane fade" id="class-view" role="tabpanel">
+      <div class="row justify-content-center">
+        <div class="col-xl-5 col-lg-6 col-md-8 col-sm-12">
+          <div class="card premium-card p-4">
+            
+            <div class="text-center mb-4">
+              <div class="icon-box mb-2" style="width: 55px; height: 55px; font-size: 1.5rem;">
+                <i class="fa-solid fa-magnifying-glass-chart"></i>
+              </div>
+              <h4 class="fw-bold text-dark m-0">Class Schedule Explorer</h4>
+              <p class="text-muted small mt-1">Select class credentials to monitor the respective timetable matrix</p>
+            </div>
+
+            <form action="/teacher/show/time/table" method="post" class="needs-validation" novalidate>
+
+              <!-- Dropdown 1: Class -->
+              <div class="mb-3">
+                <label class="form-label-premium"><i class="fa-solid fa-school-flag text-secondary"></i> Class</label>
+                <select name="data[class]" id="class" class="form-select form-select-premium" required>
+                  <option value="">-- Choose Class --</option>
+                  <% if (classData?.class?.length) { %>
+                    <% classData.class.forEach(cls => { %>
+                      <option value="<%= cls.className %>"><%= cls.className %></option>
+                    <% }) %>
+                  <% } %>
+                </select>
+                <div class="invalid-feedback">Please select a class</div>
+              </div>
+
+              <!-- Dropdown 2: Semester -->
+              <div class="mb-3">
+                <label class="form-label-premium"><i class="fa-solid fa-graduation-cap text-secondary"></i> Semester</label>
+                <select name="data[semester]" id="semester" class="form-select form-select-premium" required disabled>
+                  <option value="">-- Choose Semester --</option>
+                </select>
+                <div class="invalid-feedback">Please select a semester</div>
+              </div>
+
+              <!-- Dropdown 3: Section -->
+              <div class="mb-4">
+                <label class="form-label-premium"><i class="fa-solid fa-layer-group text-secondary"></i> Section</label>
+                <select name="data[section]" id="section" class="form-select form-select-premium" required disabled>
+                  <option value="">-- Choose Section --</option>
+                </select>
+                <div class="invalid-feedback">Please select a section</div>
+              </div>
+
+              <!-- Submit Button -->
+              <button type="submit" class="btn btn-premium w-100 d-flex align-items-center justify-content-center gap-2">
+                <i class="fa-solid fa-calendar-days"></i> Fetch Class Timetable
+              </button>
+
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const classSelect = document.getElementById("class");
+const semesterSelect = document.getElementById("semester");
+const sectionSelect = document.getElementById("section");
+
+// CASCADING LOGIC 1: CLASS → SEMESTER
+classSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+
+  semesterSelect.innerHTML = '<option value="">Loading Semesters...</option>';
+  semesterSelect.disabled = true;
+
+  sectionSelect.innerHTML = '<option value="">-- Choose Section --</option>';
+  sectionSelect.disabled = true;
+
+  if (!className) {
+    semesterSelect.innerHTML = '<option value="">-- Choose Semester --</option>';
+    return;
+  }
+
+  const res = await fetch(`/get-semesters?class=${encodeURIComponent(className)}`);
+  const semesters = await res.json();
+
+  semesterSelect.innerHTML = '<option value="">-- Choose Semester --</option>';
+  semesters.forEach(s => {
+    semesterSelect.innerHTML += `<option value="${s}">${s}</option>`;
+  });
+
+  semesterSelect.disabled = false;
+});
+
+// CASCADING LOGIC 2: CLASS + SEMESTER → SECTION
+semesterSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+  const semester = semesterSelect.value;
+
+  sectionSelect.innerHTML = '<option value="">Loading Sections...</option>';
+  sectionSelect.disabled = true;
+
+  if (!className || !semester) {
+    sectionSelect.innerHTML = '<option value="">-- Choose Section --</option>';
+    return;
+  }
+
+  const res = await fetch(
+    `/get-sections?class=${encodeURIComponent(className)}&semester=${encodeURIComponent(semester)}`
+  );
+  const sections = await res.json();
+
+  sectionSelect.innerHTML = '<option value="">-- Choose Section --</option>';
+  sections.forEach(sec => {
+    sectionSelect.innerHTML += `<option value="${sec}">${sec}</option>`;
+  });
+
+  sectionSelect.disabled = false;
+});
+
+// Bootstrap Native Form Validation Engine Trigger
+(() => {
+  'use strict'
+  const forms = document.querySelectorAll('.needs-validation')
+  Array.from(forms).forEach(form => {
+    form.addEventListener('submit', event => {
+      if (!form.checkValidity()) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+      form.classList.add('was-validated')
+    }, false)
+  })
+})()
+</script>

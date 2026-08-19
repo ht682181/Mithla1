@@ -1,0 +1,168 @@
+<% layout("/layouts/boilerplateStudent") -%>
+
+<style>
+  .card-header-custom {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: white;
+  }
+  .badge-pass { background-color: #198754; }
+  .badge-fail { background-color: #dc3545; }
+  .badge-absent { background-color: #fd7e14; }
+</style>
+
+<div class="container py-4">
+  
+  <!-- Header & Filters -->
+  <div class="card shadow-sm mb-4 border-0">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <h3 class="fw-bold mb-1">
+            <i class="fa-solid fa-graduation-cap text-primary me-2"></i>Academic Examination Results
+          </h3>
+          <p class="text-muted mb-0">View current and historical academic performance records.</p>
+        </div>
+
+        <!-- Session & Semester Filter Form -->
+        <% if (availableSessions && availableSessions.length > 0) { %>
+        <form action="/student/view/marksheet" method="GET" class="d-flex gap-2 flex-wrap align-items-end">
+          <div>
+            <label class="form-label small fw-bold mb-1">Academic Session</label>
+            <select name="academicYear" class="form-select form-select-sm" onchange="this.form.submit()">
+              <% availableSessions.forEach(session => { %>
+                <option value="<%= session %>" <%= String(session) === String(selectedSession) ? 'selected' : '' %>>
+                  <%= session %>
+                </option>
+              <% }) %>
+            </select>
+          </div>
+
+          <div>
+            <label class="form-label small fw-bold mb-1">Semester</label>
+            <select name="semester" class="form-select form-select-sm" onchange="this.form.submit()">
+              <% availableSemesters.forEach(sem => { %>
+                <option value="<%= sem %>" <%= Number(sem) === Number(selectedSemester) ? 'selected' : '' %>>
+                  Semester <%= sem %>
+                </option>
+              <% }) %>
+            </select>
+          </div>
+        </form>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <% if (message) { %>
+    <div class="alert alert-info shadow-sm text-center py-4">
+      <i class="fa-solid fa-circle-info fa-2x mb-2 text-info"></i>
+      <h5><%= message %></h5>
+    </div>
+  <% } else { %>
+
+    <!-- Overall Summary Card -->
+    <% if (overallStats) { %>
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="card border-0 shadow-sm text-center p-3">
+          <span class="text-muted small fw-bold text-uppercase">Total Marks Obtained</span>
+          <h3 class="fw-bold text-primary mb-0"><%= overallStats.totalObtainedMarks %> / <%= overallStats.totalMaxMarks %></h3>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card border-0 shadow-sm text-center p-3">
+          <span class="text-muted small fw-bold text-uppercase">Aggregate Percentage</span>
+          <h3 class="fw-bold text-dark mb-0"><%= overallStats.overallPercentage %>%</h3>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card border-0 shadow-sm text-center p-3">
+          <span class="text-muted small fw-bold text-uppercase">Overall Result Status</span>
+          <div>
+            <% if (overallStats.overallStatus === "PASS") { %>
+              <span class="badge badge-pass fs-6 px-3 py-2 mt-1">PASS</span>
+            <% } else { %>
+              <span class="badge badge-fail fs-6 px-3 py-2 mt-1">NEEDS IMPROVEMENT</span>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Exam-wise Tables -->
+    <% const examKeys = Object.keys(groupedExams); %>
+    <% if (examKeys.length === 0) { %>
+      <div class="alert alert-warning text-center py-3">
+        No exam records found for the selected Session and Semester.
+      </div>
+    <% } else { %>
+      <% examKeys.forEach(examKey => { 
+          const exam = groupedExams[examKey]; 
+      %>
+        <div class="card shadow-sm mb-4 border-0">
+          <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold">
+              <i class="fa-solid fa-file-signature me-2"></i><%= exam.examName %> (<%= exam.examType %>)
+            </h5>
+            <span class="badge bg-light text-dark"><%= exam.className %> - Sec <%= exam.section %></span>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Subject</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-center">Max Marks</th>
+                    <th class="text-center">Pass Marks</th>
+                    <th class="text-center">Obtained Marks</th>
+                    <th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% exam.subjects.forEach(sub => { %>
+                    <tr>
+                      <td class="fw-bold text-secondary"><%= sub.subjectName %></td>
+                      <td class="text-center">
+                        <% if (sub.attendanceStatus === "Absent") { %>
+                          <span class="badge badge-absent">ABSENT</span>
+                        <% } else if (sub.isPass) { %>
+                          <span class="badge badge-pass">PASS</span>
+                        <% } else { %>
+                          <span class="badge badge-fail">FAIL</span>
+                        <% } %>
+                      </td>
+                      <td class="text-center"><%= sub.maxMarks %></td>
+                      <td class="text-center text-muted"><%= sub.passMarks %></td>
+                      <td class="text-center fw-bold fs-6">
+                        <% if (sub.attendanceStatus === "Absent") { %>
+                          <span class="text-danger">0</span>
+                        <% } else { %>
+                          <%= sub.obtainedMarks %>
+                        <% } %>
+                      </td>
+                      <td class="text-muted small"><%= sub.remarks %></td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+                <tfoot class="table-group-divider bg-light">
+                  <tr class="fw-bold">
+                    <td colspan="2">Total Exam Score</td>
+                    <td class="text-center"><%= exam.totalExamMax %></td>
+                    <td></td>
+                    <td class="text-center text-primary"><%= exam.totalExamObtained %></td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    <% } %>
+
+  <% } %>
+
+</div>
