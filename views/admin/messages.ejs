@@ -1,0 +1,216 @@
+<% layout("layouts/boilerplate") %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Admin Communication Center</h2>
+
+    <!-- Admin Reply Toggle Switch -->
+    <form action="/admin/messages/toggle-reply" method="POST" class="d-flex align-items-center">
+      <div class="form-check form-switch fs-5">
+        <input class="form-check-input" type="checkbox" role="switch" id="toggleReply" onchange="this.form.submit()" <%= studentReplyAllowed ? 'checked' : '' %>>
+        <label class="form-check-label ms-2" for="toggleReply">Allow Student Replies</label>
+      </div>
+    </form>
+  </div>
+
+  <!-- Dispatch Message Form Card -->
+  <div class="card shadow-sm p-4 mb-4">
+    <h5 class="card-title text-primary">Dispatch New Message</h5>
+    <form action="/admin/messages/send" method="POST">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Target Audience</label>
+          <select name="targetGroup" id="targetGroup" class="form-select" onchange="handleGroupChange(this.value)">
+            <option value="Student">Student</option>
+            <option value="Teacher">Teacher</option>
+          </select>
+        </div>
+
+        <!-- Student Filters -->
+        <div id="studentFilters" class="row col-md-9 g-2">
+          <div class="col-md-3">
+            <label class="form-label">Class</label>
+            <select name="filterClass" class="form-select">
+              <option value="ALL">ALL</option>
+              <% classes.forEach(c => { %><option value="<%= c %>"><%= c %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Semester</label>
+            <select name="filterSem" class="form-select">
+              <option value="ALL">ALL</option>
+              <% semesters.forEach(s => { %><option value="<%= s %>"><%= s %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Section</label>
+            <select name="filterSec" class="form-select">
+              <option value="ALL">ALL</option>
+              <% sections.forEach(sec => { %><option value="<%= sec %>"><%= sec %></option><% }) %>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Specific Student</label>
+            <select name="studentId" class="form-select">
+              <option value="ALL">ALL (Bulk)</option>
+              <% students.forEach(st => { %>
+                <option value="<%= st._id %>"><%= st.name %> (Roll: <%= st.rollNo %>)</option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+
+        <!-- Teacher Filters -->
+        <div id="teacherFilters" class="row col-md-9 g-2 d-none">
+          <div class="col-md-4">
+            <label class="form-label">Send Type</label>
+            <select name="teacherTargetType" id="teacherTargetType" class="form-select" onchange="toggleTeacherSelect(this.value)">
+              <option value="ALL">ALL Teachers (Bulk)</option>
+              <option value="Individual">Individual Teacher</option>
+            </select>
+          </div>
+          <div class="col-md-8 d-none" id="teacherSelectBox">
+            <label class="form-label">Select Teacher</label>
+            <select name="teacherId" class="form-select">
+              <% teachers.forEach(t => { %>
+                <option value="<%= t._id %>"><%= t.name %> (<%= t.email %>)</option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+
+        <div class="col-12 mt-3">
+          <label class="form-label">Message Text</label>
+          <textarea name="messageText" class="form-control" rows="3" required placeholder="Type message..."></textarea>
+        </div>
+
+        <div class="col-12 mt-3 text-end">
+          <button type="submit" class="btn btn-success px-4">Send Message</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Messages Display Table -->
+  <h4>Message Logs</h4>
+  <div class="table-responsive bg-white shadow-sm p-3 rounded">
+    <table class="table table-hover align-middle">
+      <thead class="table-dark">
+        <tr>
+          <th>Target</th>
+          <th>Details / Filter</th>
+          <th>Message</th>
+          <th>Replies</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% messages.forEach(msg => { %>
+          <tr>
+            <td>
+              <span class="badge bg-<%= msg.targetType === 'Bulk' ? 'warning' : 'info' %>">
+                <%= msg.recipientType %> (<%= msg.targetType %>)
+              </span>
+            </td>
+            <td>
+              <% if(msg.recipientType === 'Student') { %>
+                <% if(msg.targetType === 'Bulk') { %>
+                  <strong>EX -> <%= msg.className %> <%= msg.semester %> <%= msg.section %></strong>
+                <% } else { %>
+                  Stu-<%= msg.studentDetails?.rollNo %> Rollno:<%= msg.studentDetails?.rollNo %> Name:<%= msg.studentDetails?.name %> Class:<%= msg.studentDetails?.className %> Sem:<%= msg.studentDetails?.semester %> Sec:<%= msg.studentDetails?.section %>
+                <% } %>
+              <% } else { %>
+                Teacher: <%= msg.recipientTeacherId ? msg.recipientTeacherId.name : 'ALL' %>
+              <% } %>
+            </td>
+            <td><%= msg.messageText %></td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#replyModal<%= msg._id %>">
+                Replies (<%= msg.replies.length %>)
+              </button>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<%= msg._id %>">Edit</button>
+              <form action="/admin/messages/<%= msg._id %>?_method=DELETE" method="POST" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete message?')">Delete</button>
+              </form>
+            </td>
+          </tr>
+
+          <!-- Edit Modal Box -->
+          <div class="modal fade" id="editModal<%= msg._id %>" tabindex="-1">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <form action="/admin/messages/<%= msg._id %>?_method=PUT" method="POST">
+                  <div class="modal-header">
+                    <h5 class="modal-title">Edit Message</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body">
+                    <textarea name="messageText" class="form-control" rows="3"><%= msg.messageText %></textarea>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reply Modal Box -->
+          <div class="modal fade" id="replyModal<%= msg._id %>" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Message Replies</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3 p-2 bg-light rounded">
+                    <strong>Original:</strong> <%= msg.messageText %>
+                  </div>
+                  <h6>Thread:</h6>
+                  <div class="mb-3" style="max-height: 200px; overflow-y: auto;">
+                    <% msg.replies.forEach(r => { %>
+                      <div class="border-bottom py-1">
+                        <strong><%= r.senderName %> (<%= r.senderRole %>):</strong> <%= r.message %>
+                        <br><small class="text-muted"><%= new Date(r.createdAt).toLocaleString() %></small>
+                      </div>
+                    <% }) %>
+                  </div>
+                  <form action="/admin/messages/<%= msg._id %>/reply" method="POST">
+                    <div class="input-group">
+                      <input type="text" name="replyText" class="form-control" placeholder="Write reply..." required>
+                      <button class="btn btn-primary" type="submit">Reply</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  function handleGroupChange(val) {
+    if (val === "Student") {
+      document.getElementById("studentFilters").classList.remove("d-none");
+      document.getElementById("teacherFilters").classList.add("d-none");
+    } else {
+      document.getElementById("studentFilters").classList.add("d-none");
+      document.getElementById("teacherFilters").classList.remove("d-none");
+    }
+  }
+
+  function toggleTeacherSelect(val) {
+    if (val === "Individual") {
+      document.getElementById("teacherSelectBox").classList.remove("d-none");
+    } else {
+      document.getElementById("teacherSelectBox").classList.add("d-none");
+    }
+  }
+</script>

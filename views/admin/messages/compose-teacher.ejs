@@ -1,0 +1,614 @@
+<% layout("layouts/boilerplate") %>
+
+<style>
+  :root {
+    --primary-gradient: linear-gradient(135deg, #064e3b 0%, #0f172a 100%);
+    --accent-emerald: #10b981;
+    --accent-emerald-hover: #059669;
+    --accent-teal: #14b8a6;
+    --bg-slate: #f8fafc;
+    --card-bg: #ffffff;
+    --border-color: #e2e8f0;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+  }
+
+  body {
+    background-color: #f1f5f9;
+  }
+
+  /* Main Wrapper */
+  .dispatch-wrapper {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .glass-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Segmented Control UI */
+  .segmented-control {
+    background: #f1f5f9;
+    padding: 6px;
+    border-radius: var(--radius-md);
+    display: flex;
+    gap: 6px;
+    border: 1px solid var(--border-color);
+  }
+
+  .segmented-control .btn-segment {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.88rem;
+    padding: 12px 16px;
+    border-radius: 8px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .segmented-control .btn-segment:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  .segmented-control .btn-segment.active {
+    background: var(--card-bg);
+    color: var(--accent-emerald);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.18);
+  }
+
+  /* Filter Boxes */
+  .filter-box {
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: var(--radius-md);
+    padding: 24px;
+    transition: all 0.3s ease;
+  }
+
+  .form-select, .form-control {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.92rem;
+    transition: all 0.2s ease;
+  }
+
+  .form-select:focus, .form-control:focus {
+    border-color: var(--accent-emerald);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+  }
+
+  /* Custom File Upload Box */
+  .upload-zone {
+    border: 2px dashed #cbd5e1;
+    border-radius: var(--radius-md);
+    padding: 24px;
+    text-align: center;
+    background: #f8fafc;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .upload-zone:hover {
+    border-color: var(--accent-emerald);
+    background: #ecfdf5;
+  }
+
+  /* File Preview Chips with Cross Icon */
+  .attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-main);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  }
+
+  .attachment-chip .btn-remove-file {
+    border: none;
+    background: #f1f5f9;
+    color: #ef4444;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .attachment-chip .btn-remove-file:hover {
+    background: #ef4444;
+    color: #ffffff;
+  }
+
+  /* Teacher List Styling */
+  .teacher-list-container {
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: #ffffff;
+  }
+
+  .teacher-list-container::-webkit-scrollbar {
+    width: 6px;
+  }
+  .teacher-list-container::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 4px;
+  }
+
+  .teacher-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s ease-in-out;
+  }
+
+  .teacher-item:hover {
+    background: #ecfdf5;
+  }
+
+  .teacher-badge {
+    font-size: 11px;
+    font-weight: 700;
+    background: #ccfbf1;
+    color: #0f766e;
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+
+  /* Floating Toast Container */
+  .toast-container-custom {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 9999;
+  }
+
+  .custom-toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 320px;
+    padding: 16px 20px;
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+    border-left: 5px solid var(--accent-emerald);
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .custom-toast.toast-danger {
+    border-left-color: #ef4444;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .msg-hidden {
+    display: none !important;
+  }
+</style>
+
+<script>window.CURRENT_USER_ROLE = "Admin";</script>
+
+<!-- Custom Floating Notification Container -->
+<div id="toastContainer" class="toast-container-custom"></div>
+
+<div class="container-fluid py-4 dispatch-wrapper">
+  <%- include("./_nav.ejs", { active: "compose-teacher" }) %>
+
+  <!-- Top Hero Banner (Emerald Slate Theme) -->
+  <div class="p-4 p-md-5 mb-4 rounded-4 text-white shadow-lg position-relative overflow-hidden" style="background: var(--primary-gradient);">
+    <div class="position-relative z-1 max-w-2xl">
+      <span class="badge bg-white text-dark mb-2 px-3 py-2 rounded-pill fw-bold text-uppercase tracking-wider fs-12">
+        <i class="bi bi-person-badge-fill text-emerald me-1" style="color: var(--accent-emerald);"></i> Faculty Broadcast Center
+      </span>
+      <h2 class="fw-bold display-6 mb-2">Message Faculty & Teachers</h2>
+      <p class="text-slate-300 mb-0 opacity-87 fs-6">Dispatch official memos, class assignments, and urgent directives directly to faculty dashboards in real time.</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Main Form Column -->
+    <div class="col-lg-8">
+      <div class="glass-card p-4 p-md-5">
+        <form 
+          id="composeForm" 
+          action="/admin/message/teacher" 
+          method="POST" 
+          enctype="multipart/form-data"
+          class="needs-validation" 
+          novalidate
+        >
+
+          <!-- Audience Segment Selector -->
+          <div class="mb-4">
+            <label class="form-label fw-bold text-dark small text-uppercase tracking-wider mb-2">
+              1. Recipient Scope
+            </label>
+            <div class="segmented-control" role="group">
+              <button type="button" class="btn-segment active" data-audience="select">
+                <i class="bi bi-person-check-fill me-1.5"></i> Selective Teachers
+              </button>
+              <button type="button" class="btn-segment" data-audience="all">
+                <i class="bi bi-people-fill me-1.5"></i> All Teachers
+              </button>
+            </div>
+            <input type="hidden" name="audienceType" id="audienceType" value="select" />
+          </div>
+
+          <!-- Dynamic Selective Teachers Panel -->
+          <div id="selectFields" class="mb-4 filter-box">
+            <label class="form-label fw-bold small text-dark mb-2">Faculty Selection Panel *</label>
+            
+            <!-- Live Search Bar -->
+            <div class="input-group mb-3">
+              <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+              <input 
+                type="text" 
+                id="teacherFilterBox" 
+                class="form-control border-start-0 ps-0" 
+                placeholder="Search by teacher name, username or ID…" 
+              />
+            </div>
+
+            <!-- Select All Bar -->
+            <div class="d-flex align-items-center justify-content-between px-3 py-2 bg-white border rounded mb-2 shadow-sm">
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="selectAllCheckbox">
+                <label class="form-check-label fw-semibold small text-dark" for="selectAllCheckbox">
+                  Select All Displayed Teachers
+                </label>
+              </div>
+              <span id="selectedCountBadge" class="badge bg-success rounded-pill px-3 py-1.5 fs-12" style="background-color: var(--accent-emerald) !important;">0 Selected</span>
+            </div>
+
+            <!-- Scrollable Teacher List -->
+            <div id="teacherListContainer" class="teacher-list-container p-2">
+              <% if (!teachers || teachers.length === 0) { %>
+                <div class="text-center text-muted py-4 small">No active faculty records found.</div>
+              <% } %>
+
+              <% (teachers || []).forEach(function(t) { %>
+                <% const searchKey = (t.name + ' ' + (t.username || t.teacherId || '')).toLowerCase(); %>
+                <div class="teacher-item d-flex align-items-center justify-content-between" data-search="<%= searchKey %>">
+                  <div class="form-check mb-0">
+                    <input 
+                      class="form-check-input teacher-checkbox" 
+                      type="checkbox" 
+                      name="teacherIds" 
+                      value="<%= t._id %>" 
+                      id="chk_teacher_<%= t._id %>"
+                    >
+                    <label class="form-check-label fw-semibold text-dark ms-2 small" for="chk_teacher_<%= t._id %>">
+                      <%= t.name %>
+                    </label>
+                  </div>
+                  <span class="teacher-badge">ID: <%= t.username || t.teacherId || 'N/A' %></span>
+                </div>
+              <% }) %>
+            </div>
+
+            <div id="teacherSelectError" class="text-danger small mt-2 msg-hidden">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i> Please select at least one teacher recipient.
+            </div>
+          </div>
+
+          <!-- Message Content Input -->
+          <div class="mb-4">
+            <label for="content" class="form-label fw-bold text-dark small text-uppercase tracking-wider">2. Message Content</label>
+            <textarea 
+              name="content" 
+              id="content" 
+              class="form-control" 
+              rows="6" 
+              maxlength="1800" 
+              placeholder="Type your faculty announcement, meeting update, or memo here..."
+            ></textarea>
+            <div class="d-flex justify-content-between mt-1">
+              <span class="text-muted ms-auto fs-12"><span id="charCounter">0</span>/1800 characters</span>
+            </div>
+          </div>
+
+          <!-- Attachment Upload Section -->
+          <div class="mb-4">
+            <label class="form-label fw-bold text-dark small text-uppercase tracking-wider">3. Attach Documents / Files</label>
+            <div class="upload-zone" onclick="document.getElementById('attachments').click();">
+              <i class="bi bi-file-earmark-arrow-up-fill display-6 mb-2 d-block" style="color: var(--accent-emerald);"></i>
+              <p class="fw-semibold text-dark mb-1">Click or drag faculty files here to attach</p>
+              <span class="text-muted small">Images, PDF, DOCX, XLSX, PPTX (Max 5 files, 10MB each)</span>
+              <input 
+                type="file" 
+                name="attachments" 
+                id="attachments" 
+                class="d-none" 
+                multiple 
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+              />
+            </div>
+            <!-- File Previews with Cross Remove Button -->
+            <div id="filePreviewList" class="mt-3 d-flex flex-wrap gap-2"></div>
+          </div>
+
+          <!-- Action Button -->
+          <button type="submit" class="btn text-white w-100 py-3 fw-bold rounded-3 shadow-sm" id="sendBtn" style="background-color: var(--accent-emerald);">
+            <i class="bi bi-send-fill me-2"></i> Dispatch Teacher Message
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Live Preview & Quick Info Sidebar -->
+    <div class="col-lg-4">
+      <div class="sticky-top" style="top: 24px;">
+        <div class="glass-card p-4 mb-4">
+          <h6 class="fw-bold text-dark mb-3">
+            <i class="bi bi-eye-fill me-1.5" style="color: var(--accent-emerald);"></i> Live Card Preview
+          </h6>
+          <div class="border rounded-3 p-3 bg-light">
+            <div class="d-flex align-items-center mb-2">
+              <div class="text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-weight: bold; background-color: var(--accent-emerald);">
+                F
+              </div>
+              <div>
+                <span class="fw-bold d-block text-dark small">Faculty Directive</span>
+                <span class="text-muted fs-12" id="previewAudience">Target: Selective Teachers</span>
+              </div>
+            </div>
+            <p class="text-secondary small mb-2 text-break" id="previewText">Your message memo will appear here in real time...</p>
+            <div id="previewBadge" class="badge bg-secondary rounded-pill fs-12">No Attachments</div>
+          </div>
+        </div>
+
+        <!-- Guidance Card -->
+        <div class="glass-card p-4 bg-white border-start border-4" style="border-color: var(--accent-emerald) !important;">
+          <h6 class="fw-bold text-dark mb-2"><i class="bi bi-shield-check me-1.5" style="color: var(--accent-emerald);"></i> Admin Policy Checklist</h6>
+          <ul class="text-muted small ps-3 mb-0">
+            <li class="mb-1">Teacher broadcasts are logged in audit records.</li>
+            <li class="mb-1">Ensure official files are attached in PDF/DOCX formats.</li>
+            <li>Messages generate active notifications on teacher dashboard panels.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const segButtons = document.querySelectorAll(".segmented-control .btn-segment");
+  const audienceInput = document.getElementById("audienceType");
+  const selectFields = document.getElementById("selectFields");
+  const filterBox = document.getElementById("teacherFilterBox");
+  const teacherListContainer = document.getElementById("teacherListContainer");
+  const checkboxes = document.querySelectorAll(".teacher-checkbox");
+  const selectAllCheckbox = document.getElementById("selectAllCheckbox");
+  const selectedCountBadge = document.getElementById("selectedCountBadge");
+  const composeForm = document.getElementById("composeForm");
+  const sendBtn = document.getElementById("sendBtn");
+  const teacherSelectError = document.getElementById("teacherSelectError");
+
+  const contentInput = document.getElementById("content");
+  const fileInput = document.getElementById("attachments");
+  const charCounter = document.getElementById("charCounter");
+  const previewText = document.getElementById("previewText");
+  const previewAudience = document.getElementById("previewAudience");
+  const previewBadge = document.getElementById("previewBadge");
+  const filePreviewList = document.getElementById("filePreviewList");
+
+  // Track attached files globally for dynamic removal
+  let selectedFilesList = [];
+
+  // Custom Toast Handler
+  function showToast(message, type = 'danger') {
+    const toastContainer = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `custom-toast toast-${type}`;
+    toast.innerHTML = `
+      <i class="bi ${type === 'danger' ? 'bi-exclamation-circle-fill text-danger' : 'bi-check-circle-fill text-success'} fs-5"></i>
+      <span class="small fw-semibold text-dark">${message}</span>
+    `;
+    toastContainer.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100%)';
+      toast.style.transition = 'all 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  }
+
+  // Live Preview Updates & Character Count
+  contentInput.addEventListener("input", () => {
+    const val = contentInput.value;
+    charCounter.innerText = val.length;
+    previewText.innerText = val.trim() ? val : "Your message memo will appear here in real time...";
+  });
+
+  // Render Attachment Chips with Cross (Remove) Icon
+  function renderFilePreviews() {
+    filePreviewList.innerHTML = "";
+
+    if (selectedFilesList.length > 0) {
+      previewBadge.className = "badge bg-success rounded-pill fs-12";
+      previewBadge.innerText = `${selectedFilesList.length} File(s) Attached`;
+
+      selectedFilesList.forEach((file, index) => {
+        const chip = document.createElement("div");
+        chip.className = "attachment-chip";
+        chip.innerHTML = `
+          <i class="bi bi-paperclip text-muted"></i>
+          <span>${file.name}</span>
+          <button type="button" class="btn-remove-file" data-index="${index}" title="Remove file">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        `;
+        filePreviewList.appendChild(chip);
+      });
+    } else {
+      previewBadge.className = "badge bg-secondary rounded-pill fs-12";
+      previewBadge.innerText = "No Attachments";
+    }
+
+    // Sync HTML File Input DataTransfer Object
+    const dt = new DataTransfer();
+    selectedFilesList.forEach(f => dt.items.add(f));
+    fileInput.files = dt.files;
+  }
+
+  // Handle New File Upload Selection
+  fileInput.addEventListener("change", () => {
+    const newFiles = Array.from(fileInput.files);
+    
+    // Append unique files up to maximum 5
+    newFiles.forEach(f => {
+      const exists = selectedFilesList.some(existing => existing.name === f.name && existing.size === f.size);
+      if (!exists && selectedFilesList.length < 5) {
+        selectedFilesList.push(f);
+      }
+    });
+
+    renderFilePreviews();
+  });
+
+  // Event Delegation to Handle Cross (x) Click for File Removal
+  filePreviewList.addEventListener("click", (e) => {
+    const removeBtn = e.target.closest(".btn-remove-file");
+    if (removeBtn) {
+      const targetIndex = parseInt(removeBtn.dataset.index, 10);
+      selectedFilesList.splice(targetIndex, 1);
+      renderFilePreviews();
+    }
+  });
+
+  // Audience Mode Switcher
+  segButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      segButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const mode = btn.dataset.audience;
+      audienceInput.value = mode;
+
+      if (mode === "all") {
+        previewAudience.innerText = "Target: All Teachers";
+        selectFields.classList.add("msg-hidden");
+        teacherSelectError.classList.add("msg-hidden");
+      } else {
+        previewAudience.innerText = "Target: Selective Teachers";
+        selectFields.classList.remove("msg-hidden");
+      }
+    });
+  });
+
+  // Filter List (Name or Username/ID)
+  if (filterBox) {
+    filterBox.addEventListener("input", () => {
+      const q = filterBox.value.trim().toLowerCase();
+      document.querySelectorAll(".teacher-item").forEach((item) => {
+        const searchKey = item.dataset.search || "";
+        if (searchKey.includes(q)) {
+          item.classList.remove("msg-hidden");
+        } else {
+          item.classList.add("msg-hidden");
+        }
+      });
+    });
+  }
+
+  // Select / Deselect All
+  if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener("change", () => {
+      const visibleCheckboxes = teacherListContainer.querySelectorAll(".teacher-item:not(.msg-hidden) .teacher-checkbox");
+      visibleCheckboxes.forEach((chk) => {
+        chk.checked = selectAllCheckbox.checked;
+      });
+      updateCount();
+    });
+  }
+
+  // Count Tracker
+  function updateCount() {
+    const checked = Array.from(checkboxes).filter((c) => c.checked);
+    if (selectedCountBadge) {
+      selectedCountBadge.textContent = `${checked.length} Selected`;
+    }
+    if (checked.length > 0 && teacherSelectError) {
+      teacherSelectError.classList.add("msg-hidden");
+    }
+    if (selectAllCheckbox && checkboxes.length > 0) {
+      selectAllCheckbox.checked = checked.length === checkboxes.length;
+    }
+  }
+
+  checkboxes.forEach((c) => c.addEventListener("change", updateCount));
+
+  // Double Submit Prevention & Validation
+  composeForm.addEventListener("submit", function (e) {
+    const audience = audienceInput.value;
+    const contentVal = contentInput.value.trim();
+    const attachmentsVal = fileInput.files;
+
+    let isFormValid = true;
+
+    if (!contentVal && attachmentsVal.length === 0) {
+      e.preventDefault();
+      showToast("Please enter message content or attach a file.", "danger");
+      return;
+    }
+
+    if (attachmentsVal.length > 5) {
+      e.preventDefault();
+      showToast("Maximum 5 file attachments allowed.", "danger");
+      return;
+    }
+
+    if (audience === "select") {
+      const anyChecked = Array.from(checkboxes).some((c) => c.checked);
+      if (!anyChecked) {
+        e.preventDefault();
+        teacherSelectError.classList.remove("msg-hidden");
+        showToast("Please select at least one teacher.", "danger");
+        isFormValid = false;
+        return;
+      }
+    }
+
+    composeForm.classList.add("was-validated");
+
+    if (isFormValid) {
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Dispatching Message...`;
+    }
+  });
+
+})();
+</script>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/socketClient.js"></script>

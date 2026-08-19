@@ -1,0 +1,189 @@
+<%# views/teacher/messages/compose-student.ejs
+    <% layout("layouts/boilerplate") %>
+%>
+<script>window.CURRENT_USER_ROLE = "Teacher";</script>
+<link rel="stylesheet" href="/css/messaging.css" />
+
+<div class="msg-app">
+  <div class="msg-shell">
+    <%- include("./_nav.ejs", { active: "compose" }) %>
+
+    <div class="msg-eyebrow">Teacher · Dispatch</div>
+    <h1 class="msg-title">Message Students</h1>
+    <p class="msg-subtitle">Only your assigned classes are shown — this is enforced on the server too.</p>
+
+    <div class="msg-card">
+      <form id="composeForm" action="/teacher/message/student" method="POST">
+
+        <div class="msg-segmented" role="tablist" aria-label="Audience type">
+          <button type="button" class="active" data-audience="filter">Class / Semester / Section</button>
+          <button type="button" data-audience="individual">Individual Student</button>
+        </div>
+        <input type="hidden" name="audienceType" id="audienceType" value="filter" />
+
+        <div id="filterFields">
+          <div class="msg-row">
+            <div class="msg-field">
+              <label for="filterClass">Class</label>
+              <select name="class" id="filterClass">
+                <option value="">Select class</option>
+                <% classes.forEach(function(c) { %>
+                  <option value="<%= c %>"><%= c %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="msg-field">
+              <label for="filterSemester">Semester</label>
+              <select name="semester" id="filterSemester" disabled>
+                <option value="">Select class first</option>
+              </select>
+            </div>
+            <div class="msg-field">
+              <label for="filterSection">Section</label>
+              <select name="section" id="filterSection" disabled>
+                <option value="">Select semester first</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="individualFields" class="msg-hidden">
+          <div class="msg-field msg-search-wrap">
+            <label for="studentSearch">Search Student (your students only)</label>
+            <input type="text" id="studentSearch" autocomplete="off" placeholder="Type name or roll number…" />
+            <div id="studentSearchResults" class="msg-search-results msg-hidden"></div>
+            <input type="hidden" name="studentId" id="studentId" />
+            <div id="selectedStudentChip"></div>
+          </div>
+        </div>
+
+        <div class="msg-field">
+          <label for="content">Message</label>
+          <textarea name="content" id="content" required maxlength="2000" placeholder="Write your message…"></textarea>
+        </div>
+
+        <button type="submit" class="msg-btn msg-btn-primary">Send Message</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const segButtons = document.querySelectorAll(".msg-segmented button");
+  const audienceInput = document.getElementById("audienceType");
+  const filterFields = document.getElementById("filterFields");
+  const individualFields = document.getElementById("individualFields");
+
+  segButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      segButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const value = btn.dataset.audience;
+      audienceInput.value = value;
+      filterFields.classList.toggle("msg-hidden", value !== "filter");
+      individualFields.classList.toggle("msg-hidden", value !== "individual");
+    });
+  });
+
+  const classSelect = document.getElementById("filterClass");
+  const semesterSelect = document.getElementById("filterSemester");
+  const sectionSelect = document.getElementById("filterSection");
+
+  classSelect.addEventListener("change", async () => {
+    semesterSelect.innerHTML = '<option value="">Loading…</option>';
+    semesterSelect.disabled = true;
+    sectionSelect.innerHTML = '<option value="">Select semester first</option>';
+    sectionSelect.disabled = true;
+    if (!classSelect.value) {
+      semesterSelect.innerHTML = '<option value="">Select class first</option>';
+      return;
+    }
+    const res = await fetch(`/teacher/message/meta/semesters?class=${encodeURIComponent(classSelect.value)}`);
+    const data = await res.json();
+    semesterSelect.innerHTML = '<option value="">Select semester</option>' +
+      data.semesters.map((s) => `<option value="${s}">${s}</option>`).join("");
+    semesterSelect.disabled = false;
+  });
+
+  semesterSelect.addEventListener("change", async () => {
+    sectionSelect.innerHTML = '<option value="">Loading…</option>';
+    sectionSelect.disabled = true;
+    if (!semesterSelect.value) {
+      sectionSelect.innerHTML = '<option value="">Select semester first</option>';
+      return;
+    }
+    const res = await fetch(
+      `/teacher/message/meta/sections?class=${encodeURIComponent(classSelect.value)}&semester=${encodeURIComponent(semesterSelect.value)}`
+    );
+    const data = await res.json();
+    sectionSelect.innerHTML = '<option value="">Select section</option>' +
+      data.sections.map((s) => `<option value="${s}">${s}</option>`).join("");
+    sectionSelect.disabled = false;
+  });
+
+  const studentSearch = document.getElementById("studentSearch");
+  const studentSearchResults = document.getElementById("studentSearchResults");
+  const studentIdInput = document.getElementById("studentId");
+  const selectedStudentChip = document.getElementById("selectedStudentChip");
+
+  let searchTimer = null;
+  studentSearch.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    const q = studentSearch.value.trim();
+    if (!q) {
+      studentSearchResults.classList.add("msg-hidden");
+      return;
+    }
+    searchTimer = setTimeout(async () => {
+      const res = await fetch(`/teacher/message/student/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      studentSearchResults.innerHTML = data.students.length
+        ? data.students.map((s) =>
+            `<div class="msg-search-item" data-id="${s._id}" data-label="${s.name} (${s.class} ${s.semester} ${s.section})">
+               <span class="roll">#${s.rollNo}</span>${s.name} — ${s.class} ${s.semester} ${s.section}
+             </div>`).join("")
+        : '<div class="msg-search-item">No students found in your assigned classes</div>';
+      studentSearchResults.classList.remove("msg-hidden");
+    }, 250);
+  });
+
+  studentSearchResults.addEventListener("click", (e) => {
+    const item = e.target.closest(".msg-search-item");
+    if (!item || !item.dataset.id) return;
+    studentIdInput.value = item.dataset.id;
+    selectedStudentChip.innerHTML = `
+      <div class="msg-selected-chip">
+        ${item.dataset.label}
+        <button type="button" id="clearStudentChip" aria-label="Remove selection">&times;</button>
+      </div>`;
+    studentSearch.value = "";
+    studentSearchResults.classList.add("msg-hidden");
+    document.getElementById("clearStudentChip").addEventListener("click", () => {
+      studentIdInput.value = "";
+      selectedStudentChip.innerHTML = "";
+    });
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!studentSearch.contains(e.target) && !studentSearchResults.contains(e.target)) {
+      studentSearchResults.classList.add("msg-hidden");
+    }
+  });
+
+  document.getElementById("composeForm").addEventListener("submit", (e) => {
+    const audience = audienceInput.value;
+    if (audience === "filter" && (!classSelect.value || !semesterSelect.value || !sectionSelect.value)) {
+      e.preventDefault();
+      alert("Please select class, semester and section.");
+    }
+    if (audience === "individual" && !studentIdInput.value) {
+      e.preventDefault();
+      alert("Please select a student.");
+    }
+  });
+})();
+</script>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/socketClient.js"></script>

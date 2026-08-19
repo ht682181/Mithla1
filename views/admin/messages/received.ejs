@@ -1,0 +1,594 @@
+<% layout("layouts/boilerplate") %>
+
+  <style>
+    :root {
+      --primary-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #2563eb 100%);
+      --accent-blue: #2563eb;
+      --card-bg: #ffffff;
+      --border-color: #cbd5e1;
+      --text-muted: #64748b;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.02);
+      --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+    }
+
+    body { background-color: #f8fafc; }
+    .inbox-wrapper { max-width: 1180px; margin: 0 auto; }
+
+    .glass-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      transition: all 0.25s ease;
+    }
+
+    .parent-message-card {
+      background: #ffffff;
+      border-left: 5px solid #1e293b;
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+    }
+
+    .replies-wrapper {
+      background: #f1f5f9;
+      border-radius: var(--radius-md);
+      padding: 20px;
+      border: 1px solid #e2e8f0;
+      margin-top: 15px;
+    }
+
+    .reply-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      position: relative;
+    }
+
+    .reply-card:last-child { margin-bottom: 0; }
+
+    .reply-card-admin {
+      background: #f0f9ff;
+      border-left: 4px solid #0284c7;
+      margin-left: 28px;
+    }
+
+    .meta-inline-tag {
+      font-size: 11px;
+      font-weight: 700;
+      background: #e2e8f0;
+      color: #334155;
+      padding: 2px 8px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .custom-nav-pills {
+      background: #e2e8f0;
+      padding: 5px;
+      border-radius: var(--radius-md);
+      display: inline-flex;
+      gap: 4px;
+    }
+
+    .custom-nav-pills .nav-link-custom {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .custom-nav-pills .nav-link-custom.active {
+      background: #ffffff;
+      color: var(--accent-blue);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .toast-container-custom {
+      position: fixed; top: 24px; right: 24px; z-index: 10000;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .custom-toast {
+      display: flex; align-items: center; gap: 12px; min-width: 320px;
+      padding: 14px 18px; border-radius: var(--radius-md); background: #ffffff;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15); border-left: 5px solid #10b981;
+    }
+    .custom-toast.toast-error { border-left-color: #ef4444; }
+
+    /* Show More/Show Less Collapse Styling */
+    .collapse-toggle-btn {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+  </style>
+
+  <script>window.CURRENT_USER_ROLE = "Admin";</script>
+
+  <div id="toastContainer" class="toast-container-custom"></div>
+
+  <!-- Confirmation Modal for Hard Delete Actions -->
+  <div class="modal fade" id="actionConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content glass-card">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-dark" id="confirmModalTitle">
+            <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i> Permanent Action
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3 text-secondary" id="confirmModalBody">Are you sure?</div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light fw-semibold rounded-2 px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger fw-semibold rounded-2 px-4" id="confirmModalExecuteBtn">Delete Permanently</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid py-4 inbox-wrapper">
+    <%- include("./_nav.ejs", { active: "received" }) %>
+
+      <!-- Banner Header -->
+      <div class="p-4 p-md-5 mb-4 rounded-4 text-white shadow-lg" style="background: var(--primary-gradient);">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+          <div>
+            <span class="badge bg-white text-dark mb-2 px-3 py-2 rounded-pill fw-bold text-uppercase fs-12">
+              <i class="bi bi-chat-square-text-fill me-1 text-primary"></i> Thread Control Center
+            </span>
+            <h2 class="fw-bold display-6 mb-1">Received Responses</h2>
+            <p class="text-slate-300 mb-0 opacity-87 small">Manage threaded responses and faculty/student interactions.</p>
+          </div>
+
+          <div class="d-flex align-items-center gap-2">
+            <a href="/admin/message/received?tab=<%= activeTab %>&filter=<%= filterUnread ? '' : 'unread' %>"
+              class="btn btn-sm btn-light fw-semibold px-3 py-2 rounded-3 shadow-sm">
+              <i class="bi <%= filterUnread ? 'bi-eye-fill' : 'bi-funnel-fill' %> me-1"></i>
+              <%= filterUnread ? "Show All" : "Filter Unread" %>
+            </a>
+
+            <form action="/admin/message/mark-all-read" method="POST" class="d-inline">
+              <input type="hidden" name="tab" value="<%= activeTab %>">
+              <button type="submit" class="btn btn-sm btn-primary fw-semibold px-3 py-2 rounded-3 shadow-sm" style="background-color: var(--accent-blue);">
+                <i class="bi bi-check2-all me-1"></i> Mark All Read
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Nav Tabs -->
+      <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div class="custom-nav-pills">
+          <a href="/admin/message/received?tab=teacher" class="nav-link-custom <%= activeTab === 'teacher' ? 'active' : '' %>">
+            <i class="bi bi-person-badge-fill"></i> Faculty Replies
+            <% if (unreadTeacherCount > 0) { %><span class="badge bg-danger rounded-pill px-2 py-1 fs-12"><%= unreadTeacherCount %></span><% } %>
+          </a>
+          <a href="/admin/message/received?tab=student" class="nav-link-custom <%= activeTab === 'student' ? 'active' : '' %>">
+            <i class="bi bi-mortarboard-fill"></i> Student Replies
+            <% if (unreadStudentCount > 0) { %><span class="badge bg-danger rounded-pill px-2 py-1 fs-12"><%= unreadStudentCount %></span><% } %>
+          </a>
+        </div>
+      </div>
+
+      <!-- Bulk Hard Delete Form -->
+      <form action="/admin/message/bulk-delete" method="POST" id="bulkDeleteForm">
+        <input type="hidden" name="tab" value="<%= activeTab %>">
+
+        <!-- Top Action Bar -->
+        <div class="glass-card p-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div class="fw-bold text-dark small">
+            <i class="bi bi-chat-left-dots-fill text-primary me-1"></i> Active Message Threads
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span id="selectedCount" class="text-muted small me-2">0 selected</span>
+            <button type="button" class="btn btn-danger btn-sm fw-semibold rounded-2" id="triggerBulkDeleteBtn">
+              <i class="bi bi-trash3-fill me-1"></i> Delete Selected Replies
+            </button>
+          </div>
+        </div>
+
+        <% if (!receivedThreads || receivedThreads.length === 0) { %>
+          <div class="glass-card p-5 text-center my-4">
+            <div class="display-4 text-muted mb-3"><i class="bi bi-inbox"></i></div>
+            <h5 class="fw-bold text-dark">No Threads Found</h5>
+            <p class="text-muted small mb-0">There are no responses or active threads in this category.</p>
+          </div>
+        <% } else { %>
+
+          <!-- Thread Boxes List -->
+          <div class="d-flex flex-column gap-4">
+            <% receivedThreads.forEach(function(thread) { %>
+              
+              <div class="glass-card p-4" id="threadBox_<%= thread._id %>">
+                
+                <!-- 1. Highlighted Parent Admin Message Display Header -->
+                <div class="parent-message-card mb-3 shadow-sm">
+                  <div class="d-flex align-items-center justify-content-between pb-2 mb-2 border-bottom">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="badge bg-dark text-white px-2 py-1 rounded-1 fs-12 fw-bold">
+                        <i class="bi bi-pin-angle-fill me-1 text-warning"></i> MAIN BROADCAST / PARENT MESSAGE
+                      </span>
+                      <span class="fw-bold text-dark fs-6 ms-1">
+                        By: <%= (thread.sender && thread.sender.id && thread.sender.id.name) ? thread.sender.id.name : (thread.sender ? thread.sender.name : 'Admin') %>
+                      </span>
+                    </div>
+                    <span class="text-muted fs-12"><i class="bi bi-clock me-1"></i><%= new Date(thread.createdAt).toLocaleString() %></span>
+                  </div>
+
+                  <p class="text-dark fs-6 lh-base text-break mb-0" style="white-space: pre-line;">
+                    <%= thread.content %>
+                  </p>
+                </div>
+
+                <!-- Whole Replies Block Container Toggle Header -->
+                <div class="d-flex justify-content-between align-items-center px-1 mb-2">
+                  <span class="badge bg-secondary rounded-pill px-3 py-2">
+                    <i class="bi bi-chat-left-text me-1"></i> <%= thread.replies.length %> Total Reply(ies)
+                  </span>
+
+                  <% if (thread.replies && thread.replies.length > 0) { %>
+                    <button class="btn btn-sm btn-link collapse-toggle-btn p-0 text-primary" type="button" 
+                            data-bs-toggle="collapse" 
+                            data-bs-target="#repliesCollapse_<%= thread._id %>" 
+                            aria-expanded="true" 
+                            aria-controls="repliesCollapse_<%= thread._id %>"
+                            id="btnToggle_<%= thread._id %>"
+                            onclick="toggleThreadLabel('<%= thread._id %>')">
+                      <i class="bi bi-chevron-up me-1"></i> Show Less
+                    </button>
+                  <% } %>
+                </div>
+
+                <!-- 2. Comment Section Layout for Entire Replies Container -->
+                <div class="collapse show" id="repliesCollapse_<%= thread._id %>">
+                  <div class="replies-wrapper">
+                    <div class="d-flex justify-content-between align-items-center mb-3 px-1">
+                      <div class="form-check mb-0">
+                        <input class="form-check-input select-all-thread" type="checkbox" id="selectAll_<%= thread._id %>" data-thread-id="<%= thread._id %>">
+                        <label class="form-check-label fw-bold text-secondary small" for="selectAll_<%= thread._id %>">
+                          Select All Replies in Thread
+                        </label>
+                      </div>
+
+                      <div class="d-flex align-items-center gap-2">
+                        <!-- Thread Reply Clear Action (Hard Deletes Child Replies Only) -->
+                        <button type="button" class="btn btn-sm btn-outline-danger fw-semibold px-2 py-1" 
+                                onclick="deleteSingle('<%= thread._id %>', '<%= activeTab %>', true)" 
+                                title="Delete Thread Replies">
+                          <i class="bi bi-trash3-fill me-1"></i> Delete Thread Replies
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Child Replies List -->
+                    <% if (thread.replies && thread.replies.length > 0) { %>
+                      <div class="d-flex flex-column gap-2">
+                        <% thread.replies.forEach(function(reply) { %>
+                          <% const isAdminReply = reply.sender && reply.sender.role === 'Admin'; %>
+                          <% const replySenderInfo = reply.sender && reply.sender.id ? reply.sender.id : {}; %>
+                          <% const recipientInfo = reply.recipientId || {}; %>
+
+                          <div class="reply-card <%= isAdminReply ? 'reply-card-admin' : '' %>" id="replyItem_<%= reply._id %>">
+                            
+                            <!-- Metadata Line Header -->
+                            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                              <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <!-- Checkbox added for BOTH Admin and Student/Teacher replies -->
+                                <input type="checkbox" name="messageIds" value="<%= reply._id %>" class="form-check-input msg-select-item msg-item-<%= thread._id %>">
+
+                                <% if (isAdminReply) { %>
+                                  <!-- Admin Reply Context Labeling -->
+                                  <span class="fw-bold text-primary fs-6">
+                                    <i class="bi bi-shield-check me-1"></i> <%= (reply.sender && reply.sender.name) ? reply.sender.name : 'Super Admin' %>
+                                  </span>
+                                  <span class="badge bg-primary text-white fs-11">
+                                    Replied to <%= reply.recipientRole %>: 
+                                    <%= recipientInfo.name || (reply.sender ? reply.sender.name : reply.recipientRole) %>
+                                  </span>
+                                <% } else if (activeTab === 'student' || (reply.sender && reply.sender.role === 'Student')) { %>
+                                  <!-- Student Reply Dynamic Data Population -->
+                                  <span class="fw-bold text-dark fs-6">
+                                    <i class="bi bi-person-circle text-primary me-1"></i> <%= replySenderInfo.name || (reply.sender ? reply.sender.name : 'Student') %>
+                                  </span>
+                                  <span class="meta-inline-tag"><i class="bi bi-card-text"></i> Roll: <%= replySenderInfo.rollNo || 'N/A' %></span>
+                                  <span class="meta-inline-tag"><i class="bi bi-building"></i> Class: <%= replySenderInfo.class || 'N/A' %></span>
+                                  <span class="meta-inline-tag"><i class="bi bi-calendar-event"></i> Sem: <%= replySenderInfo.semester || 'N/A' %></span>
+                                  <span class="meta-inline-tag"><i class="bi bi-grid-fill"></i> Sec: <%= replySenderInfo.section || 'N/A' %></span>
+                                <% } else { %>
+                                  <!-- Teacher Reply Dynamic Data Formatting -->
+                                  <span class="fw-bold text-dark fs-6">
+                                    <i class="bi bi-person-badge-fill text-success me-1"></i> <%= replySenderInfo.name || (reply.sender ? reply.sender.name : 'Teacher') %>
+                                  </span>
+                                  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill fs-11">Teacher</span>
+                                  <span class="meta-inline-tag"><i class="bi bi-briefcase"></i> Dept: <%= replySenderInfo.department || 'N/A' %></span>
+                                  <span class="meta-inline-tag"><i class="bi bi-award"></i> Desig: <%= replySenderInfo.designation || 'N/A' %></span>
+                                <% } %>
+                              </div>
+                              
+                              <!-- Actions & Time -->
+                              <div class="d-flex align-items-center gap-2">
+                                <span class="text-muted fs-11"><%= new Date(reply.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) %></span>
+                                <!-- Hard Delete Individual Button -->
+                                <button type="button" class="btn btn-link text-danger p-0 border-0 ms-2" 
+                                        onclick="deleteSingle('<%= reply._id %>', '<%= activeTab %>', false)" 
+                                        title="Permanently Delete Reply">
+                                  <i class="bi bi-trash3 fs-6"></i>
+                                </button>
+                              </div>
+                            </div>
+
+                            <!-- Reply Body -->
+                            <p class="text-dark small mb-2 text-break lh-sm ms-1" style="white-space: pre-line;">
+                              <%= reply.content %>
+                            </p>
+
+                            <!-- Child Level Quick Action -->
+                            <div class="text-end">
+                              <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-primary fs-12 fw-semibold" 
+                                      data-bs-toggle="collapse" data-bs-target="#replyBox_<%= reply._id %>">
+                                <i class="bi bi-reply-fill me-1"></i> Reply to User
+                              </button>
+                            </div>
+
+                            <div class="collapse mt-2" id="replyBox_<%= reply._id %>">
+                              <div class="p-2 bg-white border rounded-3">
+                                <textarea placeholder="Type response..." class="form-control form-control-sm mb-2 replyText" rows="2"></textarea>
+                                <div class="d-flex justify-content-end">
+                                  <button type="button" class="btn btn-primary btn-sm px-3 replyBtn" 
+                                          data-msg-id="<%= reply._id %>" data-tab="<%= activeTab %>">
+                                    <i class="bi bi-send-fill me-1"></i> Send Reply
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                        <% }) %>
+                      </div>
+                    <% } else { %>
+                      <div class="text-muted small fst-italic py-3 text-center bg-white rounded-3 border">No replies in this thread yet.</div>
+                    <% } %>
+
+                    <!-- Thread Level Reply Trigger -->
+                    <div class="mt-3 pt-2 text-end">
+                      <button type="button" class="btn btn-sm btn-primary fw-semibold rounded-2 px-3"
+                        data-bs-toggle="collapse" data-bs-target="#replyBox_<%= thread._id %>">
+                        <i class="bi bi-arrow-return-right me-1"></i> Reply to Thread
+                      </button>
+
+                      <div class="collapse mt-2 text-start" id="replyBox_<%= thread._id %>">
+                        <div class="p-3 bg-white border rounded-3">
+                          <textarea placeholder="Type official response to thread..." class="form-control mb-2 replyText" rows="3"></textarea>
+                          <div class="d-flex justify-content-end">
+                            <button type="button" class="btn btn-primary btn-sm fw-bold px-4 replyBtn" 
+                                    data-msg-id="<%= thread._id %>" data-tab="<%= activeTab %>">
+                              <i class="bi bi-send-fill me-1"></i> Send Reply
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
+            <% }) %>
+          </div>
+
+          <!-- Dynamic 3-Page Window Pagination -->
+          <% if (totalPages > 1) { %>
+            <nav class="d-flex justify-content-center mt-4">
+              <ul class="pagination pagination-md shadow-sm">
+                
+                <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+                  <a class="page-link" href="/admin/message/received?tab=<%= activeTab %>&page=<%= currentPage - 1 %><%= filterUnread ? '&filter=unread' : '' %>">
+                    <i class="bi bi-chevron-left"></i> Prev
+                  </a>
+                </li>
+
+                <% pageWindow.forEach(function(p) { %>
+                  <li class="page-item <%= p === currentPage ? 'active' : '' %>">
+                    <a class="page-link" href="/admin/message/received?tab=<%= activeTab %>&page=<%= p %><%= filterUnread ? '&filter=unread' : '' %>">
+                      <%= p %>
+                    </a>
+                  </li>
+                <% }) %>
+
+                <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+                  <a class="page-link" href="/admin/message/received?tab=<%= activeTab %>&page=<%= currentPage + 1 %><%= filterUnread ? '&filter=unread' : '' %>">
+                    Next <i class="bi bi-chevron-right"></i>
+                  </a>
+                </li>
+
+              </ul>
+            </nav>
+          <% } %>
+
+        <% } %>
+      </form>
+  </div>
+
+  <form id="singleDeleteForm" method="POST" class="d-none">
+    <input type="hidden" name="tab" id="singleDeleteTab" value="<%= activeTab %>">
+  </form>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // Toggle label function for Show More / Show Less block container
+      window.toggleThreadLabel = function(threadId) {
+        const btn = document.getElementById(`btnToggle_${threadId}`);
+        if (!btn) return;
+        setTimeout(() => {
+          const collapseEl = document.getElementById(`repliesCollapse_${threadId}`);
+          const isShown = collapseEl.classList.contains("show");
+          btn.innerHTML = isShown 
+            ? `<i class="bi bi-chevron-up me-1"></i> Show Less` 
+            : `<i class="bi bi-chevron-down me-1"></i> Show More`;
+        }, 350);
+      };
+
+      // Thread level Select-All
+      document.querySelectorAll(".select-all-thread").forEach(selectAllCb => {
+        selectAllCb.addEventListener("change", function () {
+          const threadId = this.dataset.threadId;
+          const childCheckboxes = document.querySelectorAll(`.msg-item-${threadId}`);
+          childCheckboxes.forEach(cb => cb.checked = this.checked);
+          updateCount();
+        });
+      });
+
+      function updateCount() {
+        const checked = document.querySelectorAll(".msg-select-item:checked").length;
+        const countEl = document.getElementById("selectedCount");
+        if (countEl) countEl.textContent = `${checked} selected`;
+      }
+
+      document.addEventListener("change", function(e) {
+        if (e.target.classList.contains("msg-select-item")) {
+          updateCount();
+        }
+      });
+
+      window.showToast = function (message, type = 'success') {
+        const toastContainer = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        const isError = type === 'error';
+
+        toast.className = `custom-toast ${isError ? 'toast-error' : ''}`;
+        toast.innerHTML = `
+          <i class="bi ${isError ? 'bi-exclamation-circle-fill text-danger' : 'bi-check-circle-fill text-success'} fs-5"></i>
+          <span class="small fw-semibold text-dark">${message}</span>
+        `;
+        toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateX(100%)';
+          toast.style.transition = 'all 0.3s ease';
+          setTimeout(() => toast.remove(), 300);
+        }, 3500);
+      };
+
+      function showConfirmModal({ title, body, onConfirm }) {
+        const modalEl = document.getElementById('actionConfirmModal');
+        const modal = new bootstrap.Modal(modalEl);
+
+        document.getElementById('confirmModalTitle').innerHTML = `<i class="bi bi-exclamation-triangle-fill text-danger me-2"></i> ${title}`;
+        document.getElementById('confirmModalBody').textContent = body;
+
+        const executeBtn = document.getElementById('confirmModalExecuteBtn');
+        const newExecuteBtn = executeBtn.cloneNode(true);
+        executeBtn.parentNode.replaceChild(newExecuteBtn, executeBtn);
+
+        newExecuteBtn.addEventListener('click', function () {
+          modal.hide();
+          onConfirm();
+        });
+
+        modal.show();
+      }
+
+      // Bulk Hard Delete Trigger
+      const bulkDeleteBtn = document.getElementById('triggerBulkDeleteBtn');
+      if (bulkDeleteBtn) {
+        bulkDeleteBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          const checkedCount = document.querySelectorAll(".msg-select-item:checked").length;
+
+          if (checkedCount === 0) {
+            showToast("Please select at least one reply to delete.", "error");
+            return;
+          }
+
+          showConfirmModal({
+            title: "Permanently Delete Selected Replies",
+            body: `Are you sure you want to PERMANENTLY delete ${checkedCount} selected reply(ies) from the database? This action cannot be undone.`,
+            onConfirm: () => {
+              document.getElementById("bulkDeleteForm").submit();
+            }
+          });
+        });
+      }
+
+      // Single/Thread Replies Hard Delete Action
+      window.deleteSingle = function (id, tab, isCascade = false) {
+        showConfirmModal({
+          title: isCascade ? "Delete All Thread Replies" : "Permanently Delete Reply",
+          body: isCascade 
+            ? "Are you sure you want to permanently delete ALL replies under this thread from the database? The main parent announcement will remain safe."
+            : "Are you sure you want to permanently delete this reply from the database?",
+          onConfirm: () => {
+            const form = document.getElementById("singleDeleteForm");
+            document.getElementById("singleDeleteTab").value = tab;
+            form.action = `/admin/message/${id}/delete`;
+            form.submit();
+          }
+        });
+      };
+
+      // AJAX Reply
+      document.addEventListener("click", async function(e) {
+        const btn = e.target.closest(".replyBtn");
+        if (!btn) return;
+
+        const container = btn.closest(".collapse");
+        const id = btn.dataset.msgId;
+        const tab = btn.dataset.tab;
+        const textarea = container.querySelector(".replyText");
+        const content = textarea.value.trim();
+
+        if (!content) {
+          showToast("Please type a message before sending your reply.", "error");
+          return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Sending...`;
+
+        try {
+          const res = await fetch(`/admin/message/${id}/reply`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({ content, tab }),
+          });
+
+          const data = await res.json();
+
+          if (res.ok && data.success) {
+            textarea.value = "";
+            showToast("Reply sent successfully!", "success");
+            setTimeout(() => window.location.reload(), 800);
+          } else {
+            showToast(data.message || "Failed to send reply.", "error");
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi bi-send-fill me-1"></i> Send Reply`;
+          }
+        } catch (err) {
+          console.error("Error sending reply:", err);
+          showToast("Network error. Failed to send reply.", "error");
+          btn.disabled = false;
+          btn.innerHTML = `<i class="bi bi-send-fill me-1"></i> Send Reply`;
+        }
+      });
+
+    })();
+  </script>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/socketClient.js"></script>

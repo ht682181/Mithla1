@@ -1,0 +1,36 @@
+
+    <%- layout("/layouts/boilerplate") -%>
+
+<script>window.CURRENT_USER_ROLE = "Admin";</script>
+<link rel="stylesheet" href="/css/messaging.css" />
+
+<div class="msg-app">
+  <div class="msg-shell">
+    <%- include("./_nav.ejs", { active: "settings" }) %>
+
+    <div class="msg-eyebrow">Admin · Configuration</div>
+    <h1 class="msg-title">Messaging Settings</h1>
+    <p class="msg-subtitle">Control what students are allowed to do.</p>
+
+    <div class="msg-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-weight:700; font-size:14px; margin-bottom:4px;">Allow students to reply</div>
+          <div class="msg-meta-line">
+            When off, students can read messages but the reply box is hidden and reply
+            attempts are rejected server-side.
+          </div>
+        </div>
+
+        <form action="/admin/message/settings/toggle-student-reply" method="POST">
+          <button type="submit" class="msg-btn <%= settings.allowStudentReply ? 'msg-btn-primary' : 'msg-btn-ghost' %>">
+            <%= settings.allowStudentReply ? "ENABLED — click to disable" : "DISABLED — click to enable" %>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/socketClient.js"></script>

@@ -1,0 +1,82 @@
+<%# views/admin/messages/received.ejs
+    <% layout("layouts/boilerplate") %>
+%>
+<script>window.CURRENT_USER_ROLE = "Admin";</script>
+<link rel="stylesheet" href="/css/messaging.css" />
+
+<div class="msg-app">
+  <div class="msg-shell">
+    <%- include("./_nav.ejs", { active: "received" }) %>
+
+    <div class="msg-eyebrow">Admin · Inbox</div>
+    <h1 class="msg-title">Received Messages</h1>
+    <p class="msg-subtitle">Replies from teachers and students, newest first.</p>
+
+    <% if (!receivedMessages || receivedMessages.length === 0) { %>
+      <div class="msg-card">
+        <div class="msg-empty">
+          <div class="msg-empty-mark">✉</div>
+          <p>Nothing here yet.</p>
+        </div>
+      </div>
+    <% } else { %>
+      <% receivedMessages.forEach(function(m) { %>
+        <div class="msg-inbox-card">
+          <div class="msg-inbox-head">
+            <div>
+              <span class="msg-sender-name"><%= m.sender.name %></span>
+              <span class="msg-sender-role"><%= m.sender.role %></span>
+              <% if (m.isReply) { %><span class="msg-meta-line" style="margin-left:6px;">↩ reply</span><% } %>
+            </div>
+            <span class="msg-timestamp"><%= new Date(m.createdAt).toLocaleString() %></span>
+          </div>
+          <p class="msg-content-text"><%= m.content %></p>
+
+          <div class="msg-reply-box">
+            <textarea placeholder="Write a reply…" class="replyText"></textarea>
+            <button class="msg-btn msg-btn-primary msg-btn-sm replyBtn" data-msg-id="<%= m._id %>">Reply</button>
+          </div>
+        </div>
+      <% }) %>
+    <% } %>
+  </div>
+</div>
+
+<script>
+(function () {
+  document.querySelectorAll(".replyBtn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const card = btn.closest(".msg-inbox-card");
+      const id = btn.dataset.msgId;
+      const textarea = card.querySelector(".replyText");
+      const content = textarea.value.trim();
+      if (!content) return alert("Reply cannot be empty.");
+
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      const res = await fetch(`/admin/message/${id}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      btn.disabled = false;
+      btn.textContent = "Reply";
+
+      if (res.ok || res.redirected) {
+        textarea.value = "";
+        const confirmEl = document.createElement("div");
+        confirmEl.className = "msg-meta-line";
+        confirmEl.style.color = "var(--green-600)";
+        confirmEl.textContent = "✓ Reply sent";
+        card.appendChild(confirmEl);
+        setTimeout(() => confirmEl.remove(), 3000);
+      } else {
+        alert("Failed to send reply.");
+      }
+    });
+  });
+})();
+</script>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/socketClient.js"></script>

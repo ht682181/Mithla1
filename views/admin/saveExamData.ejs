@@ -1,0 +1,202 @@
+<%- layout("/layouts/boilerplate") -%>
+
+
+<style>
+.page-container {
+    max-width: 1320px;
+    margin: 0 auto;
+  }
+  
+</style>
+
+<div class="page-container my-4 px-3">
+
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+
+      <!-- 📢 Header -->
+      <div class="mb-4 text-center">
+        <h2 class="fw-bold text-primary">🎓 Exam Rules & Marks Configuration</h2>
+        <p class="text-muted fs-6">
+          Set up passing criteria, maximum marks, and exam structures for classes, sections, and academic sessions.
+        </p>
+      </div>
+
+      
+
+        <!-- links -->
+
+    <div class="d-flex gap-2 flex-wrap mt-4">
+      <a href="/admin/show/exam/data" class="btn btn-dark  border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show ExamConfig
+      </a>
+       <a href="/admin/marks-management" class="btn btn-dark  border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Marks Management
+      </a>
+  </div> 
+
+
+      <div class="card shadow border-0 rounded-3 mt-3">
+        <div class="card-header bg-primary text-white py-3">
+          <h5 class="mb-0 fw-bold">⚙️ Configure New Exam Rule</h5>
+        </div>
+        <div class="card-body p-4">
+          <form action="/admin/save/exam/data" method="POST" id="examConfigForm" novalidate class="needs-validation">
+            <div class="row g-3">
+
+              <!-- 1. Class Selection -->
+              <div class="col-md-4">
+                <label class="form-label fw-bold">Class Name <span class="text-danger">*</span></label>
+                <select name="className" class="form-select shadow-sm" required>
+                  <option value="" disabled selected>-- Select Class --</option>
+                  <% classData.forEach(c => { %>
+                    <option value="<%= c.class || c.name %>"><%= c.class || c.name %></option>
+                  <% }) %>
+                </select>
+                <div class="invalid-feedback">Please select a class.</div>
+              </div>
+
+              <!-- 2. Semester Selection -->
+              <div class="col-md-4">
+                <label class="form-label fw-bold">Semester <span class="text-danger">*</span></label>
+                <select name="semester" class="form-select shadow-sm" required>
+                  <option value="" disabled selected>-- Select Semester --</option>
+                  <% for(let i = 1; i <= 8; i++) { %>
+                    <option value="<%= i %>">Semester <%= i %></option>
+                  <% } %>
+                </select>
+                <div class="invalid-feedback">Please select a semester.</div>
+              </div>
+
+              <!-- 3. Section Selection -->
+              <div class="col-md-4">
+                <label class="form-label fw-bold">Section <span class="text-danger">*</span></label>
+                <select name="section" class="form-select shadow-sm" required>
+                  <option value="" disabled selected>-- Select Section --</option>
+                  <% sectionData.forEach(s => { %>
+                    <option value="<%= s.name || s.sectionName %>"><%= s.name || s.sectionName %></option>
+                  <% }) %>
+                </select>
+                <div class="invalid-feedback">Please select a section.</div>
+              </div>
+
+              <!-- 4. Academic Year Selection -->
+              <!-- <div class="col-md-6">
+                <label class="form-label fw-bold">Academic Year <span class="text-danger">*</span></label>
+                <input 
+                  type="number" 
+                  name="academicYear" 
+                  class="form-control shadow-sm" 
+                  value="<%= new Date().getFullYear() %>" 
+                  required 
+                  min="2000" 
+                  max="2099"
+                />
+                <div class="invalid-feedback">Please enter a valid academic year (2000-2099).</div>
+              </div> -->
+
+
+
+               <div class="col-md-6">
+  <label class="form-label fw-bold">Academic Year / Session <span class="text-danger">*</span></label>
+  <input 
+    type="text" 
+    name="academicYear" 
+    class="form-control shadow-sm" 
+    placeholder="e.g. 2025-2028" 
+    pattern="^\d{4}-\d{2,4}$"
+    title="Please enter format like 2025-2028 or 2025-28"
+    required 
+  />
+  <div class="invalid-feedback">Please enter a valid session format (e.g. 2025-2028).</div>
+</div>
+
+              <!-- 5. Exam Name Input -->
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Exam Name <span class="text-danger">*</span></label>
+                <input 
+                  type="text" 
+                  name="examName" 
+                  id="examName"
+                  class="form-control shadow-sm" 
+                  placeholder="e.g. MID-TERM, SESSIONAL 1, QUIZ" 
+                  required 
+                />
+                <div class="invalid-feedback">Please enter an exam name.</div>
+              </div>
+
+              <!-- 6. Maximum Marks -->
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Maximum Marks <span class="text-danger">*</span></label>
+                <input 
+                  type="number" 
+                  name="maxMarks" 
+                  id="maxMarks"
+                  class="form-control shadow-sm" 
+                  placeholder="e.g. 100" 
+                  min="1" 
+                  required 
+                />
+                <div class="invalid-feedback">Please enter maximum marks (minimum 1).</div>
+              </div>
+
+              <!-- 7. Passing Marks -->
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Passing Marks <span class="text-danger">*</span></label>
+                <input 
+                  type="number" 
+                  name="passingMarks" 
+                  id="passingMarks"
+                  class="form-control shadow-sm" 
+                  placeholder="e.g. 33" 
+                  min="0" 
+                  required 
+                />
+                <div class="invalid-feedback">Please enter valid passing marks.</div>
+              </div>
+
+            </div>
+
+            <!-- Submit Button -->
+            <div class="mt-4 text-end">
+              <button type="submit" id="submitBtn" class="btn btn-success px-4 py-2 fw-bold shadow-sm">
+                💾 Save Configuration
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Fixed Script: Validates fields before disabling button -->
+<script>
+  const form = document.getElementById('examConfigForm');
+  const submitBtn = document.getElementById('submitBtn');
+
+  form.addEventListener('submit', function(e) {
+    // 1. Check if all required fields are filled properly
+    if (!form.checkValidity()) {
+      e.preventDefault();
+      e.stopPropagation();
+      form.classList.add('was-validated');
+      return false; // Stop execution if inputs are invalid
+    }
+
+    const maxMarks = parseFloat(document.getElementById('maxMarks').value);
+    const passingMarks = parseFloat(document.getElementById('passingMarks').value);
+
+    // 2. Logic Check: Passing Marks vs Maximum Marks
+    if (passingMarks > maxMarks) {
+      e.preventDefault();
+      alert('Passing Marks cannot be greater than Maximum Marks!');
+      return false;
+    }
+
+    // 3. Disable button ONLY when all inputs are completely valid
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '⌛ Saving... Please wait';
+  });
+</script>

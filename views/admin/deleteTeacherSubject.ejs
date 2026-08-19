@@ -1,0 +1,242 @@
+<%- layout("/layouts/boilerplate") -%>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-7">
+      
+      <div class="card border-0 shadow-lg rounded-4 overflow-hidden bg-white">
+        
+        <div class="p-4 bg-gradient bg-danger text-white text-center position-relative">
+          <h4 class="fw-bold mb-1 letter-spacing-1 text-uppercase">Reset Academic Session</h4>
+          <p class="small mb-0 opacity-75">Wipe class mapping matrix while keeping faculty profiles safe</p>
+        </div>
+
+        <div class="card-body p-4">
+          
+          <div class="alert alert-danger border-0 bg-danger-subtle rounded-3 p-3 mb-4 d-flex align-items-start">
+            <i class="fa-solid fa-circle-info text-danger fs-5 me-3 mt-0.5"></i>
+            <div class="text-start">
+              <h6 class="fw-bold text-danger mb-1">Critical Operations Notice</h6>
+              <p class="text-secondary small mb-0">
+              <ul class="text-secondary small mb-0 ps-3">
+      <li><strong>Usage:</strong> Use this only to fix technical errors or remove "ghost entries" from faculty profiles.</li>
+      <li><strong>Faculty Map:</strong> Flushing will completely empty the selected teacher's assigned classes and subjects.</li>
+      <li><strong>Important Note:</strong> This action <strong>will NOT remove</strong> slots from the Timetable matrix. Timetable entries must be updated/deleted separately if needed.</li>
+    </ul>
+              </p>
+            </div>
+          </div>
+
+          <form action="/delete/teacher/subject" method="post" id="sessionResetForm">
+            
+            <div class="text-start mb-4">
+              <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                <label class="form-label small fw-bold text-dark mb-0">
+                  <i class="fa-solid fa-users-gear text-secondary me-1"></i> Target Faculty Selection:
+                </label>
+                <span class="badge bg-secondary rounded-pill px-2.5 py-1.5 small" id="selectedCounter">
+                  0 Selected
+                </span>
+              </div>
+              
+              <div class="input-group mb-3 shadow-sm rounded-3 overflow-hidden border">
+                <span class="input-group-text bg-light border-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                <input type="text" id="teacherSearchInput" class="form-control border-0 bg-light py-2 small shadow-none" placeholder="Search faculty by name or username...">
+                <button class="btn btn-outline-secondary border-0 bg-light text-muted small px-3" type="button" id="clearSearchBtn" style="display: none;">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              
+              <div class="border rounded-3 p-3 bg-white position-relative" style="max-height: 250px; overflow-y: auto;">
+                
+                <div class="form-check pb-2 mb-2 border-bottom sticky-top bg-white d-flex align-items-center" style="z-index: 10;">
+                  <input class="form-check-input border-secondary custom-checkbox me-2.5 cursor-pointer" type="checkbox" id="selectAllTeachers">
+                  <label class="form-check-label small fw-bold text-dark cursor-pointer m-0 flex-grow-1" for="selectAllTeachers">
+                    Select All Active Faculty
+                  </label>
+                </div>
+
+                <div id="teachersListWrapper">
+                  <% if(teachers && teachers.length > 0) { %>
+                    <% teachers.forEach(teacher => { %>
+                      <div class="form-check teacher-item p-2 rounded-2 mb-1 transition-all" data-name="<%= teacher.name.toLowerCase() %>" data-username="<%= (teacher.username || '').toLowerCase() %>">
+                        <input class="form-check-input teacher-checkbox border-secondary custom-checkbox ms-1 me-3 cursor-pointer" type="checkbox" name="teacherIds[]" value="<%= teacher._id %>" id="teacher_<%= teacher._id %>">
+                        
+                        <label class="form-check-label small text-dark cursor-pointer d-flex justify-content-between align-items-center w-100" for="teacher_<%= teacher._id %>">
+                          <div class="d-flex flex-column text-start">
+                            <span class="fw-bold text-dark"><%= teacher.name %></span>
+                            <span class="text-muted text-xxs font-monospace"><%= teacher.username || 'N/A' %></span>
+                          </div>
+                          <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1 fw-semibold" style="font-size: 0.75rem;">
+                            <i class="fa-solid fa-layer-group me-1"></i><%= teacher.class.length %> Mapped
+                          </span>
+                        </label>
+                      </div>
+                    <% }) %>
+                  <% } else { %>
+                    <div class="text-center my-4 py-3 text-muted small rounded-3 bg-light border border-dashed">
+                      <i class="fa-solid fa-circle-check text-success fa-2x mb-2 d-block"></i>
+                      All operations nominal. No faculty maps currently found.
+                    </div>
+                  <% } %>
+                  
+                  <div id="noResultsMsg" class="text-center my-4 text-muted small" style="display: none;">
+                    <i class="fa-solid fa-user-slash me-1"></i> No matching faculty profiles found.
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <div class="bg-light rounded-3 p-4 mb-4 border text-center">
+              <label class="form-label small fw-bold text-dark mb-2 d-block">
+                To authorize system purge, type security phrase <span class="badge bg-danger font-monospace px-2 py-1">RESET</span> below:
+              </label>
+              <input type="text" id="verificationInput" class="form-control form-control-lg border-2 border-danger-subtle text-center font-monospace fw-bold rounded-3 bg-white tracking-widest text-uppercase shadow-none" placeholder="••••" autocomplete="off" style="max-width: 280px; margin: 0 auto;">
+            </div>
+
+            <div class="d-flex flex-column flex-sm-row justify-content-center gap-3 pt-2">
+              <a href="/assign/teacher/subject/class" class="btn btn-light border px-4 py-2 rounded-pill fw-semibold text-secondary text-decoration-none shadow-sm transition-all">
+                <i class="fa-solid fa-arrow-left me-2"></i>Cancel Process
+              </a>
+
+              <button type="submit" class="btn btn-danger px-4 py-2 rounded-pill fw-bold shadow-sm d-flex align-items-center justify-content-center" id="executeBtn" disabled>
+                <i class="fa-solid fa-bolt-lightning me-2 text-warning"></i>Purge Selected Mappings
+              </button>
+            </div>
+
+          </form>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const verificationInput = document.getElementById("verificationInput");
+  const executeBtn = document.getElementById("executeBtn");
+  const selectAllTeachers = document.getElementById("selectAllTeachers");
+  const teacherCheckboxes = document.querySelectorAll(".teacher-checkbox");
+  const teacherItems = document.querySelectorAll(".teacher-item");
+  const teacherSearchInput = document.getElementById("teacherSearchInput");
+  const clearSearchBtn = document.getElementById("clearSearchBtn");
+  const noResultsMsg = document.getElementById("noResultsMsg");
+  const selectedCounter = document.getElementById("selectedCounter");
+
+  // Live Search Filter Logic
+  teacherSearchInput.addEventListener("input", function() {
+    const query = this.value.toLowerCase().trim();
+    let dynamicMatchCount = 0;
+
+    clearSearchBtn.style.display = (query.length > 0) ? "block" : "none";
+
+    teacherItems.forEach(item => {
+      const nameAttr = item.getAttribute("data-name");
+      const userAttr = item.getAttribute("data-username");
+
+      if (nameAttr.includes(query) || userAttr.includes(query)) {
+        item.style.setProperty("display", "block", "important");
+        dynamicMatchCount++;
+      } else {
+        item.style.setProperty("display", "none", "important");
+      }
+    });
+
+    noResultsMsg.style.display = (dynamicMatchCount === 0 && teacherItems.length > 0) ? "block" : "none";
+  });
+
+  // Clear Search Action
+  clearSearchBtn.addEventListener("click", function() {
+    teacherSearchInput.value = "";
+    this.style.display = "none";
+    noResultsMsg.style.display = "none";
+    teacherItems.forEach(item => item.style.setProperty("display", "block", "important"));
+  });
+
+  // Select All Logic
+  if (selectAllTeachers) {
+    selectAllTeachers.addEventListener("change", function() {
+      teacherItems.forEach(item => {
+        if(item.style.display !== "none") {
+          const cb = item.querySelector(".teacher-checkbox");
+          if(cb) cb.checked = this.checked;
+        }
+      });
+      validateResetState();
+    });
+  }
+
+  // Row UI highlight toggle on state modification
+  teacherCheckboxes.forEach(cb => {
+    cb.addEventListener("change", () => {
+      const parentRow = cb.closest(".teacher-item");
+      if(cb.checked) {
+        parentRow.classList.add("bg-danger-subtle");
+      } else {
+        parentRow.classList.remove("bg-danger-subtle");
+        if (selectAllTeachers) selectAllTeachers.checked = false;
+      }
+      validateResetState();
+    });
+  });
+
+  // Master UI Form Guard Engine
+  function validateResetState() {
+    const isTextValid = verificationInput.value.trim().toUpperCase() === "RESET";
+    const selectedCount = Array.from(teacherCheckboxes).filter(cb => cb.checked).length;
+    
+    // Live Dynamic Counter badge alignment
+    selectedCounter.innerText = `${selectedCount} Selected`;
+    if(selectedCount > 0) {
+      selectedCounter.classList.replace("bg-secondary", "bg-danger");
+    } else {
+      selectedCounter.classList.replace("bg-danger", "bg-secondary");
+    }
+
+    if (isTextValid && selectedCount > 0) {
+      executeBtn.removeAttribute("disabled");
+      executeBtn.style.opacity = "1";
+    } else {
+      executeBtn.setAttribute("disabled", "true");
+      executeBtn.style.opacity = "0.6";
+    }
+  }
+
+  verificationInput.addEventListener("input", validateResetState);
+  validateResetState();
+</script>
+
+<style>
+  .cursor-pointer { cursor: pointer; }
+  .transition-all { transition: all 0.2s ease-in-out; }
+  .bg-gradient { background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%) !important; }
+  .text-xxs { font-size: 0.72rem; }
+  .letter-spacing-1 { letter-spacing: 0.5px; }
+  
+  /* Row Hover State Matrix Fixes */
+  .teacher-item { border: 1px solid transparent; }
+  .teacher-item:hover { background-color: rgba(0,0,0,0.03); }
+  
+  /* Fixed Checkbox Custom Sizing UI */
+  .custom-checkbox {
+    width: 1.15em !important;
+    height: 1.15em !important;
+    border-radius: 4px !important;
+  }
+  .custom-checkbox:checked {
+    background-color: #dc3545 !important;
+    border-color: #dc3545 !important;
+  }
+
+  #executeBtn { transition: all 0.2s ease; opacity: 0.6; }
+
+  /* Custom Aesthetic Scrollbar UI */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: #adb5bd; }
+</style>

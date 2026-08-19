@@ -1,0 +1,1102 @@
+<%- layout("/layouts/boilerplate") -%>
+
+<style>
+  :root {
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+    --bg-light: #f8fafc;
+    --border-color: #cbd5e1;
+    --text-dark: #1e293b;
+  }
+  .custom-card {
+    border: none;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  }
+  .form-label-custom {
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .form-select-custom, .form-control-custom {
+    border: 1.5px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    color: var(--text-dark);
+    transition: all 0.2s ease-in-out;
+  }
+  .form-select-custom:focus, .form-control-custom:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+  }
+  .period-row {
+    background: var(--bg-light);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 0px;
+    transition: all 0.2s ease;
+  }
+  .period-row:hover {
+    border-color: #94a3b8;
+    background: #f1f5f9;
+  }
+  .lunch-row {
+    background: #fff7ed !important;
+    border: 1.5px dashed #f97316 !important;
+  }
+  .btn-premium {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.75rem 3rem;
+    font-weight: 600;
+    border-radius: 50px;
+    transition: all 0.2s;
+  }
+  .btn-premium:hover {
+    background: var(--primary-hover);
+    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+    color: white;
+  }
+  .btn-nav {
+    background-color: #334155;
+    color: #ffffff;
+    border-radius: 50px;
+    font-weight: 500;
+    padding: 0.5rem 1.5rem;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .btn-nav:hover {
+    background-color: #0f172a;
+    color: white;
+  }
+  .insert-lunch-zone {
+    text-align: center;
+    margin: 12px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .insert-lunch-zone hr {
+    flex: 1;
+    border-top: 2px dashed #cbd5e1;
+    opacity: 0.5;
+  }
+  .btn-lunch-trigger {
+    font-size: 0.8rem;
+    padding: 4px 14px;
+    border-radius: 20px;
+    background: #ffffff;
+    border: 1.5px solid var(--border-color);
+    color: #64748b;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-lunch-trigger:hover {
+    background: #ffedd5;
+    border-color: #f97316;
+    color: #ea580c;
+    transform: scale(1.05);
+  }
+  
+  .was-validated .form-control-custom:valid, .was-validated .form-select-custom:valid {
+    border-color: #198754 !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23198754' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.73L3.9 6.73c-.4.5-1.1.5-1.6 0z'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right calc(0.375em + 0.1875rem) center;
+    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+  }
+  .was-validated .form-control-custom:invalid, .was-validated .form-select-custom:invalid {
+    border-color: #dc3545 !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right calc(0.375em + 0.1875rem) center;
+    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+  }
+</style>
+
+<div class="container my-5">
+  <div class="text-center mb-5">
+    <h3 class="fw-bold text-dark mb-2">👩‍🏫 Manage Timetable Matrix &  Assigning</h3>
+  <p class="text-muted mx-auto" style="max-width: 700px;">
+    Configure complete daily lecture sequences, position lunch breaks dynamically, and map subjects to respective teachers seamlessly in one unified interface.
+  </p>
+</div>
+
+
+
+
+  <!-- <div class="d-flex flex-wrap gap-2 mb-4 justify-content-start">
+    <a href="/add/teacherData" class="btn btn-nav shadow-sm"><i class="fa-solid fa-plus me-1"></i> Add Teacher</a>
+    <a href="/show/teacher" class="btn btn-nav shadow-sm"><i class="fa-solid fa-eye me-1"></i> Show Teachers</a>
+    <a href="/admin/show-all-teachers-assignments" class="btn btn-nav shadow-sm"><i class="fa-solid fa-user-check me-1"></i> Show Teachers Subject</a>
+      <a href="/timetable/dashboard" class="btn btn-nav shadow-sm"><i class="fa-solid fa-user-check me-1"></i> Show Time Table</a>
+  </div>
+ -->
+
+
+  <div class="d-flex gap-2 flex-wrap mt-4">
+      <a href="/add/teacherData" class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 btn-premium-action" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: none;">
+        <i class="fa-solid fa-plus" style="font-size: 12px;"></i> Add Teacher
+      </a>
+      <a href="/show/teacher" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-link" style="font-size: 12px;"></i> Show Teachers
+      </a>
+      <a href="/timetable/dashboard" class="btn btn-dark  border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Time Table
+      </a>
+      <a href="/admin/show-all-teachers-assignments" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Teachers Subject
+      </a>
+      <a href="/temporary/assign/teacher/subject/class" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-link" style="font-size: 12px;"></i> Add Temporary Assign  
+      </a>
+
+      <a href="/show-temporary-teachers-assignments" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-eye" style="font-size: 12px;"></i> Show Temporary Assign
+      </a>
+      
+    </div>
+  
+
+  <div class="card custom-card p-4 p-md-5  mt-4">
+    <form action="/assign/teacher/subject/bulk-day" method="post" id="timetableForm" class="needs-validation" novalidate>
+      
+      <!-- 👑 HIDDEN CONTEXT SYSTEM: URL me agar mode=edit hai toh backend ko automated override signals pass honge -->
+      <input type="hidden" name="isEdit" id="isEditField" value="false">
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">
+          <label class="form-label-custom">Class / Course</label>
+          <select name="baseData[className]" id="class" class="form-select form-select-custom" required>
+            <option value="">Choose class...</option>
+            <% for(let c of classData){ %> <option value="<%= c.class %>"><%= c.class %></option> <% } %>
+          </select>
+          <div class="invalid-feedback">Please select a class.</div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-custom">Semester</label>
+          <select name="baseData[semester]" id="semester" class="form-select form-select-custom" required>
+            <option value="">Choose semester...</option>
+            <% for(let i=1; i<=8; i++){ %> <option value="<%= i %>"><%= i %></option> <% } %>
+          </select>
+          <div class="invalid-feedback">Please select a semester.</div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-custom">Section</label>
+          <select name="baseData[section]" id="section" class="form-select form-select-custom" required>
+            <option value="">Choose section...</option>
+            <% for(let s of sectionData){ %> <option value="<%= s.name %>"><%= s.name %></option> <% } %>
+          </select>
+          <div class="invalid-feedback">Please select a section.</div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-custom">Target Day</label>
+          <select name="baseData[day_of_week]" id="day_of_week" class="form-select form-select-custom" required>
+            <option value="">Select Day...</option>
+            <option value="Mon">Monday (Master Layout)</option>
+            <option value="Tue">Tuesday</option>
+            <option value="Wed">Wednesday</option>
+            <option value="Thu">Thursday</option>
+            <option value="Fri">Friday</option>
+            <option value="Sat">Saturday</option>
+          </select>
+          <div class="invalid-feedback">Please select a day.</div>
+        </div>
+      </div>
+
+      <div id="replicatorWrapper" class="p-3 bg-light rounded-3 mb-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between border gap-2">
+        <div class="small text-secondary fw-semibold">
+          <i class="fa-solid fa-paste text-primary me-2"></i> Day Replicator Tool: Fast mirror layout from another weekday template
+        </div>
+        <div class="d-flex gap-2">
+          <select id="copyFromDay" class="form-select form-select-custom" style="min-width: 160px;">
+            <option value="">Copy From Day...</option>
+            <option value="Mon">Monday</option><option value="Tue">Tuesday</option><option value="Wed">Wednesday</option>
+            <option value="Thu">Thursday</option><option value="Fri">Friday</option><option value="Sat">Saturday</option>
+          </select>
+          <button type="button" class="btn btn-sm btn-dark px-3 rounded-3" onclick="copyDaySchedule()">Apply Layout</button>
+        </div>
+      </div>
+
+      <h5 class="fw-bold text-dark mb-4"><i class="fa-solid fa-clock text-primary me-2"></i>Daily Sequence Timings Matrix</h5>
+
+      <div id="lectures-matrix-container" class="d-flex flex-column gap-3"></div>
+
+      <div class="text-center mt-5">
+        <button type="submit" class="btn btn-premium shadow">
+          <i class="fa-solid fa-circle-check me-2"></i>Save Entire Day Timetable Matrix
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const baseSlots = ["I", "II", "III", "IV", "V", "VI"];
+let loadedSubjects = [];
+let currentMatrixLayout = [];
+
+// Handle isEdit configuration directly from active URL query maps on load
+window.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('mode') === 'edit' || urlParams.get('isEdit') === 'true') {
+    document.getElementById('isEditField').value = "true";
+  }
+  
+  // URL configurations dropdown pre-fill mechanism auto-trigger
+  if(urlParams.get('className')) document.getElementById('class').value = urlParams.get('className');
+  if(urlParams.get('semester')) document.getElementById('semester').value = urlParams.get('semester');
+  if(urlParams.get('section')) document.getElementById('section').value = urlParams.get('section');
+  if(urlParams.get('day')) {
+    document.getElementById('day_of_week').value = urlParams.get('day');
+    syncMasterTimings();
+  }
+});
+
+function convertTo24h(timeStr12) {
+  if(!timeStr12) return "";
+  if(!timeStr12.includes(" ")) return timeStr12;
+  const [time, modifier] = timeStr12.split(' ');
+  let [hrs, mins] = time.split(':');
+  if (hrs === '12') hrs = '00';
+  if (modifier === 'PM') hrs = parseInt(hrs, 10) + 12;
+  return `${String(hrs).padStart(2, '0')}:${mins}`;
+}
+
+function renderInitialMatrix() {
+  currentMatrixLayout = [];
+  baseSlots.forEach((slot) => {
+    currentMatrixLayout.push({ type: "LECTURE", slotId: slot });
+  });
+  rebuildDOMFromMatrix();
+}
+
+function rebuildDOMFromMatrix() {
+  const container = document.getElementById("lectures-matrix-container");
+  const targetDay = document.getElementById("day_of_week").value;
+  
+  const isMonday = (targetDay === "Mon" || targetDay === "");
+  
+  const structuralBackup = [];
+  document.querySelectorAll("#lectures-matrix-container .period-row").forEach(row => {
+    structuralBackup.push({
+      start_time: row.querySelector(".start-time") ? row.querySelector(".start-time").value : "",
+      end_time: row.querySelector(".end-time") ? row.querySelector(".end-time").value : "",
+      subject: row.querySelector(".subject-dropdown") ? row.querySelector(".subject-dropdown").value : "",
+      username: row.querySelector(".faculty-dropdown") ? row.querySelector(".faculty-dropdown").value : ""
+    });
+  });
+
+  container.innerHTML = "";
+  const hasLunch = currentMatrixLayout.some(item => item.type === "LUNCH");
+
+  currentMatrixLayout.forEach((item, index) => {
+    const isLunch = (item.type === "LUNCH");
+    
+    let optionsHTML = `<option value="">-- Select Subject --</option>`;
+    if (loadedSubjects.length > 0) {
+      loadedSubjects.forEach(s => { optionsHTML += `<option value="${s.name}">${s.name}</option>`; });
+    }
+
+    let rowHTML = `
+      <div class="row g-2 period-row ${isLunch ? 'lunch-row' : ''} align-items-center" data-index="${index}">
+        <input type="hidden" name="slots[${index}][lecture_number]" value="${item.slotId}">
+        
+        <div class="col-md-2 d-flex align-items-center">
+          <span class="fw-bold small text-secondary">${isLunch ? '🍔 LUNCH BREAK' : 'Lecture ' + item.slotId}</span>
+          ${(isLunch && isMonday) ? `<button type="button" class="btn btn-sm text-danger border-0 p-0 ms-auto me-2" onclick="removeLunchAt(${index})" title="Remove Break">✕</button>` : ''}
+        </div>
+        
+        <div class="col-md-2">
+          <input type="time" name="slots[${index}][start_time]" class="form-control form-control-custom start-time" ${isMonday ? '' : 'readonly style="background:#e9ecef; pointer-events:none;"'} required>
+          <div class="invalid-feedback small">Required.</div>
+        </div>
+        
+        <div class="col-md-2">
+          <input type="time" name="slots[${index}][end_time]" class="form-control form-control-custom end-time" ${isMonday ? '' : 'readonly style="background:#e9ecef; pointer-events:none;"'} required>
+          <div class="invalid-feedback small">Required.</div>
+        </div>
+        
+        <div class="col-md-3">
+          <select name="slots[${index}][subject]" class="form-select form-select-custom subject-dropdown" ${isLunch ? 'disabled' : 'required'}>
+            ${optionsHTML}
+          </select>
+          <div class="invalid-feedback small">Required.</div>
+        </div>
+        
+        <div class="col-md-3">
+          <select name="slots[${index}][username]" class="form-select form-select-custom faculty-dropdown" ${isLunch ? 'disabled' : 'required'}>
+            <option value="">-- Select Faculty --</option>
+            <% teacherData.forEach(t => { %> <option value="<%= t.username %>"><%= t.name || t.username %></option> <% }) %>
+          </select>
+          <div class="invalid-feedback small">Required.</div>
+        </div>
+      </div>`;
+
+    container.innerHTML += rowHTML;
+
+    if (isMonday && !hasLunch && index < currentMatrixLayout.length - 1 && currentMatrixLayout[index].type !== "LUNCH" && currentMatrixLayout[index+1].type !== "LUNCH") {
+      container.innerHTML += `
+        <div class="insert-lunch-zone">
+          <hr><button type="button" class="btn btn-lunch-trigger mx-2" onclick="insertLunchAt(${index})"><i class="fa-solid fa-utensils me-1"></i> Insert Lunch Break Here</button><hr>
+        </div>`;
+    }
+  });
+
+  const currentRows = document.querySelectorAll("#lectures-matrix-container .period-row");
+  structuralBackup.forEach((data, idx) => {
+    if(currentRows[idx]) {
+      if(currentRows[idx].querySelector(".start-time") && isMonday) currentRows[idx].querySelector(".start-time").value = data.start_time;
+      if(currentRows[idx].querySelector(".end-time") && isMonday) currentRows[idx].querySelector(".end-time").value = data.end_time;
+      if(currentRows[idx].querySelector(".subject-dropdown") && data.subject) currentRows[idx].querySelector(".subject-dropdown").value = data.subject;
+      if(currentRows[idx].querySelector(".faculty-dropdown") && data.username) currentRows[idx].querySelector(".faculty-dropdown").value = data.username;
+    }
+  });
+}
+
+function insertLunchAt(index) {
+  currentMatrixLayout.splice(index + 1, 0, { type: "LUNCH", slotId: "LUNCH" });
+  rebuildDOMFromMatrix();
+}
+
+function removeLunchAt(index) {
+  currentMatrixLayout.splice(index, 1);
+  rebuildDOMFromMatrix();
+}
+
+async function syncMasterTimings() {
+  let cls = document.getElementById("class").value;
+  let sem = document.getElementById("semester").value;
+  let sec = document.getElementById("section").value;
+  let currentDay = document.getElementById("day_of_week").value;
+
+  if(!cls || !sem || !sec || !currentDay) return;
+
+  // 🔄 TARGET IS MONDAY: Fetch dynamic layout via edit configuration check cleanly
+  let response = await fetch(`/api/timetable/get-day-layout?className=${cls}&semester=${sem}&section=${sec}&day=${currentDay}`);
+  let result = await response.json();
+
+  if(currentDay === "Mon") {
+    if(result.success && result.data.length > 0) {
+      currentMatrixLayout = [];
+      result.data.forEach((saved) => {
+        currentMatrixLayout.push({
+          type: saved.lecture_number === "LUNCH" ? "LUNCH" : "LECTURE",
+          slotId: saved.lecture_number
+        });
+      });
+      rebuildDOMFromMatrix();
+      await loadSubjects();
+
+      setTimeout(() => {
+        let currentRows = document.querySelectorAll("#lectures-matrix-container .period-row");
+        result.data.forEach((saved, idx) => {
+          if(currentRows[idx]) {
+            currentRows[idx].querySelector(".start-time").value = convertTo24h(saved.start_time);
+            currentRows[idx].querySelector(".end-time").value = convertTo24h(saved.end_time);
+            if(saved.lecture_number !== "LUNCH") {
+              currentRows[idx].querySelector(".subject-dropdown").value = saved.subject_name;
+              currentRows[idx].querySelector(".faculty-dropdown").value = saved.teacher_id ? (saved.teacher_id.username || saved.teacher_id) : '';
+            }
+          }
+        });
+      }, 50);
+    } else {
+      renderInitialMatrix();
+      await loadSubjects();
+    }
+    return;
+  }
+
+  // 🛡️ TARGET IS TUE-SAT: Check and stream Monday's master layout timestamp configuration explicitly
+  let monResponse = await fetch(`/api/timetable/get-day-layout?className=${cls}&semester=${sem}&section=${sec}&day=Mon`);
+  let monResult = await monResponse.json();
+
+  if(monResult.success && monResult.data.length > 0) {
+    currentMatrixLayout = [];
+    monResult.data.forEach((saved) => {
+      currentMatrixLayout.push({
+        type: saved.lecture_number === "LUNCH" ? "LUNCH" : "LECTURE",
+        slotId: saved.lecture_number
+      });
+    });
+    
+    rebuildDOMFromMatrix();
+    await loadSubjects();
+
+    // Fill timestamps from Monday & fill data fields if this non-monday row itself has saved values
+    setTimeout(() => {
+      let currentRows = document.querySelectorAll("#lectures-matrix-container .period-row");
+      
+      // Pehle Monday ki timings chipkao
+      monResult.data.forEach((saved, idx) => {
+        if(currentRows[idx]) {
+          currentRows[idx].querySelector(".start-time").value = convertTo24h(saved.start_time);
+          currentRows[idx].querySelector(".end-time").value = convertTo24h(saved.end_time);
+        }
+      });
+
+      // Agar is specific day (Tue-Sat) ka data pehle se save hai, toh faculties & subjects fill karo
+      if(result.success && result.data.length > 0) {
+        currentRows.forEach((row, idx) => {
+          let slotIdInput = row.querySelector("input[type='hidden']");
+          if(!slotIdInput) return;
+          let currentSlotId = slotIdInput.value;
+
+          let matchedDayData = result.data.find(saved => saved.lecture_number === currentSlotId);
+          if(matchedDayData && currentSlotId !== "LUNCH") {
+            row.querySelector(".subject-dropdown").value = matchedDayData.subject_name;
+            row.querySelector(".faculty-dropdown").value = matchedDayData.teacher_id ? (matchedDayData.teacher_id.username || matchedDayData.teacher_id) : '';
+          }
+        });
+      }
+    }, 50);
+  } else {
+    alert("⚠️ Entry Order Warning: Monday's baseline template layout sequence has not been configured or saved yet for this specific batch. Please save Monday first to establish standard timestamps!");
+    document.getElementById("day_of_week").value = "";
+    renderInitialMatrix();
+  }
+}
+
+document.getElementById("day_of_week").addEventListener("change", syncMasterTimings);
+document.getElementById("class").addEventListener("change", syncMasterTimings);
+document.getElementById("semester").addEventListener("change", syncMasterTimings);
+document.getElementById("section").addEventListener("change", syncMasterTimings);
+
+async function loadSubjects() {
+  let cls = document.getElementById("class").value;
+  let sem = document.getElementById("semester").value;
+  if (!cls || !sem) return;
+  
+  let res = await fetch(`/get-subjects/${cls}/${sem}`);
+  loadedSubjects = await res.json();
+  
+  document.querySelectorAll(".subject-dropdown").forEach(d => {
+    let val = d.value;
+    d.innerHTML = `<option value="">-- Select Subject --</option>`;
+    loadedSubjects.forEach(s => d.innerHTML += `<option value="${s.name}" ${s.name===val?'selected':''}>${s.name}</option>`);
+  });
+}
+
+async function copyDaySchedule() {
+  let cls = document.getElementById("class").value;
+  let sem = document.getElementById("semester").value;
+  let sec = document.getElementById("section").value;
+  let fromDay = document.getElementById("copyFromDay").value;
+  let targetDay = document.getElementById("day_of_week").value;
+  
+  if(!cls || !sem || !sec || !fromDay || !targetDay) {
+    return alert("⚠️ Error: Ensure Class, Sem, Sec, Target Day, and 'Copy From' fields are filled first.");
+  }
+
+  let response = await fetch(`/api/timetable/get-day-layout?className=${cls}&semester=${sem}&section=${sec}&day=${fromDay}`);
+  let result = await response.json();
+
+  if(!result.success || result.data.length === 0) {
+    return alert("❌ Selected 'Copy From' day has no timetable data template saved yet.");
+  }
+
+  if (targetDay === "Mon") {
+    currentMatrixLayout = [];
+    result.data.forEach((saved) => {
+      currentMatrixLayout.push({
+        type: saved.lecture_number === "LUNCH" ? "LUNCH" : "LECTURE",
+        slotId: saved.lecture_number
+      });
+    });
+    
+    rebuildDOMFromMatrix();
+    await loadSubjects();
+
+    setTimeout(() => {
+      let currentRows = document.querySelectorAll("#lectures-matrix-container .period-row");
+      result.data.forEach((saved, idx) => {
+        if(currentRows[idx]) {
+          currentRows[idx].querySelector(".start-time").value = convertTo24h(saved.start_time);
+          currentRows[idx].querySelector(".end-time").value = convertTo24h(saved.end_time);
+          if(saved.lecture_number !== "LUNCH") {
+            currentRows[idx].querySelector(".subject-dropdown").value = saved.subject_name;
+            currentRows[idx].querySelector(".faculty-dropdown").value = saved.teacher_id ? (saved.teacher_id.username || saved.teacher_id) : '';
+          }
+        }
+      });
+    }, 150);
+
+  } else {
+    let currentRows = document.querySelectorAll("#lectures-matrix-container .period-row");
+    
+    if (currentRows.length === 0) {
+      return alert("⚠️ Error: Base layout loaded nahi hai. Pehle Target Day select kijiye.");
+    }
+
+    currentRows.forEach((row) => {
+      let slotIdInput = row.querySelector("input[type='hidden']");
+      if(!slotIdInput) return;
+      let currentSlotId = slotIdInput.value;
+
+      if(currentSlotId === "LUNCH") return; 
+
+      let matchedData = result.data.find(saved => saved.lecture_number === currentSlotId);
+      
+      if(matchedData) {
+        let subDropdown = row.querySelector(".subject-dropdown");
+        let facDropdown = row.querySelector(".faculty-dropdown");
+        
+        if(subDropdown) subDropdown.value = matchedData.subject_name;
+        if(facDropdown) facDropdown.value = matchedData.teacher_id ? (matchedData.teacher_id.username || matchedData.teacher_id) : '';
+      }
+    });
+  }
+}
+
+(function () {
+  'use strict'
+  var forms = document.querySelectorAll('.needs-validation')
+  Array.prototype.slice.call(forms).forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      
+      let isLunchPresent = currentMatrixLayout.some(item => item.type === "LUNCH");
+      if (!isLunchPresent) {
+        event.preventDefault();
+        event.stopPropagation();
+        alert("⚠️ Saving Denied: Lunch Break is compulsory! Please insert exactly 1 Lunch break sequence into your day structure before hitting save.");
+        return;
+      }
+
+      let rows = document.querySelectorAll("#lectures-matrix-container .period-row");
+      let lastEndMinutes = 0;
+
+      for (let i = 0; i < rows.length; i++) {
+        let row = rows[i];
+        let startVal = row.querySelector(".start-time").value;
+        let endVal = row.querySelector(".end-time").value;
+        let slotName = row.querySelector("input[type='hidden']").value;
+
+        if (!startVal || !endVal) continue;
+
+        let [sHrs, sMins] = startVal.split(':').map(Number);
+        let [eHrs, eMins] = endVal.split(':').map(Number);
+        
+        let startTotalMins = sHrs * 60 + sMins;
+        let endTotalMins = eHrs * 60 + eMins;
+
+        if (startTotalMins >= endTotalMins) {
+          event.preventDefault();
+          event.stopPropagation();
+          row.querySelector(".end-time").classList.add("is-invalid");
+          alert(`⚠️ Invalid Timings at ${slotName === 'LUNCH' ? 'Lunch' : 'Lecture ' + slotName}: End Time cannot be earlier than or equal to Start Time.`);
+          return;
+        }
+
+        if (startTotalMins < lastEndMinutes) {
+          event.preventDefault();
+          event.stopPropagation();
+          row.querySelector(".start-time").classList.add("is-invalid");
+          alert(`⚠️ Timeline Overlap at ${slotName === 'LUNCH' ? 'Lunch' : 'Lecture ' + slotName}: Period begins prior to the completion timestamp of the row above.`);
+          return;
+        }
+        lastEndMinutes = endTotalMins;
+      }
+
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        event.stopPropagation();
+        alert("⚠️ Blocked: Please fill out all required fields properly.");
+      }
+      form.classList.add('was-validated');
+    }, false)
+  })
+})()
+
+renderInitialMatrix();
+</script>
+
+
+
+
+app.post(
+  "/assign/teacher/subject/bulk-day",
+  verifySession, isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const session = await Teacher.startSession();
+    try {
+      const baseData = req.body.baseData || {};
+      const slotsObj = req.body.slots || {};
+      const isEdit = req.body.isEdit === "true" || req.body.isEdit === true;
+      const { className, semester, section, day_of_week } = baseData;
+
+      let slots = Array.isArray(slotsObj) ? slotsObj : Object.values(slotsObj);
+
+      if (
+        !className ||
+        !semester ||
+        !section ||
+        !day_of_week ||
+        !slots ||
+        slots.length === 0
+      ) {
+        req.flash(
+          "error",
+          "⚠️ Invalid dataset or missing mandatory class coordinates.",
+        );
+        return res.redirect("/assign/teacher/subject/class");
+      }
+
+      // =================================================================
+      // 🔥 BLOCKER LOGIC: DIRECT SAVE SE SAFETY
+      // =================================================================
+      if (!isEdit) {
+        const checkExisting = await TimeTable.findOne({
+          className,
+          semester,
+          section,
+          day_of_week,
+        });
+        if (checkExisting) {
+          req.flash(
+            "error",
+            `⚠️ Schedule Already Exists: The schedule for ${day_of_week} has already been saved. Please click 'Edit' on the Dashboard to modify it.`,
+          );
+          return res.redirect("/assign/teacher/subject/class");
+        }
+      }
+
+      // 🛡️ BACKEND SECURE AUTO-SYNC: Monday template fallback
+      if (day_of_week !== "Mon") {
+        const mondayLayout = await TimeTable.find({
+          className,
+          semester,
+          section,
+          day_of_week: "Mon",
+        }).sort({ _id: 1 });
+
+        if (!mondayLayout || mondayLayout.length === 0) {
+          req.flash(
+            "error",
+            "⚠️ Operation Aborted: Please configure Monday's schedule first to freeze the timetable timings.",
+          );
+          return res.redirect("/assign/teacher/subject/class");
+        }
+
+        slots = slots.map((slot, index) => {
+          const masterRow = mondayLayout[index];
+          if (masterRow) {
+            return {
+              ...slot,
+              lecture_number: masterRow.lecture_number,
+              start_time: masterRow.start_time,
+              end_time: masterRow.end_time,
+            };
+          }
+          return slot;
+        });
+      }
+
+      const lunchSlotsCount = slots.filter(
+        (s) => s && s.lecture_number === "LUNCH",
+      ).length;
+      if (lunchSlotsCount === 0) {
+        req.flash("error", "⚠️ Server Denied: Lunch break is compulsory.");
+        return res.redirect("/assign/teacher/subject/class");
+      }
+
+      await session.withTransaction(async () => {
+        // =================================================================
+        // 🛑 CRITICAL STAGE 1: MONDAY TIMING CASCADE PRE-CHECK INTERCEPTOR
+        // =================================================================
+        if (isEdit && day_of_week === "Mon") {
+          for (let slot of slots) {
+            if (
+              !slot ||
+              slot.lecture_number === "LUNCH" ||
+              !slot.username ||
+              !slot.subject
+            )
+              continue;
+
+            const targetNewStart = convertTo12HourFormat(slot.start_time);
+            const targetNewEnd = convertTo12HourFormat(slot.end_time);
+            const newStartMins = timeToMinutes(targetNewStart);
+            const newEndMins = timeToMinutes(targetNewEnd);
+
+            const cascadeTargets = await TimeTable.find({
+              className,
+              semester,
+              section,
+              lecture_number: slot.lecture_number,
+              day_of_week: { $ne: "Mon" },
+            }).session(session);
+
+            for (let target of cascadeTargets) {
+              if (!target.teacher_id) continue;
+
+              const potentialClashes = await TimeTable.find({
+                day_of_week: target.day_of_week,
+                teacher_id: target.teacher_id,
+                $or: [
+                  { className: { $ne: className } },
+                  { semester: { $ne: semester } },
+                  { section: { $ne: section } },
+                  { lecture_number: { $ne: slot.lecture_number } },
+                ],
+              }).session(session);
+
+              for (let clash of potentialClashes) {
+                const existingStartMins = timeToMinutes(clash.start_time);
+                const existingEndMins = timeToMinutes(clash.end_time);
+
+                if (
+                  newStartMins < existingEndMins &&
+                  newEndMins > existingStartMins
+                ) {
+                  throw new Error(
+                    `⚠️ Schedule Conflict: If you change Monday's timing, ${target.day_of_week}'s timing will also change. This will create a timing conflict for ${target.teacher_name}, who is already assigned to another class [${clash.className} ${clash.section}] from ${clash.start_time} to ${clash.end_time}.`,
+                  );
+                }
+              }
+            }
+          }
+        }
+
+        // =================================================================
+        // 🛑 STAGE 1.5: PRE-CHECK TEMPORARY SUBJECT CONFLICT INTERCEPTOR
+        // =================================================================
+        for (let slot of slots) {
+          if (
+            !slot ||
+            slot.lecture_number === "LUNCH" ||
+            !slot.username ||
+            !slot.subject
+          )
+            continue;
+
+          const teacherObj = await Teacher.findOne({
+            username: slot.username,
+          }).session(session);
+          if (!teacherObj) continue;
+
+          // Check if subject exists in temporarySubjects for this class/sem/sec
+          const classObj = teacherObj.class.find(
+            (cls) => cls.className === className,
+          );
+          if (classObj) {
+            const semObj = classObj.semesters.find(
+              (sem) => String(sem.semester) === String(semester),
+            );
+            if (semObj) {
+              const secObj = semObj.sections.find(
+                (sec) => sec.section === section,
+              );
+              if (
+                secObj &&
+                secObj.temporarySubjects &&
+                secObj.temporarySubjects.includes(slot.subject)
+              ) {
+                throw new Error(
+                  `⚠️ Cannot assign '${slot.subject}' to ${teacherObj.name}. This subject is currently assigned as a temporary subject. Please remove it from temporary assignments first.`,
+                );
+              }
+            }
+          }
+        }
+
+        // =================================================================
+        // 🎯 STAGE 2: BACKUP TARGET DAY SLOTS & REWRITE TIMETABLE GRID
+        // =================================================================
+        let oldSlots = [];
+        let historicTeachersList = [];
+
+        if (isEdit) {
+          oldSlots = await TimeTable.find({
+            className,
+            semester,
+            section,
+            day_of_week,
+          }).session(session);
+
+          historicTeachersList = [
+            ...new Set(
+              oldSlots
+                .map((s) => (s.teacher_id ? s.teacher_id.toString() : null))
+                .filter(Boolean),
+            ),
+          ];
+        }
+
+        await TimeTable.deleteMany({
+          className,
+          semester,
+          section,
+          day_of_week,
+        }).session(session);
+
+        for (let slot of slots) {
+          if (!slot) continue;
+
+          let { lecture_number, start_time, end_time, subject, username } =
+            slot;
+          const isLunch = lecture_number === "LUNCH";
+
+          const formattedStartTime =
+            day_of_week === "Mon"
+              ? convertTo12HourFormat(start_time)
+              : start_time;
+          const formattedEndTime =
+            day_of_week === "Mon" ? convertTo12HourFormat(end_time) : end_time;
+
+          if (isLunch) {
+            const lunchSlot = new TimeTable({
+              day_of_week,
+              lecture_number: "LUNCH",
+              start_time: formattedStartTime,
+              end_time: formattedEndTime,
+              className,
+              semester,
+              section,
+              teacher_name: "N/A",
+              subject_name: "🍔 LUNCH BREAK",
+            });
+            await lunchSlot.save({ session });
+            continue;
+          }
+
+          if (!subject || !username) continue;
+
+          const teacherObj = await Teacher.findOne({ username }).session(
+            session,
+          );
+          if (!teacherObj)
+            throw new Error(`Faculty matching '${username}' not found.`);
+
+          const newStartMins = timeToMinutes(formattedStartTime);
+          const newEndMins = timeToMinutes(formattedEndTime);
+
+          const teacherAllAssignments = await TimeTable.find({
+            day_of_week,
+            teacher_id: teacherObj._id,
+          }).session(session);
+
+          for (let assignment of teacherAllAssignments) {
+            const existingStartMins = timeToMinutes(assignment.start_time);
+            const existingEndMins = timeToMinutes(assignment.end_time);
+
+            if (
+              newStartMins < existingEndMins &&
+              newEndMins > existingStartMins
+            ) {
+              throw new Error(
+                `Timing Conflict! ${teacherObj.name} is already busy in Class [${assignment.className} ${assignment.section}] from ${assignment.start_time} to ${assignment.end_time}.`,
+              );
+            }
+          }
+
+          const newSlot = new TimeTable({
+            day_of_week,
+            lecture_number,
+            start_time: formattedStartTime,
+            end_time: formattedEndTime,
+            className,
+            semester,
+            section,
+            teacher_id: teacherObj._id,
+            teacher_name: teacherObj.name,
+            subject_name: subject,
+          });
+          await newSlot.save({ session });
+
+          // Sync Teacher Subdocs
+          let classObj = teacherObj.class.find(
+            (cls) => cls.className === className,
+          );
+          if (!classObj) {
+            classObj = { className, semesters: [] };
+            teacherObj.class.push(classObj);
+            classObj = teacherObj.class[teacherObj.class.length - 1];
+          }
+
+          let semesterObj = classObj.semesters.find(
+            (sem) => String(sem.semester) === String(semester),
+          );
+          if (!semesterObj) {
+            semesterObj = { semester: semester, sections: [] };
+            classObj.semesters.push(semesterObj);
+            semesterObj = classObj.semesters[classObj.semesters.length - 1];
+          }
+
+          let sectionObj = semesterObj.sections.find(
+            (sec) => sec.section === section,
+          );
+          if (!sectionObj) {
+            sectionObj = { section, subjects: [] };
+            semesterObj.sections.push(sectionObj);
+            sectionObj = semesterObj.sections[semesterObj.sections.length - 1];
+          }
+
+          const isAlreadyTemp =
+            sectionObj.temporarySubjects &&
+            sectionObj.temporarySubjects.includes(subject);
+
+          if (!sectionObj.subjects.includes(subject) && !isAlreadyTemp) {
+            sectionObj.subjects.push(subject);
+          }
+
+          teacherObj.markModified("class");
+          await teacherObj.save({ session });
+        }
+
+        // =================================================================
+        // 🛡️ STAGE 3: SMART GLOBAL AUDIT FOR PROFILE SYNCHRONIZATION
+        // =================================================================
+        if (isEdit && historicTeachersList.length > 0) {
+          const currentWeekSchedule = await TimeTable.find({
+            className,
+            semester,
+            section,
+          }).session(session);
+
+          for (let oldTeacherId of historicTeachersList) {
+            const targetTeacherDoc =
+              await Teacher.findById(oldTeacherId).session(session);
+            if (!targetTeacherDoc) continue;
+
+            // 1. Check karo regular week schedule me hai ya nahi
+            const stillAssignedSomewhere = currentWeekSchedule.some(
+              (s) => s.teacher_id && s.teacher_id.toString() === oldTeacherId,
+            );
+
+            // 2. Safe Helper: Find existing teacher subdoc section
+            let classIdx = targetTeacherDoc.class.findIndex(
+              (c) => c.className === className,
+            );
+            let semIdx =
+              classIdx !== -1
+                ? targetTeacherDoc.class[classIdx].semesters.findIndex(
+                    (s) => String(s.semester) === String(semester),
+                  )
+                : -1;
+            let secIdx =
+              semIdx !== -1
+                ? targetTeacherDoc.class[classIdx].semesters[
+                    semIdx
+                  ].sections.findIndex((s) => s.section === section)
+                : -1;
+
+            let existingTempSubs = [];
+            if (secIdx !== -1) {
+              existingTempSubs =
+                targetTeacherDoc.class[classIdx].semesters[semIdx].sections[
+                  secIdx
+                ].temporarySubjects || [];
+            }
+
+            // 🔥 FIX: Agar Na Regular Lecture Bacha Hoga AUR Na hi Koi Temporary Subject -> TABHI PRUNE KARO
+            if (!stillAssignedSomewhere && existingTempSubs.length === 0) {
+              if (classIdx !== -1 && semIdx !== -1) {
+                let targetSem =
+                  targetTeacherDoc.class[classIdx].semesters[semIdx];
+                targetSem.sections = targetSem.sections.filter(
+                  (sec) => sec.section !== section,
+                );
+
+                // Parent Array Cascade Prune
+                if (targetSem.sections.length === 0) {
+                  targetTeacherDoc.class[classIdx].semesters.splice(semIdx, 1);
+                }
+                if (targetTeacherDoc.class[classIdx].semesters.length === 0) {
+                  targetTeacherDoc.class.splice(classIdx, 1);
+                }
+              }
+            } else {
+              // 🛡️ Teacher regular me ho YA temporary subject bacha ho -> Dynamic Sync
+              const activeSubjectsInWeek = currentWeekSchedule
+                .filter(
+                  (s) =>
+                    s.teacher_id &&
+                    s.teacher_id.toString() === oldTeacherId &&
+                    s.subject_name,
+                )
+                .map((s) => s.subject_name);
+
+              if (secIdx !== -1) {
+                const secRef =
+                  targetTeacherDoc.class[classIdx].semesters[semIdx].sections[
+                    secIdx
+                  ];
+                const tempSubs = secRef.temporarySubjects || [];
+
+                // Final Active List = Timetable Subjects + Temporary Subjects
+                const finalSubjectsList = [
+                  ...new Set([...activeSubjectsInWeek, ...tempSubs]),
+                ];
+
+                secRef.subjects = finalSubjectsList;
+              }
+            }
+
+            targetTeacherDoc.markModified("class");
+            await targetTeacherDoc.save({ session });
+          }
+        }
+
+        // =================================================================
+        // ⏱️ STAGE 4: MONDAY CASCADE EXECUTION
+        // =================================================================
+        if (isEdit && day_of_week === "Mon") {
+          for (let slot of slots) {
+            if (!slot) continue;
+            const formattedStartTime = convertTo12HourFormat(slot.start_time);
+            const formattedEndTime = convertTo12HourFormat(slot.end_time);
+
+            await TimeTable.updateMany(
+              {
+                className,
+                semester,
+                section,
+                lecture_number: slot.lecture_number,
+                day_of_week: { $ne: "Mon" },
+              },
+              {
+                $set: {
+                  start_time: formattedStartTime,
+                  end_time: formattedEndTime,
+                },
+              },
+              { session },
+            );
+          }
+        }
+      });
+
+      req.flash(
+        "success",
+        isEdit
+          ? "Timetable layout updated with Master Monday cascades successfully! 🚀"
+          : "Full day grid configuration saved successfully! 🚀",
+      );
+      res.redirect(
+        `/timetable/dashboard?className=${encodeURIComponent(className)}`,
+      );
+    } catch (err) {
+      console.error("🔥 Timetable Interceptor Block triggered:", err.message);
+
+      const userMessage =
+        err.message.includes("Transaction") || err.message.includes("Mongo")
+          ? "⚠️ System encountered a database collision. Please try submitting again."
+          : err.message;
+
+      req.flash("error", userMessage);
+      res.redirect("/assign/teacher/subject/class");
+    } finally {
+      await session.endSession();
+    }
+  }),
+);

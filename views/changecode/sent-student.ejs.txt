@@ -1,0 +1,130 @@
+<%# views/admin/messages/sent-student.ejs
+    <% layout("layouts/boilerplate") %>
+%>
+<script>window.CURRENT_USER_ROLE = "Admin";</script>
+<link rel="stylesheet" href="/css/messaging.css" />
+
+<div class="msg-app">
+  <div class="msg-shell">
+    <%- include("./_nav.ejs", { active: "sent-student" }) %>
+
+    <div class="msg-eyebrow">Admin · Sent Log</div>
+    <h1 class="msg-title">Messages to Students</h1>
+    <p class="msg-subtitle">
+      Everything you've sent to students, newest first.
+      <a href="/admin/message/student/compose" class="msg-btn msg-btn-primary msg-btn-sm" style="float:right;">+ New Message</a>
+    </p>
+
+    <div class="msg-card">
+      <% if (!studentMessages || studentMessages.length === 0) { %>
+        <div class="msg-empty">
+          <div class="msg-empty-mark">✉</div>
+          <p>No messages sent yet.</p>
+        </div>
+      <% } else { %>
+        <% studentMessages.forEach(function(m) { %>
+          <div class="msg-ledger-row" data-msg-id="<%= m._id %>">
+            <div style="flex:1;">
+              <div class="msg-target-line">
+                <% if (m.audienceType === "all") { %>
+                  <span class="msg-stamp">ALL STUDENTS</span>
+
+                <% } else if (m.audienceType === "filter") { %>
+                  <span class="msg-stamp"><%= m.filter.class %> · <%= m.filter.semester %> · <%= m.filter.section %></span>
+
+                <% } else if (m.audienceType === "individual" && m.recipientId) { %>
+                  <span class="msg-stamp">INDIVIDUAL</span>
+                  <span style="font-family: var(--font-mono); font-size: 12px; color: var(--slate-500); margin-left: 8px;">
+                    Roll <b style="color: var(--ink-900);">#<%= m.recipientId.rollNo %></b> ·
+                    <b style="color: var(--ink-900);"><%= m.recipientId.name %></b> ·
+                    <%= m.recipientId.class %> · <%= m.recipientId.semester %> · <%= m.recipientId.section %>
+                  </span>
+
+                <% } else { %>
+                  <span class="msg-stamp">INDIVIDUAL (student removed)</span>
+                <% } %>
+              </div>
+
+              <p class="msg-content-text" id="content-<%= m._id %>"><%= m.content %></p>
+
+              <div class="msg-meta-line">
+                <%= new Date(m.createdAt).toLocaleString() %>
+                <% if (m.isEdited) { %> · edited <% } %>
+              </div>
+
+              <form class="msg-hidden" id="editForm-<%= m._id %>" data-msg-id="<%= m._id %>" style="margin-top:10px;">
+                <textarea class="editTextarea"><%= m.content %></textarea>
+                <div style="margin-top:8px; display:flex; gap:8px;">
+                  <button type="submit" class="msg-btn msg-btn-primary msg-btn-sm">Save</button>
+                  <button type="button" class="msg-btn msg-btn-ghost msg-btn-sm cancelEdit" data-msg-id="<%= m._id %>">Cancel</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="msg-row-actions">
+              <button class="msg-btn msg-btn-ghost msg-btn-sm editBtn" data-msg-id="<%= m._id %>">Edit</button>
+              <button class="msg-btn msg-btn-danger msg-btn-sm deleteBtn" data-msg-id="<%= m._id %>">Delete</button>
+            </div>
+          </div>
+        <% }) %>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const EDIT_URL = (id) => `/admin/message/student/${id}`;
+  const DELETE_URL = (id) => `/admin/message/student/${id}`;
+
+  document.querySelectorAll(".editBtn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.msgId;
+      document.getElementById(`content-${id}`).classList.add("msg-hidden");
+      document.getElementById(`editForm-${id}`).classList.remove("msg-hidden");
+    });
+  });
+
+  document.querySelectorAll(".cancelEdit").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.msgId;
+      document.getElementById(`content-${id}`).classList.remove("msg-hidden");
+      document.getElementById(`editForm-${id}`).classList.add("msg-hidden");
+    });
+  });
+
+  document.querySelectorAll("form[id^='editForm-']").forEach((form) => {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = form.dataset.msgId;
+      const content = form.querySelector(".editTextarea").value.trim();
+      if (!content) return alert("Message cannot be empty.");
+
+      const res = await fetch(EDIT_URL(id), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (res.ok || res.redirected) location.reload();
+      else alert("Failed to update message.");
+    });
+  });
+
+  document.querySelectorAll(".deleteBtn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.msgId;
+      if (!confirm("Delete this message? This cannot be undone.")) return;
+
+      const res = await fetch(DELETE_URL(id), { method: "DELETE" });
+      if (res.ok || res.redirected) {
+        document.querySelector(`.msg-ledger-row[data-msg-id="${id}"]`).remove();
+      } else {
+        alert("Failed to delete message.");
+      }
+    });
+  });
+})();
+</script>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/socketClient.js"></script>

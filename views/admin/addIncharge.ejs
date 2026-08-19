@@ -1,0 +1,437 @@
+<% layout("/layouts/boilerplate") -%>
+
+<style>
+  :root {
+    --card-radius: 1rem;
+    --transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .modern-card {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: var(--card-radius);
+    background: #ffffff;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+    transition: var(--transition-fast);
+  }
+  
+  .modern-card:hover {
+    box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.08);
+  }
+
+  .form-control-custom, 
+  .form-select-custom {
+    border-radius: 0.6rem;
+    padding: 0.65rem 1rem;
+    border: 1px solid #dee2e6;
+    font-size: 0.95rem;
+    transition: var(--transition-fast);
+  }
+
+  .form-control-custom:focus, 
+  .form-select-custom:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.12);
+  }
+
+  .card-header-primary {
+    background: linear-gradient(135deg, #0d6efd 0%, #084298 100%);
+    border-top-left-radius: var(--card-radius) !important;
+    border-top-right-radius: var(--card-radius) !important;
+  }
+
+  .card-header-dark {
+    background: linear-gradient(135deg, #212529 0%, #111315 100%);
+    border-top-left-radius: var(--card-radius) !important;
+    border-top-right-radius: var(--card-radius) !important;
+  }
+
+  .header-icon-box {
+    width: 44px;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(4px);
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .table-custom thead th {
+    background-color: #f8f9fa;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.8px;
+    color: #6c757d;
+    font-weight: 700;
+    padding: 1rem 1.25rem;
+    border-bottom: 2px solid #e9ecef;
+  }
+
+  .table-custom tbody td {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #f1f3f5;
+  }
+
+  .table-custom tbody tr:hover {
+    background-color: #f8fafc;
+  }
+
+  .user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #e7f1ff;
+    color: #0d6efd;
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .user-avatar-dark {
+    background: #e9ecef;
+    color: #212529;
+  }
+
+  .badge-soft-primary {
+    background-color: #e7f1ff;
+    color: #0d6efd;
+  }
+
+  .badge-soft-dark {
+    background-color: #e9ecef;
+    color: #212529;
+  }
+
+  .btn-delete-action {
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.5rem;
+    background-color: #fff0f1;
+    color: #dc3545;
+    border: 1px solid #ffccd1;
+    font-weight: 600;
+    font-size: 0.825rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: var(--transition-fast);
+  }
+
+  .btn-delete-action:hover {
+    background-color: #dc3545;
+    color: #ffffff !important;
+    border-color: #dc3545;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(220, 53, 69, 0.25);
+  }
+</style>
+
+<div class="container my-5">
+  <div class="row mb-5 justify-content-center">
+    <div class="col-lg-8 text-center">
+      <span class="badge badge-soft-primary px-3 py-2 rounded-pill fw-bold text-uppercase mb-2" style="letter-spacing: 0.5px;">
+        Admin Portal
+      </span>
+      <h2 class="fw-bold text-dark mb-2">Academic Role Management</h2>
+      <p class="text-muted fs-6 mb-0">Assign, manage, and overview Class Incharges and Department HODs for seamless system operations.</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Save Class Incharge Form -->
+    <div class="col-lg-6">
+      <div class="card modern-card h-100">
+        <div class="card-header card-header-primary text-white p-4 border-0">
+          <div class="d-flex align-items-center">
+            <div class="header-icon-box me-3">
+              <i class="bi bi-person-badge fs-4 text-white"></i>
+            </div>
+            <div>
+              <h5 class="card-title mb-1 fw-bold">Assign Class Incharge</h5>
+              <p class="mb-0 text-white-50 small">Map teacher to Class, Semester & Section</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body p-4">
+          <form action="/admin/save/class-incharge" method="POST" class="needs-validation prevent-double-submit" novalidate>
+            <div class="mb-3">
+              <label class="form-label fw-semibold text-dark small">Select Class</label>
+              <select name="className" class="form-select form-select-custom" required>
+                <option value="" selected disabled>Choose Class...</option>
+                <% (classData || []).forEach(c => { %>
+                  <option value="<%= c.class %>"><%= c.class %></option>
+                <% }) %>
+              </select>
+              <div class="invalid-feedback">Please select a valid class.</div>
+            </div>
+
+            <!-- <div class="mb-3">
+              <label for="semesterInput" class="form-label fw-semibold text-dark small">Semester / Year</label>
+              <input type="text" name="semester" id="semesterInput" list="semesterOptions" class="form-control form-control-custom" placeholder="Select or type (e.g., 1)..." autocomplete="off" required />
+              <datalist id="semesterOptions">
+                <(semesters || []).forEach(s => { >
+                  <option value="<= s %>"></option>
+                < }) %>
+              </datalist>
+              <div class="invalid-feedback">Please select or type a semester.</div>
+            </div> -->
+
+
+             <div class="mb-3">
+            <label for="semesterInput" class="form-label fw-semibold text-dark small">Semester / Year</label>
+            <select name="semester" id="semesterInput"  class="form-control form-control-custom" placeholder="Select or type (e.g., 1)..." autocomplete="off" required>
+              <option value="">Choose semester</option>
+              <% for(let i=1; i<=8; i++){ %>
+                <option value="<%= i %>"><%= i %></option>
+              <% } %>
+            </select>
+              <div class="invalid-feedback">Please select or type a semester.</div>
+          </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold text-dark small">Select Section</label>
+              <select name="sectionName" class="form-select form-select-custom" required>
+                <option value="" selected disabled>Choose Section...</option>
+                <% (section || []).forEach(sec => { %>
+                  <option value="<%= sec.name %>"><%= sec.name %></option>
+                <% }) %>
+              </select>
+              <div class="invalid-feedback">Please select a section.</div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label fw-semibold text-dark small">Assign Teacher</label>
+              <select name="teacherId" class="form-select form-select-custom" required>
+                <option value="" selected disabled>Choose Teacher...</option>
+                <% (teacher || []).forEach(t => { %>
+                  <option value="<%= t._id %>">
+                    <%= t.name %> <%= t.department ? '(' + t.department + ')' : '' %>
+                  </option>
+                <% }) %>
+              </select>
+              <div class="invalid-feedback">Please assign a teacher.</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold text-uppercase shadow-sm rounded-3 submit-btn">
+              <span class="btn-text">Save Class Incharge</span>
+              <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save HOD Form -->
+    <div class="col-lg-6">
+      <div class="card modern-card h-100">
+        <div class="card-header card-header-dark text-white p-4 border-0">
+          <div class="d-flex align-items-center">
+            <div class="header-icon-box me-3">
+              <i class="bi bi-shield-lock fs-4 text-white"></i>
+            </div>
+            <div>
+              <h5 class="card-title mb-1 fw-bold">Assign Department HOD</h5>
+              <p class="mb-0 text-white-50 small">Map head teacher to entire department/course</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body p-4">
+          <form action="/admin/save/hod" method="POST" class="needs-validation prevent-double-submit" novalidate>
+            <div class="mb-3">
+              <label class="form-label fw-semibold text-dark small">Select Department / Course</label>
+              <select name="courseName" class="form-select form-select-custom" required>
+                <option value="" selected disabled>Choose Course / Department...</option>
+                <% (classData || []).forEach(c => { %>
+                  <option value="<%= c.class %>"><%= c.class %></option>
+                <% }) %>
+              </select>
+              <div class="invalid-feedback">Please select a course/department.</div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label fw-semibold text-dark small">Assign HOD Teacher</label>
+              <select name="teacherId" class="form-select form-select-custom" required>
+                <option value="" selected disabled>Choose Teacher...</option>
+                <% (teacher || []).forEach(t => { %>
+                  <option value="<%= t._id %>">
+                    <%= t.name %> <%= t.department ? '(' + t.department + ')' : '' %>
+                  </option>
+                <% }) %>
+              </select>
+              <div class="invalid-feedback">Please select a teacher for HOD role.</div>
+            </div>
+
+            <button type="submit" class="btn btn-dark w-100 py-2.5 fw-bold text-uppercase shadow-sm rounded-3 submit-btn">
+              <span class="btn-text">Save Department HOD</span>
+              <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tables Section -->
+  <div class="row g-4 mt-3">
+    <!-- Active Class Incharges -->
+    <div class="col-12 col-xl-7">
+      <div class="card modern-card">
+        <div class="card-header bg-white py-3 px-4 border-bottom d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-people-fill text-primary me-2 fs-5"></i>
+            <h6 class="fw-bold mb-0 text-dark">Active Class Incharges</h6>
+          </div>
+          <span class="badge badge-soft-primary px-3 py-1.5 rounded-pill fw-bold"><%= assignedIncharges ? assignedIncharges.length : 0 %> Active</span>
+        </div>
+        
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-custom align-middle mb-0">
+              <thead>
+                <tr>
+                  <th class="ps-4">Class & Section</th>
+                  <th>Semester</th>
+                  <th>Assigned Teacher</th>
+                  <th class="text-end pe-4">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (!assignedIncharges || assignedIncharges.length === 0) { %>
+                  <tr>
+                    <td colspan="4" class="text-center py-5 text-muted">
+                      <div class="py-3">
+                        <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                        <span class="fw-medium">No Class Incharges assigned yet.</span>
+                      </div>
+                    </td>
+                  </tr>
+                <% } else { %>
+                  <% assignedIncharges.forEach(item => { 
+                       const tName = (item && item.teacher && item.teacher.name) ? item.teacher.name : 'Unassigned / Deleted Teacher';
+                  %>
+                    <tr>
+                      <td class="ps-4">
+                        <div class="fw-bold text-dark fs-6"><%= item.className || 'N/A' %></div>
+                        <small class="text-muted">Sec: <span class="badge bg-light text-dark border px-2 py-0.5"><%= item.sectionName || 'N/A' %></span></small>
+                      </td>
+                      <td>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold px-2.5 py-1.5 rounded-2">
+                          <%= item.semester %>
+                        </span>
+                      </td>
+                      <td>
+                        <div class="d-flex align-items-center">
+                          <div class="user-avatar me-2">
+                            <%= tName.charAt(0).toUpperCase() %>
+                          </div>
+                          <div>
+                            <div class="fw-semibold text-dark"><%= tName %></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="text-end pe-4">
+                        <form action="/admin/delete/class-incharge/<%= item._id %>" method="POST" onsubmit="return confirm('Are you sure you want to remove this Incharge?');" class="d-inline prevent-double-submit">
+                          <button type="submit" class="btn btn-delete-action submit-btn" title="Remove Assignment">
+                            <i class="bi bi-trash3-fill"></i>
+                            <span class="btn-text">Remove</span>
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  <% }) %>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Department HODs -->
+    <div class="col-12 col-xl-5">
+      <div class="card modern-card">
+        <div class="card-header bg-white py-3 px-4 border-bottom d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-shield-check text-dark me-2 fs-5"></i>
+            <h6 class="fw-bold mb-0 text-dark">Department HODs</h6>
+          </div>
+          <span class="badge badge-soft-dark px-3 py-1.5 rounded-pill fw-bold"><%= assignedHods ? assignedHods.length : 0 %> Active</span>
+        </div>
+        
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-custom align-middle mb-0">
+              <thead>
+                <tr>
+                  <th class="ps-4">Department</th>
+                  <th>Assigned HOD</th>
+                  <th class="text-end pe-4">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (!assignedHods || assignedHods.length === 0) { %>
+                  <tr>
+                    <td colspan="3" class="text-center py-5 text-muted">
+                      <div class="py-3">
+                        <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                        <span class="fw-medium">No HODs assigned yet.</span>
+                      </div>
+                    </td>
+                  </tr>
+                <% } else { %>
+                  <% assignedHods.forEach(hod => { 
+                       const hName = (hod && hod.teacher && hod.teacher.name) ? hod.teacher.name : 'Unassigned / Deleted Teacher';
+                  %>
+                    <tr>
+                      <td class="ps-4">
+                        <span class="fw-bold text-dark border-start border-3 border-primary ps-2">
+                          <%= hod.courseName %>
+                        </span>
+                      </td>
+                      <td>
+                        <div class="d-flex align-items-center">
+                          <div class="user-avatar user-avatar-dark me-2">
+                            <%= hName.charAt(0).toUpperCase() %>
+                          </div>
+                          <div>
+                            <div class="fw-semibold text-dark"><%= hName %></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="text-end pe-4">
+                        <form action="/admin/delete/hod/<%= hod._id %>" method="POST" onsubmit="return confirm('Are you sure you want to remove this HOD?');" class="d-inline prevent-double-submit">
+                          <button type="submit" class="btn btn-delete-action submit-btn" title="Remove HOD">
+                            <i class="bi bi-trash3-fill"></i>
+                            <span class="btn-text">Remove</span>
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  <% }) %>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Anti double submission script
+  document.querySelectorAll('.prevent-double-submit').forEach(form => {
+    form.addEventListener('submit', function() {
+      const btn = this.querySelector('.submit-btn');
+      if (btn) {
+        btn.disabled = true;
+        const spinner = btn.querySelector('.spinner-border');
+        if (spinner) spinner.classList.remove('d-none');
+      }
+    });
+  });
+</script>

@@ -1,0 +1,104 @@
+<%# views/admin/messages/compose-teacher.ejs
+    <% layout("layouts/boilerplate") %>
+%>
+<script>window.CURRENT_USER_ROLE = "Admin";</script>
+<link rel="stylesheet" href="/css/messaging.css" />
+
+<div class="msg-app">
+  <div class="msg-shell">
+    <%- include("./_nav.ejs", { active: "compose-teacher" }) %>
+
+    <div class="msg-eyebrow">Admin · Dispatch</div>
+    <h1 class="msg-title">Message Teachers</h1>
+    <p class="msg-subtitle">
+      Select one or more teachers. Even in bulk, each teacher receives their own
+      individual message (not a shared broadcast).
+    </p>
+
+    <div class="msg-card">
+      <form id="composeForm" action="/admin/message/teacher" method="POST">
+
+        <div class="msg-segmented" role="tablist" aria-label="Audience type">
+          <button type="button" class="active" data-audience="select">Select Teachers</button>
+          <button type="button" data-audience="all">All Teachers</button>
+        </div>
+        <input type="hidden" name="audienceType" id="audienceType" value="select" />
+
+        <div id="selectFields">
+          <div class="msg-field">
+            <label for="teacherFilterBox">Filter list</label>
+            <input type="text" id="teacherFilterBox" placeholder="Type to filter by name or mobile…" />
+          </div>
+
+          <div class="msg-field" style="max-height: 260px; overflow-y: auto; border: 1px solid var(--slate-300); border-radius: var(--radius); padding: 8px;">
+            <% if (!teachers || teachers.length === 0) { %>
+              <p style="color: var(--slate-500); font-size: 13px; padding: 8px;">No active teachers found.</p>
+            <% } %>
+            <% teachers.forEach(function(t) { %>
+              <label class="teacherRow" data-search="<%= (t.name + ' ' + (t.mobile || '')).toLowerCase() %>"
+                     style="display:flex; align-items:center; gap:10px; padding:8px 6px; border-bottom:1px solid var(--paper-muted); font-size:13px; cursor:pointer;">
+                <input type="checkbox" name="teacherIds" value="<%= t._id %>" />
+                <span><b><%= t.name %></b> <span style="color: var(--slate-500);">— <%= t.email || t.mobile %></span></span>
+              </label>
+            <% }) %>
+          </div>
+
+          <div class="msg-meta-line" id="selectedCount" style="margin-top:6px;">0 selected</div>
+        </div>
+
+        <div class="msg-field">
+          <label for="content">Message</label>
+          <textarea name="content" id="content" required maxlength="2000" placeholder="Write your message…"></textarea>
+        </div>
+
+        <button type="submit" class="msg-btn msg-btn-primary">Send Message</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const segButtons = document.querySelectorAll(".msg-segmented button");
+  const audienceInput = document.getElementById("audienceType");
+  const selectFields = document.getElementById("selectFields");
+
+  segButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      segButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      audienceInput.value = btn.dataset.audience;
+      selectFields.classList.toggle("msg-hidden", btn.dataset.audience === "all");
+    });
+  });
+
+  const filterBox = document.getElementById("teacherFilterBox");
+  filterBox.addEventListener("input", () => {
+    const q = filterBox.value.trim().toLowerCase();
+    document.querySelectorAll(".teacherRow").forEach((row) => {
+      row.style.display = row.dataset.search.includes(q) ? "flex" : "none";
+    });
+  });
+
+  const checkboxes = document.querySelectorAll('input[name="teacherIds"]');
+  const selectedCount = document.getElementById("selectedCount");
+  function updateCount() {
+    const n = Array.from(checkboxes).filter((c) => c.checked).length;
+    selectedCount.textContent = `${n} selected`;
+  }
+  checkboxes.forEach((c) => c.addEventListener("change", updateCount));
+
+  document.getElementById("composeForm").addEventListener("submit", (e) => {
+    if (audienceInput.value === "select") {
+      const anyChecked = Array.from(checkboxes).some((c) => c.checked);
+      if (!anyChecked) {
+        e.preventDefault();
+        alert("Please select at least one teacher.");
+      }
+    }
+  });
+})();
+</script>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/socketClient.js"></script>

@@ -1,0 +1,3334 @@
+<%- layout("/layouts/boilerplate") -%>
+
+<style>
+  :root {
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+    --bg-light: #f8fafc;
+    --border-color: #cbd5e1;
+    --text-dark: #1e293b;
+  }
+  .custom-card {
+    border: none;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  }
+  .form-label-custom {
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .form-select-custom, .form-control-custom {
+    border: 1.5px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    color: var(--text-dark);
+    transition: all 0.2s ease-in-out;
+  }
+  .form-select-custom:focus, .form-control-custom:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+  }
+  .period-row {
+    background: var(--bg-light);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 0px;
+    transition: all 0.2s ease;
+  }
+  .period-row:hover {
+    border-color: #94a3b8;
+    background: #f1f5f9;
+  }
+  .lunch-row {
+    background: #fff7ed !important;
+    border: 1.5px dashed #f97316 !important;
+  }
+  .btn-premium {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.75rem 3rem;
+    font-weight: 600;
+    border-radius: 50px;
+    transition: all 0.2s;
+  }
+  .btn-premium:hover {
+    background: var(--primary-hover);
+    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+    color: white;
+  }
+  .btn-nav {
+    background-color: #334155;
+    color: #ffffff;
+    border-radius: 50px;
+    font-weight: 500;
+    padding: 0.5rem 1.5rem;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .btn-nav:hover {
+    background-color: #0f172a;
+    color: white;
+  }
+  .insert-lunch-zone {
+    text-align: center;
+    margin: 12px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .insert-lunch-zone hr {
+    flex: 1;
+    border-top: 2px dashed #cbd5e1;
+    opacity: 0.5;
+  }
+  .btn-lunch-trigger {
+    font-size: 0.8rem;
+    padding: 4px 14px;
+    border-radius: 20px;
+    background: #ffffff;
+    border: 1.5px solid var(--border-color);
+    color: #64748b;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-lunch-trigger:hover {
+    background: #ffedd5;
+    border-color: #f97316;
+    color: #ea580c;
+    transform: scale(1.05);
+  }
+  
+  /* Bootstrap 5 Validation States Custom Overrides */
+  .was-validated .form-control-custom:valid, .was-validated .form-select-custom:valid {
+    border-color: #198754 !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23198754' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.73L3.9 6.73c-.4.5-1.1.5-1.6 0z'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right calc(0.375em + 0.1875rem) center;
+    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+  }
+  .was-validated .form-control-custom:invalid, .was-validated .form-select-custom:invalid {
+    border-color: #dc3545 !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right calc(0.375em + 0.1875rem) center;
+    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+  }
+</style>
+
+<div class="container my-5">
+  <div class="text-center mb-5">
+    <h3 class="fw-bold text-dark mb-2">👩‍🏫 Master Day Timetable Matrix</h3>
+    <p class="text-muted">Configure full day sequence & position lunch dynamically anywhere seamlessly</p>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 mb-4 justify-content-start">
+    <a href="/add/teacherData" class="btn btn-nav shadow-sm"><i class="fa-solid fa-plus me-1"></i> Add Teacher</a>
+    <a href="/show/teacher" class="btn btn-nav shadow-sm"><i class="fa-solid fa-eye me-1"></i> Show Teachers</a>
+    <a href="/admin/show-all-teachers-assignments" class="btn btn-nav shadow-sm"><i class="fa-solid fa-user-check me-1"></i> Show Assignments</a>
+  </div>
+
+  <div class="card custom-card p-4 p-md-5">
+    <form action="/assign/teacher/subject/bulk-day" method="post" id="timetableForm" class="needs-validation" novalidate>
+      
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">
+          <label class="form-label-custom">Class / Course</label>
+          <select name="baseData[className]" id="class" class="form-select form-select-custom" required>
+            <option value="">Choose class...</option>
+            <% for(let c of classData){ %> <option value="<%= c.class %>"><%= c.class %></option> <% } %>
+          </select>
+          <div class="invalid-feedback">Please select a class.</div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-custom">Semester</label>
+          <select name="baseData[semester]" id="semester" class="form-select form-select-custom" required>
+            <option value="">Choose semester...</option>
+            <% for(let i=1; i<=8; i++){ %> <option value="<%= i %>"><%= i %></option> <% } %>
+          </select>
+          <div class="invalid-feedback">Please select a semester.</div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-custom">Section</label>
+          <select name="baseData[section]" id="section" class="form-select form-select-custom" required>
+            <option value="">Choose section...</option>
+            <% for(let s of sectionData){ %> <option value="<%= s.name %>"><%= s.name %></option> <% } %>
+          </select>
+          <div class="invalid-feedback">Please select a section.</div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-custom">Target Day</label>
+          <select name="baseData[day_of_week]" id="day_of_week" class="form-select form-select-custom" required>
+            <option value="">Select Day...</option>
+            <option value="Mon">Monday (Master Layout)</option>
+            <option value="Tue">Tuesday</option>
+            <option value="Wed">Wednesday</option>
+            <option value="Thu">Thursday</option>
+            <option value="Fri">Friday</option>
+            <option value="Sat">Saturday</option>
+          </select>
+          <div class="invalid-feedback">Please select a day.</div>
+        </div>
+      </div>
+
+      <div id="replicatorWrapper" class="p-3 bg-light rounded-3 mb-5 d-flex flex-column flex-md-row align-items-md-center justify-content-between border gap-2">
+        <div class="small text-secondary fw-semibold">
+          <i class="fa-solid fa-paste text-primary me-2"></i> Day Replicator Tool: Fast mirror layout from another weekday template
+        </div>
+        <div class="d-flex gap-2">
+          <select id="copyFromDay" class="form-select form-select-custom" style="min-width: 160px;">
+            <option value="">Copy From Day...</option>
+            <option value="Mon">Monday</option><option value="Tue">Tuesday</option><option value="Wed">Wednesday</option>
+            <option value="Thu">Thursday</option><option value="Fri">Friday</option><option value="Sat">Saturday</option>
+          </select>
+          <button type="button" class="btn btn-sm btn-dark px-3 rounded-3" onclick="copyDaySchedule()">Apply Layout</button>
+        </div>
+      </div>
+
+      <h5 class="fw-bold text-dark mb-4"><i class="fa-solid fa-clock text-primary me-2"></i>Daily Sequence Timings Matrix</h5>
+
+      <div id="lectures-matrix-container" class="d-flex flex-column gap-3"></div>
+
+      <div class="text-center mt-5">
+        <button type="submit" class="btn btn-premium shadow">
+          <i class="fa-solid fa-circle-check me-2"></i>Save Entire Day Timetable Matrix
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const baseSlots = ["I", "II", "III", "IV", "V", "VI"];
+let loadedSubjects = [];
+let currentMatrixLayout = [];
+
+function convertTo24h(timeStr12) {
+  if(!timeStr12) return "";
+  if(!timeStr12.includes(" ")) return timeStr12;
+  const [time, modifier] = timeStr12.split(' ');
+  let [hrs, mins] = time.split(':');
+  if (hrs === '12') hrs = '00';
+  if (modifier === 'PM') hrs = parseInt(hrs, 10) + 12;
+  return `${String(hrs).padStart(2, '0')}:${mins}`;
+}
+
+function renderInitialMatrix() {
+  currentMatrixLayout = [];
+  baseSlots.forEach((slot) => {
+    currentMatrixLayout.push({ type: "LECTURE", slotId: slot });
+  });
+  rebuildDOMFromMatrix();
+}
+
+function rebuildDOMFromMatrix() {
+  const container = document.getElementById("lectures-matrix-container");
+  const targetDay = document.getElementById("day_of_week").value;
+  
+  const isMonday = (targetDay === "Mon" || targetDay === "");
+  
+  const structuralBackup = [];
+  document.querySelectorAll("#lectures-matrix-container .period-row").forEach(row => {
+    structuralBackup.push({
+      start_time: row.querySelector(".start-time") ? row.querySelector(".start-time").value : "",
+      end_time: row.querySelector(".end-time") ? row.querySelector(".end-time").value : "",
+      subject: row.querySelector(".subject-dropdown") ? row.querySelector(".subject-dropdown").value : "",
+      username: row.querySelector(".faculty-dropdown") ? row.querySelector(".faculty-dropdown").value : ""
+    });
+  });
+
+  container.innerHTML = "";
+  const hasLunch = currentMatrixLayout.some(item => item.type === "LUNCH");
+
+  currentMatrixLayout.forEach((item, index) => {
+    const isLunch = (item.type === "LUNCH");
+    
+    let optionsHTML = `<option value="">-- Select Subject --</option>`;
+    if (loadedSubjects.length > 0) {
+      loadedSubjects.forEach(s => { optionsHTML += `<option value="${s.name}">${s.name}</option>`; });
+    }
+
+    let rowHTML = `
+      <div class="row g-2 period-row ${isLunch ? 'lunch-row' : ''} align-items-center" data-index="${index}">
+        <input type="hidden" name="slots[${index}][lecture_number]" value="${item.slotId}">
+        
+        <div class="col-md-2 d-flex align-items-center">
+          <span class="fw-bold small text-secondary">${isLunch ? '🍔 LUNCH BREAK' : 'Lecture ' + item.slotId}</span>
+          ${(isLunch && isMonday) ? `<button type="button" class="btn btn-sm text-danger border-0 p-0 ms-auto me-2" onclick="removeLunchAt(${index})" title="Remove Break">✕</button>` : ''}
+        </div>
+        
+        <div class="col-md-2">
+          <input type="time" name="slots[${index}][start_time]" class="form-control form-control-custom start-time" ${isMonday ? '' : 'readonly style="background:#e9ecef; pointer-events:none;"'} required>
+          <div class="invalid-feedback small">Required.</div>
+        </div>
+        
+        <div class="col-md-2">
+          <input type="time" name="slots[${index}][end_time]" class="form-control form-control-custom end-time" ${isMonday ? '' : 'readonly style="background:#e9ecef; pointer-events:none;"'} required>
+          <div class="invalid-feedback small">Required.</div>
+        </div>
+        
+        <div class="col-md-3">
+          <select name="slots[${index}][subject]" class="form-select form-select-custom subject-dropdown" ${isLunch ? 'disabled' : 'required'}>
+            ${optionsHTML}
+          </select>
+          <div class="invalid-feedback small">Required.</div>
+        </div>
+        
+        <div class="col-md-3">
+          <select name="slots[${index}][username]" class="form-select form-select-custom faculty-dropdown" ${isLunch ? 'disabled' : 'required'}>
+            <option value="">-- Select Faculty --</option>
+            <% teacherData.forEach(t => { %> <option value="<%= t.username %>"><%= t.name || t.username %></option> <% }) %>
+          </select>
+          <div class="invalid-feedback small">Required.</div>
+        </div>
+      </div>`;
+
+    container.innerHTML += rowHTML;
+
+    if (isMonday && !hasLunch && index < currentMatrixLayout.length - 1 && currentMatrixLayout[index].type !== "LUNCH" && currentMatrixLayout[index+1].type !== "LUNCH") {
+      container.innerHTML += `
+        <div class="insert-lunch-zone">
+          <hr><button type="button" class="btn btn-lunch-trigger mx-2" onclick="insertLunchAt(${index})"><i class="fa-solid fa-utensils me-1"></i> Insert Lunch Break Here</button><hr>
+        </div>`;
+    }
+  });
+
+  const currentRows = document.querySelectorAll("#lectures-matrix-container .period-row");
+  structuralBackup.forEach((data, idx) => {
+    if(currentRows[idx]) {
+      if(currentRows[idx].querySelector(".start-time") && isMonday) currentRows[idx].querySelector(".start-time").value = data.start_time;
+      if(currentRows[idx].querySelector(".end-time") && isMonday) currentRows[idx].querySelector(".end-time").value = data.end_time;
+      if(currentRows[idx].querySelector(".subject-dropdown") && data.subject) currentRows[idx].querySelector(".subject-dropdown").value = data.subject;
+      if(currentRows[idx].querySelector(".faculty-dropdown") && data.username) currentRows[idx].querySelector(".faculty-dropdown").value = data.username;
+    }
+  });
+}
+
+function insertLunchAt(index) {
+  currentMatrixLayout.splice(index + 1, 0, { type: "LUNCH", slotId: "LUNCH" });
+  rebuildDOMFromMatrix();
+}
+
+function removeLunchAt(index) {
+  currentMatrixLayout.splice(index, 1);
+  rebuildDOMFromMatrix();
+}
+
+async function syncMasterTimings() {
+  let cls = document.getElementById("class").value;
+  let sem = document.getElementById("semester").value;
+  let sec = document.getElementById("section").value;
+  let currentDay = document.getElementById("day_of_week").value;
+
+  if(!cls || !sem || !sec || !currentDay) return;
+
+  if(currentDay === "Mon") {
+    renderInitialMatrix();
+    await loadSubjects();
+    return;
+  }
+
+  let response = await fetch(`/api/timetable/get-day-layout?className=${cls}&semester=${sem}&section=${sec}&day=Mon`);
+  let result = await response.json();
+
+  if(result.success && result.data.length > 0) {
+    currentMatrixLayout = [];
+    result.data.forEach((saved) => {
+      currentMatrixLayout.push({
+        type: saved.lecture_number === "LUNCH" ? "LUNCH" : "LECTURE",
+        slotId: saved.lecture_number
+      });
+    });
+    
+    rebuildDOMFromMatrix();
+    await loadSubjects();
+
+    setTimeout(() => {
+      let currentRows = document.querySelectorAll("#lectures-matrix-container .period-row");
+      result.data.forEach((saved, idx) => {
+        if(currentRows[idx]) {
+          currentRows[idx].querySelector(".start-time").value = convertTo24h(saved.start_time);
+          currentRows[idx].querySelector(".end-time").value = convertTo24h(saved.end_time);
+        }
+      });
+    }, 50);
+  } else {
+    alert("⚠️ Entry Order Warning: Monday's baseline template layout sequence has not been configured or saved yet for this specific batch. Please save Monday first to establish standard timestamps!");
+    document.getElementById("day_of_week").value = "";
+    renderInitialMatrix();
+  }
+}
+
+document.getElementById("day_of_week").addEventListener("change", syncMasterTimings);
+document.getElementById("class").addEventListener("change", syncMasterTimings);
+document.getElementById("semester").addEventListener("change", syncMasterTimings);
+document.getElementById("section").addEventListener("change", syncMasterTimings);
+
+async function loadSubjects() {
+  let cls = document.getElementById("class").value;
+  let sem = document.getElementById("semester").value;
+  if (!cls || !sem) return;
+  
+  let res = await fetch(`/get-subjects/${cls}/${sem}`);
+  loadedSubjects = await res.json();
+  
+  document.querySelectorAll(".subject-dropdown").forEach(d => {
+    let val = d.value;
+    d.innerHTML = `<option value="">-- Select Subject --</option>`;
+    loadedSubjects.forEach(s => d.innerHTML += `<option value="${s.name}" ${s.name===val?'selected':''}>${s.name}</option>`);
+  });
+}
+
+// 👑 UPDATED INTELLIGENT REPLICATOR ENGINE
+async function copyDaySchedule() {
+  let cls = document.getElementById("class").value;
+  let sem = document.getElementById("semester").value;
+  let sec = document.getElementById("section").value;
+  let fromDay = document.getElementById("copyFromDay").value;
+  let targetDay = document.getElementById("day_of_week").value;
+  
+  if(!cls || !sem || !sec || !fromDay || !targetDay) {
+    return alert("⚠️ Error: Ensure Class, Sem, Sec, Target Day, and 'Copy From' fields are filled first.");
+  }
+
+  let response = await fetch(`/api/timetable/get-day-layout?className=${cls}&semester=${sem}&section=${sec}&day=${fromDay}`);
+  let result = await response.json();
+
+  if(!result.success || result.data.length === 0) {
+    return alert("❌ Selected 'Copy From' day has no timetable data template saved yet.");
+  }
+
+  if (targetDay === "Mon") {
+    currentMatrixLayout = [];
+    result.data.forEach((saved) => {
+      currentMatrixLayout.push({
+        type: saved.lecture_number === "LUNCH" ? "LUNCH" : "LECTURE",
+        slotId: saved.lecture_number
+      });
+    });
+    
+    rebuildDOMFromMatrix();
+    await loadSubjects();
+
+    setTimeout(() => {
+      let currentRows = document.querySelectorAll("#lectures-matrix-container .period-row");
+      result.data.forEach((saved, idx) => {
+        if(currentRows[idx]) {
+          currentRows[idx].querySelector(".start-time").value = convertTo24h(saved.start_time);
+          currentRows[idx].querySelector(".end-time").value = convertTo24h(saved.end_time);
+          if(saved.lecture_number !== "LUNCH") {
+            currentRows[idx].querySelector(".subject-dropdown").value = saved.subject_name;
+            currentRows[idx].querySelector(".faculty-dropdown").value = saved.teacher_id ? (saved.teacher_id.username || saved.teacher_id) : '';
+          }
+        }
+      });
+    }, 150);
+
+  } else {
+    // 🔥 FIXED LOGIC FOR TUE-SAT: Keeps current layout/times frozen, only injects data mapping by slotIds
+    let currentRows = document.querySelectorAll("#lectures-matrix-container .period-row");
+    
+    if (currentRows.length === 0) {
+      return alert("⚠️ Error: Base layout loaded nahi hai. Pehle Target Day select kijiye.");
+    }
+
+    currentRows.forEach((row) => {
+      let slotIdInput = row.querySelector("input[type='hidden']");
+      if(!slotIdInput) return;
+      let currentSlotId = slotIdInput.value;
+
+      if(currentSlotId === "LUNCH") return; 
+
+      let matchedData = result.data.find(saved => saved.lecture_number === currentSlotId);
+      
+      if(matchedData) {
+        let subDropdown = row.querySelector(".subject-dropdown");
+        let facDropdown = row.querySelector(".faculty-dropdown");
+        
+        if(subDropdown) subDropdown.value = matchedData.subject_name;
+        if(facDropdown) facDropdown.value = matchedData.teacher_id ? (matchedData.teacher_id.username || matchedData.teacher_id) : '';
+      }
+    });
+  }
+}
+
+// 🛡️ FRONTEND COMPULSORY LUNCH & CHRONOLOGICAL TIME INTERCEPTOR GUARD
+(function () {
+  'use strict'
+  var forms = document.querySelectorAll('.needs-validation')
+  Array.prototype.slice.call(forms).forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      
+      let isLunchPresent = currentMatrixLayout.some(item => item.type === "LUNCH");
+      if (!isLunchPresent) {
+        event.preventDefault();
+        event.stopPropagation();
+        alert("⚠️ Saving Denied: Lunch Break is compulsory! Please insert exactly 1 Lunch break sequence into your day structure before hitting save.");
+        return;
+      }
+
+      let rows = document.querySelectorAll("#lectures-matrix-container .period-row");
+      let lastEndMinutes = 0;
+
+      for (let i = 0; i < rows.length; i++) {
+        let row = rows[i];
+        let startVal = row.querySelector(".start-time").value;
+        let endVal = row.querySelector(".end-time").value;
+        let slotName = row.querySelector("input[type='hidden']").value;
+
+        if (!startVal || !endVal) continue;
+
+        let [sHrs, sMins] = startVal.split(':').map(Number);
+        let [eHrs, eMins] = endVal.split(':').map(Number);
+        
+        let startTotalMins = sHrs * 60 + sMins;
+        let endTotalMins = eHrs * 60 + eMins;
+
+        if (startTotalMins >= endTotalMins) {
+          event.preventDefault();
+          event.stopPropagation();
+          row.querySelector(".end-time").classList.add("is-invalid");
+          alert(`⚠️ Invalid Timings at ${slotName === 'LUNCH' ? 'Lunch' : 'Lecture ' + slotName}: End Time cannot be earlier than or equal to Start Time.`);
+          return;
+        }
+
+        if (startTotalMins < lastEndMinutes) {
+          event.preventDefault();
+          event.stopPropagation();
+          row.querySelector(".start-time").classList.add("is-invalid");
+          alert(`⚠️ Timeline Overlap at ${slotName === 'LUNCH' ? 'Lunch' : 'Lecture ' + slotName}: Period begins prior to the completion timestamp of the row above.`);
+          return;
+        }
+        lastEndMinutes = endTotalMins;
+      }
+
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        event.stopPropagation();
+        alert("⚠️ Blocked: Please fill out all required fields properly.");
+      }
+      form.classList.add('was-validated');
+    }, false)
+  })
+})()
+
+renderInitialMatrix();
+</script>
+
+
+
+
+
+
+
+
+
+
+<!-- SHOW  TIMETABLE.EJS -->
+
+
+
+
+
+app.get(
+  "/timetable/view",
+  verifiedAny,
+  WrapAsync(async (req, res) => {
+    const { className, semester, section } = req.query;
+
+    if (!className || !semester || !section) {
+      req.flash("error", "Missing parameters.");
+      return res.redirect("/assign/teacher/subject/class");
+    }
+
+    const scheduleData = await TimeTable.find({ className, semester, section });
+    const timetableMap = {
+      Mon: {},
+      Tue: {},
+      Wed: {},
+      Thu: {},
+      Fri: {},
+      Sat: {},
+    };
+
+    let dynamicColumns = [];
+
+    // Helper function: Time string ko valid comparable minutes mein badalne ke liye
+    // Yeh '08:30 AM' ya normal '13:05' dono ko sahi minute mein convert karega
+    const convertTimeToMinutes = (timeStr) => {
+      if (!timeStr) return 0;
+
+      let [time, modifier] = timeStr.trim().split(" ");
+      let [hours, minutes] = time.split(":").map(Number);
+
+      // Agar AM/PM format hai (e.g., "01:05 PM")
+      if (modifier) {
+        const upperModifier = modifier.toUpperCase();
+        if (upperModifier === "PM" && hours < 12) hours += 12;
+        if (upperModifier === "AM" && hours === 12) hours = 0;
+      } else {
+        // Agar direct string hai par 12-hour format jaisi lag rahi hai (e.g., "01:05" bina PM ke)
+        // Standard college hours handle karne ke liye smart guess: 1 se 6 baje tak ko dopahar (PM) maan lo
+        if (hours >= 1 && hours <= 6) {
+          hours += 12;
+        }
+      }
+
+      return hours * 60 + minutes; // Total minutes returns karega sorting ke liye
+    };
+
+    scheduleData.forEach((slot) => {
+      if (timetableMap[slot.day_of_week]) {
+        timetableMap[slot.day_of_week][slot.lecture_number] = {
+          subject: slot.subject_name || "🍔 LUNCH BREAK",
+          teacher: slot.teacher_name || "N/A",
+        };
+      }
+
+      if (!dynamicColumns.some((col) => col.id === slot.lecture_number)) {
+        dynamicColumns.push({
+          id: slot.lecture_number,
+          timeStr: slot.start_time,
+          displayTime: `${slot.start_time} - ${slot.end_time}`,
+        });
+      }
+    });
+
+    // 🔥 Yahan par dynamic minutes validation ke sath accurate sorting hogi
+    dynamicColumns.sort((a, b) => {
+      return convertTimeToMinutes(a.timeStr) - convertTimeToMinutes(b.timeStr);
+    });
+
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dayNames = {
+      Mon: "Monday",
+      Tue: "Tuesday",
+      Wed: "Wednesday",
+      Thu: "Thursday",
+      Fri: "Friday",
+      Sat: "Saturday",
+    };
+
+    res.render("admin/showTimeTable.ejs", {
+      className,
+      semester,
+      section,
+      timetableMap,
+      periods: dynamicColumns,
+      days,
+      dayNames,
+    });
+  }),
+);
+
+
+<%- layout("/layouts/boilerplate") -%>
+
+<style>
+  body {
+    background-color: #f4f6f9;
+  }
+  .timetable-card {
+    border: none;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  }
+  .table-responsive {
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
+    overflow-x: auto;
+  }
+  .table-timetable {
+    margin-bottom: 0 !important;
+    border-collapse: collapse !important;
+    width: 100%;
+  }
+  
+  /* Normal Header Styling */
+  .table-timetable th {
+    background: linear-gradient(135deg, #0f172a, #1e293b) !important;
+    color: #ffffff !important;
+    text-align: center;
+    padding: 12px 8px !important;
+    border: 1px solid #334155 !important;
+    vertical-align: middle;
+  }
+  
+  /* 🍔 Dynamic Lunch Header Styling */
+  .table-timetable th.lunch-header {
+    background: linear-gradient(135deg, #b45309, #d97706) !important;
+    border: 1px solid #b45309 !important;
+  }
+  
+  .table-timetable th .header-period-title {
+    display: block;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+  }
+  /* Period ke just niche time show karne ke liye */
+  .table-timetable th .header-period-time {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #94a3b8;
+    margin-top: 2px;
+    text-transform: none;
+  }
+  /* Lunch header ka time color standard text ke liye white-grey */
+  .table-timetable th.lunch-header .header-period-time {
+    color: #fef3c7;
+  }
+
+  .table-timetable td {
+    text-align: center;
+    vertical-align: middle;
+    padding: 12px 8px !important;
+    border: 1px solid #e2e8f0 !important;
+    min-width: 160px; 
+    height: 95px;
+  }
+  .day-column {
+    background: #f8fafc !important;
+    font-weight: 800;
+    color: #0f172a;
+    font-size: 0.9rem;
+    text-align: center !important;
+    min-width: 110px !important;
+    border-right: 3px solid #cbd5e1 !important;
+  }
+  
+  .slot-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+  }
+  .subject-badge {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #1e40af;
+    background: #dbeafe;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid #93c5fd;
+    width: 100%;
+    box-shadow: 0 2px 4px rgba(30, 64, 175, 0.05);
+  }
+  .teacher-text {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+    margin-top: 2px;
+  }
+  .slot-empty {
+    color: #cbd5e1;
+    font-size: 1.2rem;
+    font-weight: 300;
+  }
+
+  /* 🍔 Flexible Lunch Row/Cell Styling */
+  .lunch-cell {
+    background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%) !important;
+    border-left: 1px solid #fde68a !important;
+    border-right: 1px solid #fde68a !important;
+  }
+  .lunch-inline-card {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .lunch-banner-inline-text {
+    font-weight: 900 !important;
+    font-size: 0.85rem;
+    color: #b45309;
+    letter-spacing: 0.5px;
+  }
+</style>
+
+<div class="container my-5">
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+    <div>
+      <h3 class="fw-bold text-dark mb-1"><i class="fa-solid fa-calendar-days text-primary me-2"></i>Academic Timetable Sheet</h3>
+      <p class="text-muted m-0 small">Live schedule chart matrix with flexible alignments</p>
+    </div>
+    <div>
+      <a href="/assign/teacher/subject/class" class="btn btn-outline-dark px-4 rounded-pill shadow-sm fw-semibold btn-sm">
+        <i class="fa-solid fa-arrow-left me-2"></i>Back to Allocations
+      </a>
+    </div>
+  </div>
+
+  <div class="alert alert-primary border-0 p-3 mb-4 shadow-sm d-flex align-items-center justify-content-between flex-wrap gap-2" style="border-radius: 14px; background: linear-gradient(135deg, #eff6ff, #dbeafe);">
+    <div class="d-flex align-items-center gap-3">
+      <div class="bg-primary text-white rounded-3 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+        <i class="fa-solid fa-graduation-cap fa-lg"></i>
+      </div>
+      <div>
+        <h5 class="m-0 fw-bold text-primary"><%= className %></h5>
+        <span class="small fw-semibold text-secondary">Semester: <%= semester %> | Section: <%= section %></span>
+      </div>
+    </div>
+    <div>
+      <span class="badge bg-success px-3 py-2 rounded-pill fw-bold"><i class="fa-solid fa-circle-check me-1"></i> Live Active Grid</span>
+    </div>
+  </div>
+
+  <div class="card timetable-card">
+    <div class="card-body p-3">
+      
+      <div class="table-responsive">
+        <table class="table table-bordered table-timetable m-0 align-middle">
+          
+          <thead>
+            <tr>
+              <th scope="col">Days / Periods</th>
+              <% periods.forEach(period => { %>
+                <th scope="col" class="<%= period.id.toString().toUpperCase().includes('LUNCH') ? 'lunch-header' : '' %>">
+                  <span class="header-period-title">
+                    <%= period.id.toString().toUpperCase().includes('LUNCH') ? '🍔 LUNCH' : 'Period ' + period.id %>
+                  </span>
+                  <span class="header-period-time">(<%= period.displayTime %>)</span>
+                </th>
+              <% }) %>
+            </tr>
+          </thead>
+          
+          <tbody>
+            <% days.forEach((day) => { %>
+              <tr>
+                <td class="day-column">
+                  <%= dayNames[day] %>
+                </td>
+
+                <% periods.forEach(period => { %>
+                  <% let slot = timetableMap[day][period.id]; %>
+                  <% let isLunch = period.id.toString().toUpperCase().includes('LUNCH'); %>
+                  
+                  <td class="<%= isLunch ? 'lunch-cell' : '' %>">
+                    <div class="slot-container">
+                      <% if (isLunch) { %>
+                        <div class="lunch-inline-card">
+                          <span class="lunch-banner-inline-text">🍔 LUNCH BREAK</span>
+                        </div>
+                      <% } else if (slot && slot.subject) { %>
+                        <div class="subject-badge text-truncate" title="<%= slot.subject %>">
+                          <%= slot.subject %>
+                        </div>
+                        <div class="teacher-text">
+                          <i class="fa-solid fa-user-tie text-muted me-1"></i><%= slot.teacher %>
+                        </div>
+                      <% } else { %>
+                        <span class="slot-empty">—</span>
+                      <% } %>
+                    </div>
+                  </td>
+                <% }) %>
+              </tr>
+            <% }) %>
+          </tbody>
+
+        </table>
+      </div> 
+    </div>
+  </div>
+
+</div>     
+
+
+
+
+
+
+
+
+
+const mongoose = require('mongoose');
+
+const feeLedgerSchema = new mongoose.Schema({
+  // 1. Core Linkages
+  student_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+  rollNumber: { type: String, required: true },
+  studentName: { type: String, required: true },
+  fatherName: { type: String, default: '' }, // 👈 [ADD] Kyunki hum EJS par dikha rahe hain, toh ledger me bhi store karna safe rahega
+  className: String,
+  section: String,
+  
+  // 2. Student Status Operational Control
+  status: { type: String, enum: ['Active', 'Left College'], default: 'Active' }, // 👈 [ADD] Jo baccha beech me chhod gaya, uska status yahan save hoga taaki next time filtering me yaad rahe
+
+  // 3. 6 ya 8 semesters ka dynamic array tracker (Absolutely Perfect)
+  semesters: [
+    {
+      semNumber: { type: Number, required: true },
+      due_amount: { type: Number, default: 0 },
+      amount_paid: { type: Number, default: 0 },
+      balance_pending: { type: Number, default: 0 }
+    }
+  ],
+
+  // 4. Pure course ka lifetime calculations summary (Lifetime Tracker)
+  total_course_fees: { type: Number, default: 0 },
+  total_amount_paid: { type: Number, default: 0 },
+  overall_pending_balance: { type: Number, default: 0 }
+}, { timestamps: true });
+
+module.exports = mongoose.model('FeeLedger', feeLedgerSchema);
+
+
+
+
+
+
+
+const Joi = require('joi');
+
+const feeBulkSchema = Joi.object({
+  className: Joi.string().required(),
+  section: Joi.string().required(),
+  semA: Joi.number().integer().min(1).max(8).required(),
+  semB: Joi.number().integer().min(1).max(8).required(),
+  fees: Joi.array().items(
+    Joi.object({
+      student_id: Joi.string().hex().length(24).required(),
+      rollNumber: Joi.string().required(),
+      studentName: Joi.string().required(),
+      due_amount_A: Joi.number().min(0).required(),
+      due_amount_B: Joi.number().min(0).required(),
+      status: Joi.string().valid('Active', 'Left College').required()
+    })
+  ).min(1).required()
+});
+
+const validateFeeData = (req, res, next) => {
+  const { error } = feeBulkSchema.validate(req.body);
+  if (error) {
+    console.error("Joi Validation Error Details:", error.details);
+    req.flash("error", "⚠️ Security Alert: Data tampering detected!");
+    return res.redirect("/add/student/fees");
+  }
+  next();
+};
+
+// Yeh export hona zaroori hai!
+module.exports = validateFeeData;
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- remove future bug -->
+
+<% layout("/layouts/boilerplate") -%>
+
+<div class="container my-5">
+  
+  <h2 class="mb-4 text-dark fw-bold border-bottom pb-2">Accountant Smart Fee Control Desk</h2>
+
+  <!-- BLOCK A: FILTER TERMINAL -->
+  <div class="card p-4 shadow-sm mb-4 bg-white border-0">
+    <form action="/add/student/fees" method="GET" class="row g-3 needs-validation" novalidate>
+      
+      <!-- 1. Class Dropdown mapping 'c.class' key -->
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Class / Branch</label>
+        <select name="className" class="form-select" required>
+          <option value="">Choose class...</option>
+          <% classData.forEach(c => { %>
+            <option value="<%= c.class %>" <%= query.className === c.class ? 'selected' : '' %>><%= c.class %></option>
+          <% }) %>
+        </select>
+        <div class="invalid-feedback">Please select a valid class configuration.</div>
+      </div>
+
+      <!-- 2. Semester Selector Dropdown Matrix -->
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Semester</label>
+        <select name="semester" id="semester" class="form-select" required>
+          <option value="">Choose semester...</option>
+          <% for(let i=1; i<=8; i++) { %>
+            <option value="<%= i %>" <%= query.semester == i ? 'selected' : '' %>><%= i %></option>
+          <% } %>
+        </select>
+        <div class="invalid-feedback">Please select an academic semester timeline.</div>
+      </div>
+
+      <!-- 3. Section Dropdown mapping 's.name' key -->
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Section</label>
+        <select name="section" class="form-select" required>
+          <option value="">Choose section...</option>
+          <% sectionData.forEach(s => { %>
+            <option value="<%= s.name %>" <%= query.section === s.name ? 'selected' : '' %>><%= s.name %></option>
+          <% }) %>
+        </select>
+        <div class="invalid-feedback">Please map a valid division section.</div>
+      </div>
+
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn w-100 fw-bold py-2 shadow-sm text-white" style="background-color: #0f766e;">
+          Fetch Student Data
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <% if (students && students.length > 0) { %>
+    
+    <!-- SINGLE INJECTOR ENGINE (FOR ANNUAL FEES CONFIG) -->
+    <div class="card p-3 mb-4 text-white border-0 shadow-sm" style="background-color: #0f766e;">
+      <div class="row align-items-center g-3">
+        <div class="col-lg-5">
+          <span class="fw-bold fs-5">⚡ Global Year-Fees Injector (Sem-<%= activeSemesters[0] %> & Sem-<%= activeSemesters[1] %>):</span>
+        </div>
+        <div class="col-lg-4">
+          <input type="number" id="masterYearFee" class="form-control" placeholder="Enter Full Year Fees Amount (e.g. 40000)">
+        </div>
+        <div class="col-lg-3">
+          <button type="button" onclick="applyGlobalYearFee()" class="btn btn-dark w-100 fw-bold">Inject & Auto-Divide</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN STUDENT LEDGER MATRIX FORM -->
+    <form action="/fees/save-bulk-ledger" method="POST" id="ledgerGridForm" onsubmit="return validateGridForm()">
+      <input type="hidden" name="semA" value="<%= activeSemesters[0] %>">
+      <input type="hidden" name="semB" value="<%= activeSemesters[1] %>">
+      <input type="hidden" name="className" value="<%= query.className %>">
+      <input type="hidden" name="section" value="<%= query.section %>">
+
+      <div class="table-responsive shadow-sm rounded">
+        <table class="table align-middle bg-white table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th style="width: 10%;">Admin No</th>
+              <th style="width: 15%;">Student Name</th>
+              <th style="width: 15%;">Father Name</th>
+              <th style="width: 15%;">Year Total Fees (₹)</th>
+              <th style="width: 15%;">Semester <%= activeSemesters[0] %> (₹)</th>
+              <th style="width: 15%;">Semester <%= activeSemesters[1] %> (₹)</th>
+              <th style="width: 15%;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% students.forEach((student, index) => { %>
+              <tr class="student-row-item">
+                <td>
+                  <input type="hidden" name="fees[<%= index %>][student_id]" value="<%= student._id %>">
+                  <input type="hidden" name="fees[<%= index %>][rollNumber]" value="<%= student.rollNo %>">
+                  <input type="hidden" name="fees[<%= index %>][studentName]" value="<%= student.name %>">
+                     <input type="hidden" name="fees[<%= index %>][fatherName]" value="<%= student.fatherName || 'N/A' %>">
+                  <span class="badge bg-secondary fs-6"><%= student.rollNo %></span>
+                </td>
+                <td class="fw-semibold text-dark"><%= student.name %></td>
+                <td class="text-secondary"><%= student.fatherName || 'N/A' %></td>
+                
+                <!-- Year Fees Input Target (Auto Splits on input) -->
+                <td>
+                  <input type="number" class="form-control form-control-sm row-year-total" value="<%= student.existingYearTotal %>" oninput="divideRowFeesEqually(this)">
+                </td>
+                
+                <!-- Dynamic Split Semester Fields -->
+                <td>
+                  <input type="number" name="fees[<%= index %>][due_amount_A]" class="form-control form-control-sm row-semA-input" value="<%= student.semADue %>" oninput="recalculateRowTotal(this)">
+                </td>
+                <td>
+                  <input type="number" name="fees[<%= index %>][due_amount_B]" class="form-control form-control-sm row-semB-input" value="<%= student.semBDue %>" oninput="recalculateRowTotal(this)">
+                </td>
+                
+                <!-- Dropdown Status for left-out college student -->
+                <td>
+                  <select name="fees[<%= index %>][status]" class="form-select form-select-sm row-status-select" onchange="toggleRowState(this)">
+                    <option value="Active">Active</option>
+                    <option value="Left College">Left College</option>
+                  </select>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 📊 LIVE GRAND TOTAL COLLECTION DASHBOARD -->
+      <div class="card my-4 border-0 shadow-sm text-white" style="background-color: #1e293b;">
+        <div class="card-body p-4">
+          <h5 class="fw-bold mb-3 text-warning border-bottom pb-2">📈 Live Grid Summary (Expected Collection)</h5>
+          <div class="row g-3 text-center">
+            
+            <!-- 1. Total Year Collection -->
+            <div class="col-md-4 border-end border-secondary">
+              <p class="text-muted small mb-1 fw-semibold text-uppercase">Grand Total Year Collection</p>
+              <h3 class="fw-bold text-success" id="grandYearTotal">₹0</h3>
+            </div>
+
+            <!-- 2. Total Semester A Collection -->
+            <div class="col-md-4 border-end border-secondary">
+              <p class="text-muted small mb-1 fw-semibold text-uppercase">Total Semester <%= activeSemesters[0] %> Collection</p>
+              <h3 class="fw-bold text-info" id="grandSemATotal">₹0</h3>
+            </div>
+
+            <!-- 3. Total Semester B Collection -->
+            <div class="col-md-4">
+              <p class="text-muted small mb-1 fw-semibold text-uppercase">Total Semester <%= activeSemesters[1] %> Collection</p>
+              <h3 class="fw-bold text-info" id="grandSemBTotal">₹0</h3>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Submit Action Panel -->
+      <div class="text-end mt-4">
+        <button type="submit" class="btn btn-success btn-lg px-5 fw-bold shadow">Save Batch Matrix Allocations</button>
+      </div>
+    </form>
+
+  <% } else if (selectedSem) { %>
+    <div class="alert alert-warning text-center fw-semibold">No active student profiles discovered matching the requested query parameters.</div>
+  <% } %>
+
+</div>
+
+<!-- SMART CONTROLLER ENGINE SCRIPT -->
+<script>
+// 📊 Grand Total Calculation Engine
+function updateGrandTotals() {
+  let totalYear = 0;
+  let totalSemA = 0;
+  let totalSemB = 0;
+
+  const rows = document.querySelectorAll('.student-row-item');
+  
+  rows.forEach(row => {
+    // Sirf 'Active' status wale bacchon ka aggregation count hoga
+    if (row.querySelector('.row-status-select').value === "Active") {
+      const yearVal = parseFloat(row.querySelector('.row-year-total').value) || 0;
+      const semAVal = parseFloat(row.querySelector('.row-semA-input').value) || 0;
+      const semBVal = parseFloat(row.querySelector('.row-semB-input').value) || 0;
+
+      totalYear += yearVal;
+      totalSemA += semAVal;
+      totalSemB += semBVal;
+    }
+  });
+
+  // UI Allocation Update Rendering
+  document.getElementById('grandYearTotal').innerText = '₹' + totalYear.toLocaleString('en-IN');
+  document.getElementById('grandSemATotal').innerText = '₹' + totalSemA.toLocaleString('en-IN');
+  document.getElementById('grandSemBTotal').innerText = '₹' + totalSemB.toLocaleString('en-IN');
+}
+
+// Global Injector: Target dynamic year split 50-50 logic
+function applyGlobalYearFee() {
+  const annualAmount = parseFloat(document.getElementById('masterYearFee').value) || 0;
+  if(annualAmount <= 0) {
+    alert("Kripya valid year amount enter karein split karne ke liye!");
+    return;
+  }
+  
+  const splitShare = annualAmount / 2;
+  const rows = document.querySelectorAll('.student-row-item');
+  
+  rows.forEach(row => {
+    if(row.querySelector('.row-status-select').value === "Active") {
+      row.querySelector('.row-year-total').value = annualAmount;
+      row.querySelector('.row-semA-input').value = splitShare;
+      row.querySelector('.row-semB-input').value = splitShare;
+    }
+  });
+  
+  updateGrandTotals();
+}
+
+// Row-level equal split execution
+function divideRowFeesEqually(inputElement) {
+  const row = inputElement.closest('.student-row-item');
+  const totalAmt = parseFloat(inputElement.value) || 0;
+  row.querySelector('.row-semA-input').value = totalAmt / 2;
+  row.querySelector('.row-semB-input').value = totalAmt / 2;
+  
+  updateGrandTotals();
+}
+
+// Row-level reverse evaluation mapping
+function recalculateRowTotal(inputElement) {
+  const row = inputElement.closest('.student-row-item');
+  const sA = parseFloat(row.querySelector('.row-semA-input').value) || 0;
+  const sB = parseFloat(row.querySelector('.row-semB-input').value) || 0;
+  row.querySelector('.row-year-total').value = sA + sB;
+  
+  updateGrandTotals();
+}
+
+// Opacity toggle and disables fields for left college students
+function toggleRowState(selectElement) {
+  const row = selectElement.closest('.student-row-item');
+  const inputs = row.querySelectorAll('input[type="number"]');
+  if(selectElement.value === "Left College") {
+    row.style.opacity = "0.5";
+    inputs.forEach(i => i.disabled = true);
+  } else {
+    row.style.opacity = "1";
+    inputs.forEach(i => i.disabled = false);
+  }
+  
+  updateGrandTotals();
+}
+
+// Form validation matrix constraint checks
+function validateGridForm() {
+  const rows = document.querySelectorAll('.student-row-item');
+  let valid = true;
+
+  rows.forEach(row => {
+    if(row.querySelector('.row-status-select').value === "Active") {
+      const yearFee = parseFloat(row.querySelector('.row-year-total').value) || 0;
+      if(yearFee <= 0) {
+        valid = false;
+        row.querySelector('.row-year-total').style.border = "2px solid red";
+      } else {
+        row.querySelector('.row-year-total').style.border = "1px solid #dee2e6";
+      }
+    }
+  });
+
+  if(!valid) {
+    alert("⚠️ Validation Error: Sabhi active bacchon ki fees zero se badi honi chahiye save karne ke liye!");
+    return false;
+  }
+  return true;
+}
+
+// Initialize calculations on DOM ready
+document.addEventListener("DOMContentLoaded", () => {
+  updateGrandTotals();
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<% layout("/layouts/boilerplate") -%>
+
+<div class="container my-5">
+  <h2 class="mb-4 text-dark fw-bold border-bottom pb-2">📦 Unified Batch Fee Collection</h2>
+
+  <!-- SEARCH CONTROLS FRAMEWORK -->
+  <div class="card p-4 shadow-sm mb-4 bg-white border-0">
+    <form action="/fees/collect-bulk" method="GET" class="row g-3 needs-validation" novalidate id="filterForm">
+      
+      <!-- Year Selection Dropdown -->
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Class / Year Branch</label>
+        <select name="className" id="classSelect" class="form-select" required onchange="syncSemesterDropdown()">
+          <option value="">Select branch...</option>
+          <% classData.forEach(c => { %>
+            <option value="<%= c.class %>" <%= query.className === c.class ? 'selected' : '' %>><%= c.class %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <!-- Target Semester (Filtered dynamically via JS) -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold text-secondary">Target Semester</label>
+        <select name="semester" id="semesterSelect" class="form-select" required onchange="syncTimelineScope()">
+          <option value="">Select...</option>
+          <% for(let i=1; i<=8; i++) { %>
+            <option value="<%= i %>" <%= query.semester == i ? 'selected' : '' %>><%= i %></option>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- Section Selection -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold text-secondary">Section</label>
+        <select name="section" class="form-select" required>
+          <option value="">Select section...</option>
+          <% sectionData.forEach(s => { %>
+            <option value="<%= s.name %>" <%= query.section === s.name ? 'selected' : '' %>><%= s.name %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <!-- Timeline Scope (Dynamically Updated Option Ranges) -->
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Timeline Scope Mode</label>
+        <select name="modeSelection" id="timelineSelect" class="form-select" required>
+          <option value="single" <%= query.modeSelection === 'single' ? 'selected' : '' %>>Target Semester Only</option>
+          <option value="both" <%= query.modeSelection === 'both' ? 'selected' : '' %>>Full Year (Dono Semesters)</option>
+        </select>
+      </div>
+
+      <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn w-100 fw-bold text-white py-2 shadow-sm" style="background-color: #0f766e;">Load Batch Grid</button>
+      </div>
+    </form>
+  </div>
+
+  <% if (students && students.length > 0) { %>
+    
+    <!-- MASTER CONTROL TOOLKIT -->
+    <div class="card p-4 mb-4 text-white border-0 shadow-sm" style="background-color: #0f766e;">
+      <h5 class="fw-bold mb-3 border-bottom pb-2 text-warning">⚡ Core Automation Control Toolkit</h5>
+      <div class="row g-3 align-items-end">
+        
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">1. OUTSTANDING INJECTOR</label>
+          <button type="button" onclick="executeGlobalDuesClearance()" class="btn btn-warning w-100 fw-bold shadow-sm">
+            Inject All Pending Dues
+          </button>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">2. CUSTOM VALUE MULTI-INJECTOR</label>
+          <div class="input-group">
+            <input type="number" id="globalCustomValueInput" class="form-control" placeholder="Enter custom amount...">
+            <button class="btn btn-dark fw-bold" type="button" onclick="executeCustomAmountInjection()">Inject Value</button>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">3. GLOBAL PAYMENT MODE OVERRIDE</label>
+          <select id="globalPaymentModeSelector" class="form-select fw-bold" onchange="executeGlobalPaymentModeOverride(this.value)">
+            <option value="">Select Mode Override...</option>
+            <option value="Cash">Cash</option>
+            <option value="UPI">UPI</option>
+            <option value="Net Banking">Net Banking</option>
+            <option value="Cheque">Cheque</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- DATA GRID FORM -->
+    <form action="/fees/process-bulk-payments" method="POST" id="waterfallGridForm">
+      <!-- Hidden System Fields -->
+      <input type="hidden" name="semA" value="<%= activeSemesters[0] %>">
+      <input type="hidden" name="semB" value="<%= activeSemesters[1] %>">
+      <input type="hidden" name="className" value="<%= query.className %>">
+      <input type="hidden" name="section" value="<%= query.section %>">
+      <input type="hidden" name="modeSelection" value="<%= query.modeSelection %>">
+      <input type="hidden" name="submitToken" value="<%= submitToken %>"> <!-- Double Submit Protect Token -->
+
+      <div class="table-responsive shadow rounded">
+        <table class="table align-middle bg-white table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Roll No</th>
+              <th>Student Identity Meta</th>
+              <th class="text-center bg-secondary text-warning">Previous Pending (Dues)</th>
+              <th class="text-center text-warning bg-secondary">Sem-<%= activeSemesters[0] %> Dues</th>
+              <% if(query.modeSelection === 'both') { %>
+                <th class="text-center text-warning bg-secondary">Sem-<%= activeSemesters[1] %> Dues</th>
+              <% } %>
+              <th class="text-center bg-info text-dark">Advance Account Bal</th>
+              <th class="text-center text-success" style="width: 20%;">Amount to Pay (₹)</th>
+              <th style="width: 15%;">Payment Method</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% students.forEach((student, index) => { %>
+              <tr class="payment-row-item <%= student.isLocked ? 'table-light opacity-75' : '' %>">
+                <td>
+                  <input type="hidden" name="payments[<%= index %>][student_id]" value="<%= student.student_id %>">
+                  <input type="hidden" name="payments[<%= index %>][rollNumber]" value="<%= student.rollNumber %>">
+                  <input type="hidden" name="payments[<%= index %>][studentName]" value="<%= student.studentName %>">
+                  <input type="hidden" name="payments[<%= index %>][status]" value="<%= student.status %>">
+                  <span class="badge bg-dark fs-6"><%= student.rollNumber %></span>
+                </td>
+                <td>
+                  <div class="fw-bold text-dark"><%= student.studentName %></div>
+                  <small class="text-muted">F: <%= student.fatherName %></small>
+                </td>
+
+                <!-- Historic Dues display column -->
+                <td class="text-center fw-semibold text-danger bg-light">
+                  <% if (student.previousPendingDues > 0) { %>
+                    <span class="badge bg-danger-subtle text-danger px-2 py-1 fs-6">₹<span class="label-prev-pending"><%= student.previousPendingDues %></span></span>
+                  <% } else { %>
+                    <span class="text-muted">₹0</span>
+                  <% } %>
+                </td>
+
+                <!-- SEMESTER TARGET METRICS DISPLAY BUCKETS -->
+                <td class="text-center fw-semibold text-danger table-active">
+                  ₹<span class="label-semA-pending"><%= student.semA.pending %></span>
+                </td>
+                <% if(query.modeSelection === 'both') { %>
+                  <td class="text-center fw-semibold text-danger table-active">
+                    ₹<span class="label-semB-pending"><%= student.semB.pending %></span>
+                  </td>
+                <% } %>
+
+                <!-- ADVANCE LEDGER BUFFER STATUS COLUMN WITH CONDITIONAL BADGE -->
+                <td class="text-center fw-bold text-info bg-light">
+                  <% if (student.advanceBalance > 0) { %>
+                    <span class="badge bg-info-subtle text-info px-3 py-2 fs-6">₹<span class="label-advance-balance"><%= student.advanceBalance %></span></span>
+                  <% } else { %>
+                    ₹<span class="label-advance-balance">0</span>
+                  <% } %>
+                </td>
+
+                <!-- UNIFIED ACTION INPUT MATRIX ROW -->
+                <td>
+                  <% if(student.isLocked) { %>
+                    <div class="text-center"><span class="badge bg-success py-2 px-3 shadow-sm rounded-pill">✔️ Dues Cleared</span></div>
+                    <input type="hidden" name="payments[<%= index %>][amountToPay]" value="0">
+                  <% } else { %>
+                    <input type="number" 
+                           name="payments[<%= index %>][amountToPay]" 
+                           class="form-control text-center fw-bold input-amount-to-pay border-success text-success shadow-sm" 
+                           value="0" 
+                           min="0"
+                           data-outstanding="<%= student.totalYearDues %>"
+                           data-advance="<%= student.advanceBalance %>"
+                           oninput="processRowLiveCalculations(this)">
+                  <% } %>
+                </td>
+
+                <td>
+                  <select name="payments[<%= index %>][paymentMode]" 
+                          class="form-select form-select-sm fw-semibold select-row-payment-mode"
+                          <%= student.isLocked ? 'disabled' : '' %>>
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Net Banking">Net Banking</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PIPELINE METRICS SUMMARY -->
+      <div class="card my-4 border-0 shadow-sm text-white" style="background-color: #1e293b;">
+        <div class="card-body p-4 text-center">
+          <h5 class="fw-bold mb-3 text-warning border-bottom pb-2 text-start">📈 Live Pipeline Metrics Overview</h5>
+          <div class="row g-3">
+            <div class="col-md-6 border-end border-secondary">
+              <p class="text-muted small mb-1 fw-bold text-uppercase">Total Amount Collecting Right Now</p>
+              <h2 class="fw-bold text-success" id="liveCollectionCounter">₹0</h2>
+            </div>
+            <div class="col-md-6">
+              <p class="text-muted small mb-1 fw-bold text-uppercase">Total Batch Track Nodes Loaded</p>
+              <h2 class="fw-bold text-info"><%= students.length %> Profiles Active</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-end mt-4">
+        <button type="submit" class="btn btn-success btn-lg px-5 fw-bold shadow">Submit Batch Transaction</button>
+      </div>
+    </form>
+  <% } else if (query.modeSelection) { %>
+    <div class="alert alert-warning text-center fw-semibold">No active student profile registers detected matching selection configurations.</div>
+  <% } %>
+</div>
+
+<!-- CLIENT PROCESSING SCRIPTS -->
+<script>
+// Year string se semester options sync karne ke liye client controller logic
+function getRangeByClassName(name) {
+  const upper = name.toUpperCase();
+  if (upper.includes("1ST YEAR")) return [1, 2];
+  if (upper.includes("2ND YEAR")) return [3, 4];
+  if (upper.includes("3RD YEAR")) return [5, 6];
+  if (upper.includes("4TH YEAR")) return [7, 8];
+  return [1, 8];
+}
+
+function syncSemesterDropdown() {
+  const classVal = document.getElementById('classSelect').value;
+  const semesterSelect = document.getElementById('semesterSelect');
+  
+  if(!classVal) return;
+
+  const range = getRangeByClassName(classVal);
+  semesterSelect.innerHTML = '<option value="">Select...</option>';
+  
+  for(let i = range[0]; i <= range[1]; i++) {
+    semesterSelect.innerHTML += `<option value="${i}">${i}</option>`;
+  }
+  syncTimelineScope();
+}
+
+function syncTimelineScope() {
+  const classVal = document.getElementById('classSelect').value;
+  const semVal = document.getElementById('semesterSelect').value;
+  const timelineSelect = document.getElementById('timelineSelect');
+
+  if(!classVal || !semVal) return;
+
+  const range = getRangeByClassName(classVal);
+  
+  timelineSelect.innerHTML = `
+    <option value="single">Target Semester Only (Sem ${semVal})</option>
+    <option value="both">Full Year (Dono Semesters: Sem ${range[0]} & ${range[1]})</option>
+  `;
+}
+
+// Outstanding Dues Injector with dynamic Advance Deductions
+function processRowLiveCalculations(inputElement) {
+  let val = parseFloat(inputElement.value) || 0;
+  if (val < 0) inputElement.value = 0;
+  calculateLiveDashboardMetrics();
+}
+
+function executeGlobalDuesClearance() {
+  document.querySelectorAll('.payment-row-item').forEach(row => {
+    const targetInput = row.querySelector('.input-amount-to-pay');
+    if (targetInput) {
+      const outstandingDues = parseFloat(targetInput.getAttribute('data-outstanding')) || 0;
+      const advanceBalance = parseFloat(targetInput.getAttribute('data-advance')) || 0;
+      
+      // Auto subtract advance balance directly from input generation
+      const finalCollection = Math.max(0, outstandingDues - advanceBalance);
+      targetInput.value = finalCollection;
+    }
+  });
+  calculateLiveDashboardMetrics();
+}
+
+function executeCustomAmountInjection() {
+  const injectionVal = parseFloat(document.getElementById('globalCustomValueInput').value) || 0;
+  if (injectionVal <= 0) {
+    alert("Alert: Please enter a positive custom amount allocation.");
+    return;
+  }
+  document.querySelectorAll('.payment-row-item').forEach(row => {
+    const targetInput = row.querySelector('.input-amount-to-pay');
+    if (targetInput) {
+      targetInput.value = injectionVal;
+    }
+  });
+  calculateLiveDashboardMetrics();
+}
+
+function executeGlobalPaymentModeOverride(overrideValue) {
+  if(!overrideValue) return;
+  document.querySelectorAll('.select-row-payment-mode').forEach(dropdown => {
+    if(!dropdown.disabled) {
+      dropdown.value = overrideValue;
+    }
+  });
+}
+
+function calculateLiveDashboardMetrics() {
+  let combinedAggregateCounter = 0;
+  document.querySelectorAll('.input-amount-to-pay').forEach(input => {
+    combinedAggregateCounter += (parseFloat(input.value) || 0);
+  });
+  document.getElementById('liveCollectionCounter').innerText = '₹' + combinedAggregateCounter.toLocaleString('en-IN');
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  calculateLiveDashboardMetrics();
+  
+  // Page load hone pe dynamic state parameters persist rakhne ke liye execution
+  const urlParams = new URLSearchParams(window.location.search);
+  if(urlParams.has('className') && !urlParams.has('submit')) {
+    // dropdown limits active sync matching search filters
+    const classVal = "<%= query.className %>";
+    const semVal = "<%= query.semester %>";
+    if(classVal && semVal) {
+       const range = getRangeByClassName(classVal);
+       const semesterSelect = document.getElementById('semesterSelect');
+       semesterSelect.innerHTML = '';
+       for(let i = range[0]; i <= range[1]; i++) {
+         const selected = (i == semVal) ? 'selected' : '';
+         semesterSelect.innerHTML += `<option value="${i}" ${selected}>${i}</option>`;
+       }
+       syncTimelineScope();
+    }
+  }
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<% layout("/layouts/boilerplate") -%>
+
+  <div class="container my-5">
+    <h2 class="mb-4 text-dark fw-bold border-bottom pb-2">📦 Unified Batch Fee Collection (Live Ledger Sync)</h2>
+
+    <!-- HIDDEN METADATA FOR JAVASCRIPT (100% Safe Fallbacks) -->
+    <input type="hidden" id="metadataClassName" value="<%= (query && query.className) ? query.className : '' %>">
+    <input type="hidden" id="metadataSemester" value="<%= (query && query.semester) ? query.semester : '' %>">
+
+    <!-- SEARCH CONTROLS FRAMEWORK -->
+    <div class="card p-4 shadow-sm mb-4 bg-white border-0">
+      <form action="/fees/collect-bulk" method="GET" class="row g-3 needs-validation" novalidate id="filterForm">
+
+        <!-- Year Selection Dropdown -->
+        <div class="col-md-3">
+          <label class="form-label fw-bold text-secondary">Class / Year Branch</label>
+          <select name="className" id="classSelect" class="form-select" required onchange="syncSemesterDropdown()">
+            <option value="">Select branch...</option>
+            <% if (typeof classData !=='undefined' && classData) { %>
+              <% classData.forEach(c=> { %>
+                <option value="<%= c.class %>" <%=(query && query.className===c.class) ? 'selected' : '' %>><%= c.class
+                    %>
+                </option>
+                <% }) %>
+                  <% } %>
+          </select>
+        </div>
+
+        <!-- Target Semester -->
+        <div class="col-md-2">
+          <label class="form-label fw-bold text-secondary">Target Semester</label>
+          <select name="semester" id="semesterSelect" class="form-select" required onchange="syncTimelineScope()">
+            <option value="">Select...</option>
+            <% for(let i=1; i<=8; i++) { %>
+              <option value="<%= i %>" <%=(query && query.semester==i) ? 'selected' : '' %>><%= i %>
+              </option>
+              <% } %>
+          </select>
+        </div>
+
+        <!-- Section Selection -->
+        <div class="col-md-2">
+          <label class="form-label fw-bold text-secondary">Section</label>
+          <select name="section" class="form-select" required>
+            <option value="">Select section...</option>
+            <% if (typeof sectionData !=='undefined' && sectionData) { %>
+              <% sectionData.forEach(s=> { %>
+                <option value="<%= s.name %>" <%=(query && query.section===s.name) ? 'selected' : '' %>><%= s.name %>
+                </option>
+                <% }) %>
+                  <% } %>
+          </select>
+        </div>
+
+        <!-- Timeline Scope Mode -->
+        <div class="col-md-3">
+          <label class="form-label fw-bold text-secondary">Timeline Scope Mode</label>
+          <select name="modeSelection" id="timelineSelect" class="form-select" required>
+            <option value="single" <%=(query && query.modeSelection==='single' ) ? 'selected' : '' %>>Current Semester
+            </option>
+            <option value="next" <%=(query && query.modeSelection==='next' ) ? 'selected' : '' %>>Next Current Semester
+            </option>
+            <option value="both" <%=(query && query.modeSelection==='both' ) ? 'selected' : '' %>>Both Semesters of
+              Current Year</option>
+          </select>
+        </div>
+
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn w-100 fw-bold text-white py-2 shadow-sm"
+            style="background-color: #0f766e;">Load Batch Grid</button>
+        </div>
+      </form>
+    </div>
+
+    <% if (typeof students !=='undefined' && students && students.length> 0) { %>
+
+      <!-- MASTER CONTROL TOOLKIT -->
+      <div class="card p-4 mb-4 text-white border-0 shadow-sm" style="background-color: #0f766e;">
+        <h5 class="fw-bold mb-3 border-bottom pb-2 text-warning">⚡ Core Automation Control Toolkit</h5>
+        <div class="row g-3 align-items-end">
+
+          <div class="col-md-4">
+            <label class="form-label small text-light fw-bold">1. OUTSTANDING INJECTOR</label>
+            <button type="button" onclick="executeGlobalDuesClearance()"
+              class="btn btn-warning w-100 fw-bold shadow-sm">
+              Inject All Net Pending Dues
+            </button>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label small text-light fw-bold">2. CUSTOM VALUE MULTI-INJECTOR</label>
+            <div class="input-group">
+              <input type="number" id="globalCustomValueInput" class="form-control"
+                placeholder="Enter custom amount...">
+              <button class="btn btn-dark fw-bold" type="button" onclick="executeCustomAmountInjection()">Inject
+                Value</button>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label small text-light fw-bold">3. GLOBAL PAYMENT MODE OVERRIDE</label>
+            <select id="globalPaymentModeSelector" class="form-select fw-bold"
+              onchange="executeGlobalPaymentModeOverride(this.value)">
+              <option value="">Select Mode Override...</option>
+              <option value="Cash">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="Net Banking">Net Banking</option>
+              <option value="Cheque">Cheque</option>
+            </select>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- DATA GRID FORM -->
+      <form action="/fees/process-bulk-payments" method="POST" id="waterfallGridForm">
+        <input type="hidden" name="semA"
+          value="<%= (typeof activeSemesters !== 'undefined' && activeSemesters[0]) ? activeSemesters[0] : '' %>">
+        <input type="hidden" name="semB"
+          value="<%= (typeof activeSemesters !== 'undefined' && activeSemesters[1]) ? activeSemesters[1] : '' %>">
+        <input type="hidden" name="className" value="<%= (query && query.className) ? query.className : '' %>">
+        <input type="hidden" name="section" value="<%= (query && query.section) ? query.section : '' %>">
+        <input type="hidden" name="modeSelection"
+          value="<%= (query && query.modeSelection) ? query.modeSelection : '' %>">
+        <input type="hidden" name="submitToken" value="<%= typeof submitToken !== 'undefined' ? submitToken : '' %>">
+
+        <div class="table-responsive shadow rounded">
+          <table class="table align-middle bg-white table-hover mb-0">
+            <thead class="table-dark">
+              <tr>
+                <th>Roll No</th>
+                <th>Student Identity Meta</th>
+                <th class="text-center text-warning bg-secondary">Prev Pending</th>
+                <th class="text-center text-warning bg-secondary">Sem-<%= (typeof activeSemesters !=='undefined' &&
+                    activeSemesters[0]) ? activeSemesters[0] : '' %> Dues</th>
+                <% if(query && query.modeSelection==='both' ) { %>
+                  <th class="text-center text-warning bg-secondary">Sem-<%= (typeof activeSemesters !=='undefined' &&
+                      activeSemesters[1]) ? activeSemesters[1] : '' %> Dues</th>
+                  <% } %>
+                    <th class="text-center" style="width: 25%;">Balance Settlement</th>
+                    <th class="text-center text-success" style="width: 15%;">Amount to Pay (₹)</th>
+                    <th style="width: 15%;">Payment Method</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% students.forEach((student, index)=> { %>
+                <tr class="payment-row-item <%= student.isLocked ? 'table-light opacity-75' : '' %>"
+                  data-index="<%= index %>">
+                  <td>
+                    <input type="hidden" name="payments[<%= index %>][student_id]" value="<%= student.student_id %>">
+                    <input type="hidden" name="payments[<%= index %>][rollNumber]" value="<%= student.rollNumber %>">
+                    <input type="hidden" name="payments[<%= index %>][studentName]" value="<%= student.studentName %>">
+                    <input type="hidden" name="payments[<%= index %>][status]" value="<%= student.status %>">
+                    <span class="badge bg-dark fs-6">
+                      <%= student.rollNumber %>
+                    </span>
+                  </td>
+                  <td>
+                    <div class="fw-bold text-dark">
+                      <%= student.studentName %>
+                    </div>
+                    <small class="text-muted">F: <%= student.fatherName %></small>
+                  </td>
+
+                  <!-- Previous Pending Column -->
+                  <td class="text-center fw-semibold text-danger bg-light">
+                    <span class="label-prev-pending">₹<%= student.previousPendingDues %></span>
+                  </td>
+
+                  <!-- Sem A Column -->
+                  <td class="text-center fw-semibold text-danger table-active">
+                    <span class="label-sema-pending">₹<%= student.semA.pending %></span>
+                  </td>
+
+                  <!-- Sem B Column -->
+                  <% if(query && query.modeSelection==='both' ) { %>
+                    <td class="text-center fw-semibold text-danger table-active">
+                      <span class="label-semb-pending">₹<%= student.semB ? student.semB.pending : 0 %></span>
+                    </td>
+                    <% } %>
+
+                      <!-- Dynamic Real-Time Settlement Box -->
+                      <td class="text-center bg-light">
+                        <div
+                          class="d-flex flex-column gap-1 align-items-center justify-content-center ledger-status-container">
+
+                          
+
+                            <% if (student.originalAdvance > 0) { %>
+  <!-- Available Database Advance Balance -->
+  <div class="badge w-100 py-2 fs-7 shadow-sm border mb-1" style="background-color: #cff4fc !important; border-color: #b6effb !important; color: #055160 !important; display: inline-block !important;">
+    💎 ₹<span class="db-advance-val fw-bolder"><%= student.originalAdvance %></span> - Available Advance Balance
+  </div>
+<% } %>
+
+                              <!-- Live Calculation Status -->
+                              <div
+                                class="live-status-badge badge w-100 py-2 fs-7 shadow-sm <%= student.isLocked ? 'bg-success-subtle text-success border border-success' : 'bg-warning-subtle text-warning border border-warning' %>">
+                                <%= student.isLocked ? '🎉 Complete / Clear' : '⚠️ Pending: ₹' + student.totalYearDues
+                                  %>
+                              </div>
+
+                              <!-- Projected Future Wallet Balance -->
+                              <div class="projected-advance-badge badge w-100 py-2 fs-7 shadow-sm border d-none"
+                                style="background-color: #d1e7dd !important; border-color: #badbcc !important; color: #0f5132 !important;">
+                                🚀 ₹<span class="projected-advance-val fw-bolder">0</span> - Projected Advance after
+                                this payment
+                              </div>
+
+                        </div>
+                      </td>
+
+                      <!-- Amount Input Matrix -->
+                      <td>
+                        <% if(student.isLocked) { %>
+                          <div class="text-center">
+                            <span class="badge bg-success py-2 px-3 shadow-sm rounded-pill">✔️ Cleared</span>
+                          </div>
+                          <input type="hidden" name="payments[<%= index %>][amountToPay]" value="0">
+                          <% } else { %>
+                            <input type="number" name="payments[<%= index %>][amountToPay]"
+                              class="form-control text-center fw-bold input-amount-to-pay border-success text-success shadow-sm"
+                              value="0" min="0" data-outstanding="<%= student.totalYearDues %>"
+                              data-db-advance="<%= student.originalAdvance %>"
+                              data-prev-dues="<%= student.previousPendingDues %>"
+                              data-sema-dues="<%= student.semA.pending %>"
+                              data-semb-dues="<%= student.semB ? student.semB.pending : 0 %>"
+                              oninput="processRowLiveCalculations(this)">
+                            <% } %>
+                      </td>
+
+                      <!-- Payment Method -->
+                      <td>
+                        <% if(student.isLocked) { %>
+                          <input type="hidden" name="payments[<%= index %>][paymentMode]" value="Cash">
+                          <select class="form-select form-select-sm fw-semibold select-row-payment-mode" disabled>
+                            <option value="Cash" selected>Cash</option>
+                          </select>
+                          <% } else { %>
+                            <select name="payments[<%= index %>][paymentMode]"
+                              class="form-select form-select-sm fw-semibold select-row-payment-mode">
+                              <option value="Cash">Cash</option>
+                              <option value="UPI">UPI</option>
+                              <option value="Net Banking">Net Banking</option>
+                              <option value="Cheque">Cheque</option>
+                            </select>
+                            <% } %>
+                      </td>
+                </tr>
+                <% }) %>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- PIPELINE METRICS SUMMARY -->
+        <div class="card my-4 border-0 shadow-sm text-white" style="background-color: #1e293b;">
+          <div class="card-body p-4 text-center">
+            <h5 class="fw-bold mb-3 text-warning border-bottom pb-2 text-start">📈 Live Pipeline Metrics Overview</h5>
+            <div class="row g-3">
+              <div class="col-md-6 border-end border-secondary">
+                <p class="text-muted small mb-1 fw-bold text-uppercase">Total Amount Collecting Right Now</p>
+                <h2 class="fw-bold text-success" id="liveCollectionCounter">₹0</h2>
+              </div>
+              <div class="col-md-6">
+                <p class="text-muted small mb-1 fw-bold text-uppercase">Total Batch Track Nodes Loaded</p>
+                <h2 class="fw-bold text-info">
+                  <%= students.length %> Profiles Active
+                </h2>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-end mt-4">
+          <button type="submit" class="btn btn-success btn-lg px-5 fw-bold shadow">Submit Batch Transaction</button>
+        </div>
+      </form>
+      <% } %>
+  </div>
+
+  <script>
+
+    // Is block ko apni script ke sabse upar ya script tag ke andar daal do
+    if (!document.getElementById('custom-blink-styles')) {
+      const style = document.createElement('style');
+      style.id = 'custom-blink-styles';
+      style.innerHTML = `
+    @keyframes fastDangerBlink {
+      0% { 
+        opacity: 1; 
+        box-shadow: 0 0 12px rgba(176, 42, 55, 0.6);
+      }
+      50% { 
+        opacity: 0.25; /* Bhujega nahi, bas light ho jayega */
+        box-shadow: 0 0 2px rgba(176, 42, 55, 0.1);
+      }
+      100% { 
+        opacity: 1; 
+        box-shadow: 0 0 12px rgba(176, 42, 55, 0.6);
+      }
+    }
+    .pulse-danger-blink {
+      animation: fastDangerBlink 1s infinite ease-in-out !important;
+      
+      /* Ekdam pakka, gahra laal solid rang (No bootstrap override) */
+      background-color: #b02a37 !important; 
+      border-color: #842029 !important;
+      color: #ffffff !important; /* White text high contrast ke liye */
+      
+      /* Text bada aur mota karne ke liye styles */
+      font-size: 1rem !important; /* Text ko bada kiya */
+      font-weight: 900 !important; /* Text ko ekdam mota kiya */
+      letter-spacing: 0.5px !important;
+      padding: 10px 14px !important; /* Badge thoda bada aur premium lagega */
+      display: inline-block !important;
+    }
+  `;
+      document.head.appendChild(style);
+    }
+
+    function processRowLiveCalculations(inputElement) {
+      const enteredAmount = parseFloat(inputElement.value) || 0;
+      const row = inputElement.closest('tr');
+
+      const dbAdvance = parseFloat(inputElement.getAttribute('data-db-advance')) || 0;
+      const prevDues = parseFloat(inputElement.getAttribute('data-prev-dues')) || 0;
+      const semADues = parseFloat(inputElement.getAttribute('data-sema-dues')) || 0;
+      const semBDues = parseFloat(inputElement.getAttribute('data-semb-dues')) || 0;
+
+      const totalOriginalDues = prevDues + semADues + semBDues;
+
+      const statusBadge = row.querySelector('.live-status-badge');
+      const projAdvanceBadge = row.querySelector('.projected-advance-badge');
+      const projAdvanceVal = row.querySelector('.projected-advance-val');
+
+      let workingCapital = enteredAmount + dbAdvance;
+      let remainingDues = totalOriginalDues;
+
+      if (workingCapital >= remainingDues) {
+        const spilloverAdvance = workingCapital - remainingDues;
+        statusBadge.className = "live-status-badge badge w-100 py-2 fs-7 shadow-sm bg-success text-white border border-success";
+        statusBadge.innerHTML = "🎉 Fully Settled";
+
+        if (spilloverAdvance > 0) {
+          projAdvanceBadge.classList.remove('d-none');
+          projAdvanceVal.innerText = spilloverAdvance;
+        } else {
+          projAdvanceBadge.classList.add('d-none');
+        }
+      }
+      // else {
+      //   const netPendingAfterPay = remainingDues - workingCapital;
+      //   statusBadge.className = "live-status-badge badge w-100 py-2 fs-7 shadow-sm bg-warning-subtle text-warning border border-warning";
+      //   statusBadge.innerHTML = `₹${netPendingAfterPay} - Balance Due after this payment`;
+      //   projAdvanceBadge.classList.add('d-none');
+      // }
+      else {
+        const netPendingAfterPay = remainingDues - workingCapital;
+        // classes ko text-danger, border-danger aur pulse-warning-blink me change kiya hai
+        statusBadge.className = "live-status-badge badge w-100 py-2 fs-7 shadow-sm bg-danger-subtle text-danger border border-danger pulse-danger-blink";
+        statusBadge.innerHTML = `⚠️ ₹${netPendingAfterPay} - Balance Due after this payment`;
+        projAdvanceBadge.classList.add('d-none');
+      }
+
+      calculateLiveDashboardMetrics();
+    }
+
+    function getRangeByClassName(name) {
+      const upper = name.toUpperCase();
+      if (upper.includes("1ST YEAR")) return [1, 2];
+      if (upper.includes("2ND YEAR")) return [3, 4];
+      if (upper.includes("3RD YEAR")) return [5, 6];
+      if (upper.includes("4TH YEAR")) return [7, 8];
+      return [1, 8];
+    }
+
+    function syncSemesterDropdown() {
+      const classVal = document.getElementById('classSelect').value;
+      const semesterSelect = document.getElementById('semesterSelect');
+      if (!classVal) return;
+
+      const range = getRangeByClassName(classVal);
+      semesterSelect.innerHTML = '<option value="">Select...</option>';
+      for (let i = range[0]; i <= range[1]; i++) {
+        semesterSelect.innerHTML += `<option value="${i}">${i}</option>`;
+      }
+      syncTimelineScope();
+    }
+
+    function syncTimelineScope() {
+      const classVal = document.getElementById('classSelect').value;
+      const semVal = document.getElementById('semesterSelect').value;
+      const timelineSelect = document.getElementById('timelineSelect');
+      if (!classVal || !semVal) return;
+
+      const range = getRangeByClassName(classVal);
+      const currentSem = parseInt(semVal);
+      const nextSem = (currentSem + 1 <= range[1]) ? currentSem + 1 : currentSem;
+
+      timelineSelect.innerHTML = `
+    <option value="single">Current Semester (Sem ${currentSem})</option>
+    <option value="next">Next Current Semester (Sem ${nextSem})</option>
+    <option value="both">Both Semesters of Current Year (Sem ${range[0]} & ${range[1]})</option>
+  `;
+    }
+
+    function executeGlobalDuesClearance() {
+      document.querySelectorAll('.payment-row-item').forEach(row => {
+        const targetInput = row.querySelector('.input-amount-to-pay');
+        if (targetInput) {
+          const outstandingDues = parseFloat(targetInput.getAttribute('data-outstanding')) || 0;
+          const dbAdvance = parseFloat(targetInput.getAttribute('data-db-advance')) || 0;
+
+          const finalCollection = Math.max(0, outstandingDues - dbAdvance);
+          targetInput.value = finalCollection;
+          processRowLiveCalculations(targetInput);
+        }
+      });
+    }
+
+    function executeCustomAmountInjection() {
+      const injectionVal = parseFloat(document.getElementById('globalCustomValueInput').value) || 0;
+      if (injectionVal <= 0) {
+        alert("Alert: Please enter a positive custom amount allocation.");
+        return;
+      }
+      document.querySelectorAll('.payment-row-item').forEach(row => {
+        const targetInput = row.querySelector('.input-amount-to-pay');
+        if (targetInput) {
+          targetInput.value = injectionVal;
+          processRowLiveCalculations(targetInput);
+        }
+      });
+    }
+
+    // Fixed missing global payment override block
+    function executeGlobalPaymentModeOverride(overrideValue) {
+      if (!overrideValue) return;
+      document.querySelectorAll('.select-row-payment-mode').forEach(dropdown => {
+        if (!dropdown.disabled) {
+          dropdown.value = overrideValue;
+        }
+      });
+    }
+
+    function calculateLiveDashboardMetrics() {
+      let combinedAggregateCounter = 0;
+      document.querySelectorAll('.input-amount-to-pay').forEach(input => {
+        combinedAggregateCounter += (parseFloat(input.value) || 0);
+      });
+      const counterEl = document.getElementById('liveCollectionCounter');
+      if (counterEl) {
+        counterEl.innerText = '₹' + combinedAggregateCounter.toLocaleString('en-IN');
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      calculateLiveDashboardMetrics();
+
+      const classInputEl = document.getElementById('metadataClassName');
+      const semInputEl = document.getElementById('metadataSemester');
+
+      const initialClass = classInputEl ? classInputEl.value : '';
+      const initialSem = semInputEl ? semInputEl.value : '';
+
+      if (initialClass && initialSem) {
+        const range = getRangeByClassName(initialClass);
+        const semesterSelect = document.getElementById('semesterSelect');
+        if (semesterSelect) {
+          semesterSelect.innerHTML = '';
+          for (let i = range[0]; i <= range[1]; i++) {
+            const selected = (i == initialSem) ? 'selected' : '';
+            semesterSelect.innerHTML += `<option value="${i}" ${selected}>${i}</option>`;
+          }
+          syncTimelineScope();
+        }
+      }
+    });
+  </script>
+
+
+
+<% layout("/layouts/boilerplate") -%>
+
+<div class="container my-5">
+  <h2 class="mb-4 text-dark fw-bold border-bottom pb-2">📦 Unified Batch Fee Collection (Live Ledger Sync)</h2>
+
+  <!-- HIDDEN METADATA FOR JAVASCRIPT (100% Safe Fallbacks) -->
+  <input type="hidden" id="metadataClassName" value="<%= (query && query.className) ? query.className : '' %>">
+  <input type="hidden" id="metadataSemester" value="<%= (query && query.semester) ? query.semester : '' %>">
+
+  <!-- SEARCH CONTROLS FRAMEWORK -->
+  <div class="card p-4 shadow-sm mb-4 bg-white border-0">
+    <form action="/fees/collect-bulk" method="GET" class="row g-3 needs-validation" novalidate id="filterForm">
+
+      <!-- Year Selection Dropdown -->
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Class / Year Branch</label>
+        <select name="className" id="classSelect" class="form-select" required onchange="syncSemesterDropdown()">
+          <option value="">Select branch...</option>
+          <% if (typeof classData !=='undefined' && classData) { %>
+            <% classData.forEach(c=> { %>
+              <option value="<%= c.class %>" <%=(query && query.className===c.class) ? 'selected' : '' %>><%= c.class %></option>
+            <% }) %>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- Target Semester -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold text-secondary">Target Semester</label>
+        <select name="semester" id="semesterSelect" class="form-select" required onchange="syncTimelineScope()">
+          <option value="">Select...</option>
+          <% for(let i=1; i<=8; i++) { %>
+            <option value="<%= i %>" <%=(query && query.semester==i) ? 'selected' : '' %>><%= i %></option>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- Section Selection -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold text-secondary">Section</label>
+        <select name="section" class="form-select" required>
+          <option value="">Select section...</option>
+          <% if (typeof sectionData !=='undefined' && sectionData) { %>
+            <% sectionData.forEach(s=> { %>
+              <option value="<%= s.name %>" <%=(query && query.section===s.name) ? 'selected' : '' %>><%= s.name %></option>
+            <% }) %>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- Timeline Scope Mode -->
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Timeline Scope Mode</label>
+        <select name="modeSelection" id="timelineSelect" class="form-select" required>
+          <option value="single" <%=(query && query.modeSelection==='single' ) ? 'selected' : '' %>>Current Semester</option>
+          <option value="next" <%=(query && query.modeSelection==='next' ) ? 'selected' : '' %>>Next Current Semester</option>
+          <option value="both" <%=(query && query.modeSelection==='both' ) ? 'selected' : '' %>>Both Semesters of Current Year</option>
+        </select>
+      </div>
+
+      <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn w-100 fw-bold text-white py-2 shadow-sm" style="background-color: #0f766e;">Load Batch Grid</button>
+      </div>
+    </form>
+  </div>
+
+  <% if (typeof students !=='undefined' && students && students.length> 0) { %>
+
+    <!-- MASTER CONTROL TOOLKIT -->
+    <div class="card p-4 mb-4 text-white border-0 shadow-sm" style="background-color: #0f766e;">
+      <h5 class="fw-bold mb-3 border-bottom pb-2 text-warning">⚡ Core Automation Control Toolkit</h5>
+      <div class="row g-3 align-items-end">
+
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">1. OUTSTANDING INJECTOR</label>
+          <button type="button" onclick="executeGlobalDuesClearance()" class="btn btn-warning w-100 fw-bold shadow-sm">
+            Inject All Net Pending Dues
+          </button>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">2. CUSTOM VALUE MULTI-INJECTOR</label>
+          <div class="input-group">
+            <input type="number" id="globalCustomValueInput" class="form-control" placeholder="Enter custom amount...">
+            <button class="btn btn-dark fw-bold" type="button" onclick="executeCustomAmountInjection()">Inject Value</button>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">3. GLOBAL PAYMENT MODE OVERRIDE</label>
+          <select id="globalPaymentModeSelector" class="form-select fw-bold" onchange="executeGlobalPaymentModeOverride(this.value)">
+            <option value="">Select Mode Override...</option>
+            <option value="Cash">Cash</option>
+            <option value="UPI">UPI</option>
+            <option value="Net Banking">Net Banking</option>
+            <option value="Cheque">Cheque</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- DATA GRID FORM -->
+    <form action="/fees/process-bulk-payments" method="POST" id="waterfallGridForm">
+      <input type="hidden" name="semA" value="<%= (typeof activeSemesters !== 'undefined' && activeSemesters[0]) ? activeSemesters[0] : '' %>">
+      <input type="hidden" name="semB" value="<%= (typeof activeSemesters !== 'undefined' && activeSemesters[1]) ? activeSemesters[1] : '' %>">
+      <input type="hidden" name="className" value="<%= (query && query.className) ? query.className : '' %>">
+      <input type="hidden" name="section" value="<%= (query && query.section) ? query.section : '' %>">
+      <input type="hidden" name="modeSelection" value="<%= (query && query.modeSelection) ? query.modeSelection : '' %>">
+      <input type="hidden" name="submitToken" value="<%= typeof submitToken !== 'undefined' ? submitToken : '' %>">
+
+      <div class="table-responsive shadow rounded">
+        <table class="table align-middle bg-white table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Roll No</th>
+              <th>Student Identity Meta</th>
+              <th class="text-center text-warning bg-secondary">Prev Pending</th>
+              <th class="text-center text-warning bg-secondary">Sem-<%= (typeof activeSemesters !=='undefined' && activeSemesters[0]) ? activeSemesters[0] : '' %> Dues</th>
+              <% if(query && query.modeSelection==='both' ) { %>
+                <th class="text-center text-warning bg-secondary">Sem-<%= (typeof activeSemesters !=='undefined' && activeSemesters[1]) ? activeSemesters[1] : '' %> Dues</th>
+              <% } %>
+              <th class="text-center" style="width: 25%;">Balance Settlement</th>
+              <th class="text-center text-success" style="width: 18%;">Amount to Pay (₹)</th>
+              <th style="width: 17%;">Payment Method</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% students.forEach((student, index)=> { %>
+              <tr class="payment-row-item <%= student.isLocked ? 'table-light opacity-75' : '' %>" data-index="<%= index %>">
+                <td>
+                  <input type="hidden" name="payments[<%= index %>][student_id]" value="<%= student.student_id %>">
+                  <input type="hidden" name="payments[<%= index %>][rollNumber]" value="<%= student.rollNumber %>">
+                  <input type="hidden" name="payments[<%= index %>][studentName]" value="<%= student.studentName %>">
+                  <input type="hidden" name="payments[<%= index %>][status]" value="<%= student.status %>">
+                  <span class="badge bg-dark fs-6"><%= student.rollNumber %></span>
+                </td>
+                <td>
+                  <div class="fw-bold text-dark"><%= student.studentName %></div>
+                  <small class="text-muted">F: <%= student.fatherName %></small>
+                </td>
+
+                <!-- Previous Pending Column -->
+                <td class="text-center fw-semibold text-danger bg-light">
+                  <span class="label-prev-pending">₹<%= student.previousPendingDues %></span>
+                </td>
+
+                <!-- Sem A Column -->
+                <td class="text-center fw-semibold text-danger table-active">
+                  <span class="label-sema-pending">₹<%= student.semA.pending %></span>
+                </td>
+
+                <!-- Sem B Column -->
+                <% if(query && query.modeSelection==='both' ) { %>
+                  <td class="text-center fw-semibold text-danger table-active">
+                    <span class="label-semb-pending">₹<%= student.semB ? student.semB.pending : 0 %></span>
+                  </td>
+                <% } %>
+
+                <!-- Dynamic Real-Time Settlement Box -->
+                <td class="text-center bg-light">
+                  <div class="d-flex flex-column gap-1 align-items-center justify-content-center ledger-status-container">
+                    
+                    <% if (student.originalAdvance > 0) { %>
+                      <!-- Available Database Advance Balance -->
+                      <div class="badge w-100 py-2 fs-7 shadow-sm border mb-1" style="background-color: #cff4fc !important; border-color: #b6effb !important; color: #055160 !important; display: inline-block !important;">
+                        💎 ₹<span class="db-advance-val fw-bolder"><%= student.originalAdvance %></span> - Available Advance Balance
+                      </div>
+                    <% } %>
+
+                    <!-- Live Calculation Status -->
+                    <div class="live-status-badge badge w-100 py-2 fs-7 shadow-sm <%= student.isLocked ? 'bg-success-subtle text-success border border-success' : 'bg-warning-subtle text-warning border border-warning' %>">
+                      <%= student.isLocked ? '🎉 Complete / Clear' : '⚠️ Pending: ₹' + student.totalYearDues %>
+                    </div>
+
+                    <!-- Projected Future Wallet Balance -->
+                    <div class="projected-advance-badge badge w-100 py-2 fs-7 shadow-sm border d-none" style="background-color: #d1e7dd !important; border-color: #badbcc !important; color: #0f5132 !important;">
+                      🚀 ₹<span class="projected-advance-val fw-bolder">0</span> - Projected Advance after this payment
+                    </div>
+
+                  </div>
+                </td>
+
+                <!-- Amount Input Matrix with New Reset Cross Icon Button -->
+                <td>
+                  <% if(student.isLocked) { %>
+                    <div class="text-center">
+                      <span class="badge bg-success py-2 px-3 shadow-sm rounded-pill">✔️ Cleared</span>
+                    </div>
+                    <input type="hidden" name="payments[<%= index %>][amountToPay]" value="0">
+                  <% } else { %>
+                    <div class="input-group shadow-sm rounded">
+                      <input type="number" name="payments[<%= index %>][amountToPay]"
+                        class="form-control text-center fw-bold input-amount-to-pay border-success text-success"
+                        value="0" min="0" data-outstanding="<%= student.totalYearDues %>"
+                        data-db-advance="<%= student.originalAdvance %>"
+                        data-prev-dues="<%= student.previousPendingDues %>"
+                        data-sema-dues="<%= student.semA.pending %>"
+                        data-semb-dues="<%= student.semB ? student.semB.pending : 0 %>"
+                        oninput="processRowLiveCalculations(this)">
+                      <button class="btn btn-outline-danger border-success fw-bold reset-row-btn" type="button" onclick="resetRowToZero(this)" title="Clear payment row">✕</button>
+                    </div>
+                  <% } %>
+                </td>
+
+                <!-- Payment Method (Dynamic Enum Protection Safe Guard) -->
+                <td>
+                  <% if(student.isLocked) { %>
+                    <input type="hidden" name="payments[<%= index %>][paymentMode]" value="Cash">
+                    <select class="form-select form-select-sm fw-semibold select-row-payment-mode" disabled>
+                      <option value="Cash" selected>Cash</option>
+                    </select>
+                  <% } else { %>
+                    <!-- Fallback default selection prevents Enum mismatch at database layer if collection is 0 -->
+                    <select name="payments[<%= index %>][paymentMode]" class="form-select form-select-sm fw-semibold select-row-payment-mode">
+                      <option value="Cash" selected>Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Net Banking">Net Banking</option>
+                      <option value="Cheque">Cheque</option>
+                    </select>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PIPELINE METRICS SUMMARY -->
+      <div class="card my-4 border-0 shadow-sm text-white" style="background-color: #1e293b;">
+        <div class="card-body p-4 text-center">
+          <h5 class="fw-bold mb-3 text-warning border-bottom pb-2 text-start">📈 Live Pipeline Metrics Overview</h5>
+          <div class="row g-3">
+            <div class="col-md-6 border-end border-secondary">
+              <p class="text-muted small mb-1 fw-bold text-uppercase">Total Amount Collecting Right Now</p>
+              <h2 class="fw-bold text-success" id="liveCollectionCounter">₹0</h2>
+            </div>
+            <div class="col-md-6">
+              <p class="text-muted small mb-1 fw-bold text-uppercase">Total Batch Track Nodes Loaded</p>
+              <h2 class="fw-bold text-info"><%= students.length %> Profiles Active</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-end mt-4">
+        <button type="submit" class="btn btn-success btn-lg px-5 fw-bold shadow">Submit Batch Transaction</button>
+      </div>
+    </form>
+  <% } %>
+</div>
+
+<script>
+  // Global CSS Injection for Fast Danger Pulse Blinker
+  if (!document.getElementById('custom-blink-styles')) {
+    const style = document.createElement('style');
+    style.id = 'custom-blink-styles';
+    style.innerHTML = `
+      @keyframes fastDangerBlink {
+        0% { opacity: 1; box-shadow: 0 0 12px rgba(176, 42, 55, 0.6); }
+        50% { opacity: 0.25; box-shadow: 0 0 2px rgba(176, 42, 55, 0.1); }
+        100% { opacity: 1; box-shadow: 0 0 12px rgba(176, 42, 55, 0.6); }
+      }
+      .pulse-danger-blink {
+        animation: fastDangerBlink 1s infinite ease-in-out !important;
+        background-color: #b02a37 !important; 
+        border-color: #842029 !important;
+        color: #ffffff !important;
+        font-size: 1rem !important;
+        font-weight: 900 !important;
+        letter-spacing: 0.5px !important;
+        padding: 10px 14px !important;
+        display: inline-block !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Live Reset Function for Single Row (Input Reset Cross Button)
+  function resetRowToZero(buttonElement) {
+    const row = buttonElement.closest('tr');
+    const inputElement = row.querySelector('.input-amount-to-pay');
+    if (inputElement) {
+      inputElement.value = "0";
+      processRowLiveCalculations(inputElement);
+    }
+  }
+
+  // Core Ledger calculation pipeline
+  function processRowLiveCalculations(inputElement) {
+    const enteredAmount = parseFloat(inputElement.value) || 0;
+    const row = inputElement.closest('tr');
+
+    const dbAdvance = parseFloat(inputElement.getAttribute('data-db-advance')) || 0;
+    const prevDues = parseFloat(inputElement.getAttribute('data-prev-dues')) || 0;
+    const semADues = parseFloat(inputElement.getAttribute('data-sema-dues')) || 0;
+    const semBDues = parseFloat(inputElement.getAttribute('data-semb-dues')) || 0;
+
+    const totalOriginalDues = prevDues + semADues + semBDues;
+
+    const statusBadge = row.querySelector('.live-status-badge');
+    const projAdvanceBadge = row.querySelector('.projected-advance-badge');
+    const projAdvanceVal = row.querySelector('.projected-advance-val');
+    const paymentModeSelect = row.querySelector('.select-row-payment-mode');
+
+    let workingCapital = enteredAmount + dbAdvance;
+    let remainingDues = totalOriginalDues;
+
+    // Wallet Adjust Error Prevention logic:
+    // If enteredAmount is exactly 0 but dues are settled using DB Advance, 
+    // or if the remaining dues become zero, reset paymentMode dropdown to 'Cash' (or keep valid default), 
+    // bypass the invalid 'Wallet Adjust' enum trigger at the schema level.
+    if (enteredAmount === 0 && paymentModeSelect && !paymentModeSelect.disabled) {
+      paymentModeSelect.value = "Cash";
+    }
+
+    if (workingCapital >= remainingDues) {
+      const spilloverAdvance = workingCapital - remainingDues;
+      statusBadge.className = "live-status-badge badge w-100 py-2 fs-7 shadow-sm bg-success text-white border border-success";
+      statusBadge.innerHTML = "🎉 Fully Settled";
+
+      if (spilloverAdvance > 0) {
+        projAdvanceBadge.classList.remove('d-none');
+        projAdvanceVal.innerText = spilloverAdvance;
+      } else {
+        projAdvanceBadge.classList.add('d-none');
+      }
+    } else {
+      const netPendingAfterPay = remainingDues - workingCapital;
+      statusBadge.className = "live-status-badge badge w-100 py-2 fs-7 shadow-sm bg-danger-subtle text-danger border border-danger pulse-danger-blink";
+      statusBadge.innerHTML = `⚠️ ₹${netPendingAfterPay} - Balance Due after this payment`;
+      projAdvanceBadge.classList.add('d-none');
+    }
+
+    calculateLiveDashboardMetrics();
+  }
+
+  function getRangeByClassName(name) {
+    const upper = name.toUpperCase();
+    if (upper.includes("1ST YEAR")) return [1, 2];
+    if (upper.includes("2ND YEAR")) return [3, 4];
+    if (upper.includes("3RD YEAR")) return [5, 6];
+    if (upper.includes("4TH YEAR")) return [7, 8];
+    return [1, 8];
+  }
+
+  function syncSemesterDropdown() {
+    const classVal = document.getElementById('classSelect').value;
+    const semesterSelect = document.getElementById('semesterSelect');
+    if (!classVal) return;
+
+    const range = getRangeByClassName(classVal);
+    semesterSelect.innerHTML = '<option value="">Select...</option>';
+    for (let i = range[0]; i <= range[1]; i++) {
+      semesterSelect.innerHTML += `<option value="${i}">${i}</option>`;
+    }
+    syncTimelineScope();
+  }
+
+  function syncTimelineScope() {
+    const classVal = document.getElementById('classSelect').value;
+    const semVal = document.getElementById('semesterSelect').value;
+    const timelineSelect = document.getElementById('timelineSelect');
+    if (!classVal || !semVal) return;
+
+    const range = getRangeByClassName(classVal);
+    const currentSem = parseInt(semVal);
+    const nextSem = (currentSem + 1 <= range[1]) ? currentSem + 1 : currentSem;
+
+    timelineSelect.innerHTML = `
+      <option value="single">Current Semester (Sem ${currentSem})</option>
+      <option value="next">Next Current Semester (Sem ${nextSem})</option>
+      <option value="both">Both Semesters of Current Year (Sem ${range[0]} & ${range[1]})</option>
+    `;
+  }
+
+  function executeGlobalDuesClearance() {
+    document.querySelectorAll('.payment-row-item').forEach(row => {
+      const targetInput = row.querySelector('.input-amount-to-pay');
+      if (targetInput) {
+        const outstandingDues = parseFloat(targetInput.getAttribute('data-outstanding')) || 0;
+        const dbAdvance = parseFloat(targetInput.getAttribute('data-db-advance')) || 0;
+
+        const finalCollection = Math.max(0, outstandingDues - dbAdvance);
+        targetInput.value = finalCollection;
+        processRowLiveCalculations(targetInput);
+      }
+    });
+  }
+
+  function executeCustomAmountInjection() {
+    const injectionVal = parseFloat(document.getElementById('globalCustomValueInput').value) || 0;
+    if (injectionVal <= 0) {
+      alert("Alert: Please enter a positive custom amount allocation.");
+      return;
+    }
+    document.querySelectorAll('.payment-row-item').forEach(row => {
+      const targetInput = row.querySelector('.input-amount-to-pay');
+      if (targetInput) {
+        targetInput.value = injectionVal;
+        processRowLiveCalculations(targetInput);
+      }
+    });
+  }
+
+  function executeGlobalPaymentModeOverride(overrideValue) {
+    if (!overrideValue) return;
+    document.querySelectorAll('.select-row-payment-mode').forEach(dropdown => {
+      if (!dropdown.disabled) {
+        dropdown.value = overrideValue;
+      }
+    });
+  }
+
+  function calculateLiveDashboardMetrics() {
+    let combinedAggregateCounter = 0;
+    document.querySelectorAll('.input-amount-to-pay').forEach(input => {
+      combinedAggregateCounter += (parseFloat(input.value) || 0);
+    });
+    const counterEl = document.getElementById('liveCollectionCounter');
+    if (counterEl) {
+      counterEl.innerText = '₹' + combinedAggregateCounter.toLocaleString('en-IN');
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    calculateLiveDashboardMetrics();
+
+    const classInputEl = document.getElementById('metadataClassName');
+    const semInputEl = document.getElementById('metadataSemester');
+
+    const initialClass = classInputEl ? classInputEl.value : '';
+    const initialSem = semInputEl ? semInputEl.value : '';
+
+    if (initialClass && initialSem) {
+      const range = getRangeByClassName(initialClass);
+      const semesterSelect = document.getElementById('semesterSelect');
+      if (semesterSelect) {
+        semesterSelect.innerHTML = '';
+        for (let i = range[0]; i <= range[1]; i++) {
+          const selected = (i == initialSem) ? 'selected' : '';
+          semesterSelect.innerHTML += `<option value="${i}" ${selected}>${i}</option>`;
+        }
+        syncTimelineScope();
+      }
+    }
+  });
+</script>
+
+
+
+
+<!-- final code collectbulkfees.ejs -->
+
+<% layout("/layouts/boilerplate") -%>
+
+<div class="container my-5">
+  <h2 class="mb-4 text-dark fw-bold border-bottom pb-2">📦 Unified Batch Fee Collection (Live Ledger Sync)</h2>
+
+  <!-- HIDDEN METADATA FOR JAVASCRIPT (100% Safe Fallbacks) -->
+  <input type="hidden" id="metadataClassName" value="<%= (query && query.className) ? query.className : '' %>">
+  <input type="hidden" id="metadataSemester" value="<%= (query && query.semester) ? query.semester : '' %>">
+
+  <!-- SEARCH CONTROLS FRAMEWORK -->
+  <div class="card p-4 shadow-sm mb-4 bg-white border-0">
+    <form action="/fees/collect-bulk" method="GET" class="row g-3 needs-validation" novalidate id="filterForm">
+
+      <!-- Year Selection Dropdown -->
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Class / Year Branch</label>
+        <select name="className" id="classSelect" class="form-select" required onchange="syncSemesterDropdown()">
+          <option value="">Select branch...</option>
+          <% if (typeof classData !== 'undefined' && classData) { %>
+            <% classData.forEach(c => { %>
+              <option value="<%= c.class %>" <%= (query && query.className === c.class) ? 'selected' : '' %>><%= c.class %></option>
+            <% }) %>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- Target Semester -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold text-secondary">Target Semester</label>
+        <select name="semester" id="semesterSelect" class="form-select" required onchange="syncTimelineScope()">
+          <option value="">Select...</option>
+          <% for(let i=1; i<=8; i++) { %>
+            <option value="<%= i %>" <%= (query && query.semester == i) ? 'selected' : '' %>><%= i %></option>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- Section Selection -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold text-secondary">Section</label>
+        <select name="section" class="form-select" required>
+          <option value="">Select section...</option>
+          <% if (typeof sectionData !== 'undefined' && sectionData) { %>
+            <% sectionData.forEach(s => { %>
+              <option value="<%= s.name %>" <%= (query && query.section === s.name) ? 'selected' : '' %>><%= s.name %></option>
+            <% }) %>
+          <% } %>
+        </select>
+      </div>
+
+      <!-- Timeline Scope Mode -->
+      <div class="col-md-3">
+        <label class="form-label fw-bold text-secondary">Timeline Scope Mode</label>
+        <select name="modeSelection" id="timelineSelect" class="form-select" required>
+          <option value="single" <%= (query && query.modeSelection === 'single') ? 'selected' : '' %>>Current Semester</option>
+          <option value="next" <%= (query && query.modeSelection === 'next') ? 'selected' : '' %>>Next Current Semester</option>
+          <option value="both" <%= (query && query.modeSelection === 'both') ? 'selected' : '' %>>Both Semesters of Current Year</option>
+        </select>
+      </div>
+
+      <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn w-100 fw-bold text-white py-2 shadow-sm" style="background-color: #0f766e;">Load Batch Grid</button>
+      </div>
+    </form>
+  </div>
+
+  <% if (typeof students !== 'undefined' && students && students.length > 0) { %>
+
+    <!-- MASTER CONTROL TOOLKIT -->
+    <div class="card p-4 mb-4 text-white border-0 shadow-sm" style="background-color: #0f766e;">
+      <h5 class="fw-bold mb-3 border-bottom pb-2 text-warning">⚡ Core Automation Control Toolkit</h5>
+      <div class="row g-3 align-items-end">
+
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">1. OUTSTANDING INJECTOR</label>
+          <button type="button" onclick="executeGlobalDuesClearance()" class="btn btn-warning w-100 fw-bold shadow-sm">
+            Inject All Net Pending Dues
+          </button>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">2. CUSTOM VALUE MULTI-INJECTOR</label>
+          <div class="input-group">
+            <input type="number" id="globalCustomValueInput" class="form-control" placeholder="Enter custom amount...">
+            <button class="btn btn-dark fw-bold" type="button" onclick="executeCustomAmountInjection()">Inject Value</button>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label small text-light fw-bold">3. GLOBAL PAYMENT MODE OVERRIDE</label>
+          <select id="globalPaymentModeSelector" class="form-select fw-bold" onchange="executeGlobalPaymentModeOverride(this.value)">
+            <option value="">Select Mode Override...</option>
+            <option value="Cash">Cash</option>
+            <option value="UPI">UPI</option>
+            <option value="Net Banking">Net Banking</option>
+            <option value="Cheque">Cheque</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- DATA GRID FORM -->
+    <form action="/fees/process-bulk-payments" method="POST" id="waterfallGridForm">
+      <input type="hidden" name="semA" value="<%= (typeof activeSemesters !== 'undefined' && activeSemesters[0]) ? activeSemesters[0] : '' %>">
+      <input type="hidden" name="semB" value="<%= (typeof activeSemesters !== 'undefined' && activeSemesters[1]) ? activeSemesters[1] : '' %>">
+      <input type="hidden" name="className" value="<%= (query && query.className) ? query.className : '' %>">
+      <input type="hidden" name="section" value="<%= (query && query.section) ? query.section : '' %>">
+      <input type="hidden" name="modeSelection" value="<%= (query && query.modeSelection) ? query.modeSelection : '' %>">
+      <input type="hidden" name="submitToken" value="<%= typeof submitToken !== 'undefined' ? submitToken : '' %>">
+
+      <div class="table-responsive shadow rounded">
+        <table class="table align-middle bg-white table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Roll No</th>
+              <th>Student Identity Meta</th>
+              <th class="text-center text-warning bg-secondary">Prev Pending</th>
+              <th class="text-center text-warning bg-secondary">Sem-<%= (typeof activeSemesters !== 'undefined' && activeSemesters[0]) ? activeSemesters[0] : '' %> Dues</th>
+              <% if(query && query.modeSelection === 'both') { %>
+                <th class="text-center text-warning bg-secondary">Sem-<%= (typeof activeSemesters !== 'undefined' && activeSemesters[1]) ? activeSemesters[1] : '' %> Dues</th>
+              <% } %>
+              <th class="text-center" style="width: 28%;">Balance Settlement</th>
+              <th class="text-center text-success" style="width: 15%;">Amount to Pay (₹)</th>
+              <th style="width: 15%;">Payment Method</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% students.forEach((student, index) => { %>
+              <tr class="payment-row-item <%= student.isLocked ? 'table-light opacity-75' : '' %>" data-index="<%= index %>">
+                <td>
+                  <input type="hidden" name="payments[<%= index %>][student_id]" value="<%= student.student_id %>">
+                  <input type="hidden" name="payments[<%= index %>][rollNumber]" value="<%= student.rollNumber %>">
+                  <input type="hidden" name="payments[<%= index %>][studentName]" value="<%= student.studentName %>">
+                  <input type="hidden" name="payments[<%= index %>][status]" value="<%= student.status %>">
+                  <span class="badge bg-dark fs-6">
+                    <%= student.rollNumber %>
+                  </span>
+                </td>
+                <td>
+                  <div class="fw-bold text-dark"><%= student.studentName %></div>
+                  <small class="text-muted">F: <%= student.fatherName %></small>
+                </td>
+
+                <!-- Previous Pending Column -->
+                <td class="text-center fw-semibold text-danger bg-light">
+                  <span class="label-prev-pending">₹<%= student.previousPendingDues %></span>
+                </td>
+
+                <!-- Sem A Column -->
+                <td class="text-center fw-semibold text-danger table-active">
+                  <span class="label-sema-pending">₹<%= student.semA.pending %></span>
+                </td>
+
+                <!-- Sem B Column -->
+                <% if(query && query.modeSelection === 'both') { %>
+                  <td class="text-center fw-semibold text-danger table-active">
+                    <span class="label-semb-pending">₹<%= student.semB ? student.semB.pending : 0 %></span>
+                  </td>
+                <% } %>
+
+                <!-- Dynamic Real-Time Settlement Box -->
+                <td class="text-center bg-light">
+                  <div class="d-flex flex-column gap-1 align-items-center justify-content-center ledger-status-container">
+
+                    <!-- Advance successfully cut and distributed into future hidden semesters -->
+                    <% if (student.implicitAdvanceSpilloverLogs && student.implicitAdvanceSpilloverLogs.length > 0) { %>
+                      <% student.implicitAdvanceSpilloverLogs.forEach(log => { %>
+                        <div class="badge w-100 py-1 fs-8 text-wrap text-start text-dark fw-bold border" style="background-color: #e2e8f0; border-color: #cbd5e1;">
+                          ⚙️ Sem-<%= log.semNumber %>: ₹<%= log.absorbed %> Advance Adjusted (Pending: ₹<%= log.remainingDues %>)
+                        </div>
+                      <% }) %>
+                    <% } %>
+
+                    <!-- Available Unallocated Database Advance Balance -->
+                    <% if (student.advanceBalance > 0) { %>
+                      <div class="badge w-100 py-2 fs-7 shadow-sm border mb-1 text-wrap" style="background-color: #cff4fc !important; border-color: #b6effb !important; color: #055160 !important; display: inline-block !important;">
+                        💎 ₹<span class="db-advance-val fw-bolder"><%= student.advanceBalance %></span> - Unallocated Advance Wallet
+                      </div>
+                    <% } %>
+
+                    <!-- Live Calculation Status Display Badge -->
+                    <div class="live-status-badge badge w-100 py-2 fs-7 shadow-sm <%= student.isLocked ? 'bg-success text-white' : 'bg-warning-subtle text-warning border border-warning' %>">
+                      <%= student.isLocked ? '🎉 Complete / Clear' : '⚠️ Pending Total: ₹' + student.totalYearDues %>
+                    </div>
+
+                    <!-- Projected Future Wallet Balance -->
+                    <div class="projected-advance-badge badge w-100 py-2 fs-7 shadow-sm border d-none" style="background-color: #d1e7dd !important; border-color: #badbcc !important; color: #0f5132 !important;">
+                      🚀 ₹<span class="projected-advance-val fw-bolder">0</span> - Projected Advance
+                    </div>
+
+                  </div>
+                </td>
+
+                <!-- Amount Input Matrix -->
+                <td>
+                  <% if(student.isLocked) { %>
+                    <div class="text-center">
+                      <span class="badge bg-success py-2 px-3 shadow-sm rounded-pill">✔️ Cleared</span>
+                    </div>
+                    <input type="hidden" name="payments[<%= index %>][amountToPay]" value="0">
+                  <% } else { %>
+                    <input type="number" name="payments[<%= index %>][amountToPay]"
+                      class="form-control text-center fw-bold input-amount-to-pay border-success text-success shadow-sm"
+                      value="0" min="0" data-outstanding="<%= student.totalYearDues %>"
+                      data-db-advance="<%= student.advanceBalance %>"
+                      data-prev-dues="<%= student.previousPendingDues %>"
+                      data-sema-dues="<%= student.semA.pending %>"
+                      data-semb-dues="<%= student.semB ? student.semB.pending : 0 %>"
+                      oninput="processRowLiveCalculations(this)">
+                  <% } %>
+                </td>
+
+                <!-- Payment Method -->
+                <td>
+                  <% if(student.isLocked) { %>
+                    <input type="hidden" name="payments[<%= index %>][paymentMode]" value="Cash">
+                    <select class="form-select form-select-sm fw-semibold select-row-payment-mode" disabled>
+                      <option value="Cash" selected>Cash</option>
+                    </select>
+                  <% } else { %>
+                    <select name="payments[<%= index %>][paymentMode]" class="form-select form-select-sm fw-semibold select-row-payment-mode">
+                      <option value="Cash" selected>Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Net Banking">Net Banking</option>
+                      <option value="Cheque">Cheque</option>
+                    </select>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PIPELINE METRICS SUMMARY -->
+      <div class="card my-4 border-0 shadow-sm text-white" style="background-color: #1e293b;">
+        <div class="card-body p-4 text-center">
+          <h5 class="fw-bold mb-3 text-warning border-bottom pb-2 text-start">📈 Live Pipeline Metrics Overview</h5>
+          <div class="row g-3">
+            <div class="col-md-6 border-end border-secondary">
+              <p class="text-muted small mb-1 fw-bold text-uppercase">Total Amount Collecting Right Now</p>
+              <h2 class="fw-bold text-success" id="liveCollectionCounter">₹0</h2>
+            </div>
+            <div class="col-md-6">
+              <p class="text-muted small mb-1 fw-bold text-uppercase">Total Batch Track Nodes Loaded</p>
+              <h2 class="fw-bold text-info">
+                <%= students.length %> Profiles Active
+              </h2>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-end mt-4">
+        <button type="submit" class="btn btn-success btn-lg px-5 fw-bold shadow">Submit Batch Transaction</button>
+      </div>
+    </form>
+  <% } %>
+</div>
+
+<script>
+  // Fast Danger Blink Animation injection logic
+  if (!document.getElementById('custom-blink-styles')) {
+    const style = document.createElement('style');
+    style.id = 'custom-blink-styles';
+    style.innerHTML = `
+      @keyframes fastDangerBlink {
+        0% { opacity: 1; box-shadow: 0 0 12px rgba(176, 42, 55, 0.6); }
+        50% { opacity: 0.35; box-shadow: 0 0 2px rgba(176, 42, 55, 0.1); }
+        100% { opacity: 1; box-shadow: 0 0 12px rgba(176, 42, 55, 0.6); }
+      }
+      .pulse-danger-blink {
+        animation: fastDangerBlink 1s infinite ease-in-out !important;
+        background-color: #b02a37 !important; 
+        border-color: #842029 !important;
+        color: #ffffff !important; 
+        font-size: 0.95rem !important; 
+        font-weight: 800 !important; 
+        padding: 8px 12px !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function processRowLiveCalculations(inputElement) {
+    const enteredAmount = parseFloat(inputElement.value) || 0;
+    const row = inputElement.closest('tr');
+
+    const dbAdvance = parseFloat(inputElement.getAttribute('data-db-advance')) || 0;
+    const prevDues = parseFloat(inputElement.getAttribute('data-prev-dues')) || 0;
+    const semADues = parseFloat(inputElement.getAttribute('data-sema-dues')) || 0;
+    const semBDues = parseFloat(inputElement.getAttribute('data-semb-dues')) || 0;
+
+    const totalOriginalDues = prevDues + semADues + semBDues;
+
+    const statusBadge = row.querySelector('.live-status-badge');
+    const projAdvanceBadge = row.querySelector('.projected-advance-badge');
+    const projAdvanceVal = row.querySelector('.projected-advance-val');
+
+    let workingCapital = enteredAmount + dbAdvance;
+
+    if (workingCapital >= totalOriginalDues) {
+      const spilloverAdvance = workingCapital - totalOriginalDues;
+      statusBadge.className = "live-status-badge badge w-100 py-2 fs-7 shadow-sm bg-success text-white";
+      statusBadge.innerHTML = "🎉 Fully Settled";
+
+      if (spilloverAdvance > 0) {
+        projAdvanceBadge.classList.remove('d-none');
+        projAdvanceVal.innerText = spilloverAdvance.toFixed(2);
+      } else {
+        projAdvanceBadge.classList.add('d-none');
+      }
+    } else {
+      const netPendingAfterPay = totalOriginalDues - workingCapital;
+      statusBadge.className = "live-status-badge badge w-100 py-2 fs-7 shadow-sm bg-danger-subtle text-danger border border-danger pulse-danger-blink";
+      statusBadge.innerHTML = `⚠️ Balance Due: ₹${netPendingAfterPay.toFixed(2)}`;
+      projAdvanceBadge.classList.add('d-none');
+    }
+
+    calculateLiveDashboardMetrics();
+  }
+
+  function getRangeByClassName(name) {
+    const upper = name.toUpperCase();
+    if (upper.includes("1ST YEAR")) return [1, 2];
+    if (upper.includes("2ND YEAR")) return [3, 4];
+    if (upper.includes("3RD YEAR")) return [5, 6];
+    if (upper.includes("4TH YEAR")) return [7, 8];
+    return [1, 8];
+  }
+
+  function syncSemesterDropdown() {
+    const classVal = document.getElementById('classSelect').value;
+    const semesterSelect = document.getElementById('semesterSelect');
+    if (!classVal) return;
+
+    const range = getRangeByClassName(classVal);
+    semesterSelect.innerHTML = '<option value="">Select...</option>';
+    for (let i = range[0]; i <= range[1]; i++) {
+      semesterSelect.innerHTML += `<option value="${i}">${i}</option>`;
+    }
+    syncTimelineScope();
+  }
+
+  function syncTimelineScope() {
+    const classVal = document.getElementById('classSelect').value;
+    const semVal = document.getElementById('semesterSelect').value;
+    const timelineSelect = document.getElementById('timelineSelect');
+    if (!classVal || !semVal) return;
+
+    const range = getRangeByClassName(classVal);
+    const currentSem = parseInt(semVal);
+    const nextSem = (currentSem + 1 <= range[1]) ? currentSem + 1 : currentSem;
+
+    timelineSelect.innerHTML = `
+      <option value="single">Current Semester (Sem ${currentSem})</option>
+      <option value="next">Next Current Semester (Sem ${nextSem})</option>
+      <option value="both">Both Semesters of Current Year (Sem ${range[0]} & ${range[1]})</option>
+    `;
+  }
+
+  function executeGlobalDuesClearance() {
+    document.querySelectorAll('.payment-row-item').forEach(row => {
+      const targetInput = row.querySelector('.input-amount-to-pay');
+      if (targetInput) {
+        const outstandingDues = parseFloat(targetInput.getAttribute('data-outstanding')) || 0;
+        const dbAdvance = parseFloat(targetInput.getAttribute('data-db-advance')) || 0;
+
+        const finalCollection = Math.max(0, outstandingDues - dbAdvance);
+        targetInput.value = finalCollection;
+        processRowLiveCalculations(targetInput);
+      }
+    });
+  }
+
+  function executeCustomAmountInjection() {
+    const injectionVal = parseFloat(document.getElementById('globalCustomValueInput').value) || 0;
+    if (injectionVal <= 0) {
+      alert("Alert: Please enter a positive custom amount allocation.");
+      return;
+    }
+    document.querySelectorAll('.payment-row-item').forEach(row => {
+      const targetInput = row.querySelector('.input-amount-to-pay');
+      if (targetInput) {
+        targetInput.value = injectionVal;
+        processRowLiveCalculations(targetInput);
+      }
+    });
+  }
+
+  function executeGlobalPaymentModeOverride(overrideValue) {
+    if (!overrideValue) return;
+    document.querySelectorAll('.select-row-payment-mode').forEach(dropdown => {
+      if (!dropdown.disabled) {
+        dropdown.value = overrideValue;
+      }
+    });
+  }
+
+  function calculateLiveDashboardMetrics() {
+    let combinedAggregateCounter = 0;
+    document.querySelectorAll('.input-amount-to-pay').forEach(input => {
+      combinedAggregateCounter += (parseFloat(input.value) || 0);
+    });
+    const counterEl = document.getElementById('liveCollectionCounter');
+    if (counterEl) {
+      counterEl.innerText = '₹' + combinedAggregateCounter.toLocaleString('en-IN');
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    calculateLiveDashboardMetrics();
+
+    const classInputEl = document.getElementById('metadataClassName');
+    const semInputEl = document.getElementById('metadataSemester');
+
+    const initialClass = classInputEl ? classInputEl.value : '';
+    const initialSem = semInputEl ? semInputEl.value : '';
+
+    if (initialClass && initialSem) {
+      const range = getRangeByClassName(initialClass);
+      const semesterSelect = document.getElementById('semesterSelect');
+      if (semesterSelect) {
+        semesterSelect.innerHTML = '';
+        for (let i = range[0]; i <= range[1]; i++) {
+          const selected = (i == initialSem) ? 'selected' : '';
+          semesterSelect.innerHTML += `<option value="${i}" ${selected}>${i}</option>`;
+        }
+        syncTimelineScope();
+      }
+    }
+  });
+</script>
+
+
+
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////////
+
+<%- layout("/layouts/boilerplateTeacher") -%>
+
+<style>
+  /* Screen Canvas Styling */
+  .page-container {
+    max-width: 1320px;
+    margin: 0 auto;
+  }
+  
+  .glass-card {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 24px;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.05);
+  }
+
+  .sidebar-gradient {
+    background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 20px;
+    color: #ffffff;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sidebar-gradient::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .step-badge {
+    background: #e0e7ff;
+    color: #3730a3;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    padding: 6px 14px;
+    border-radius: 30px;
+    text-transform: uppercase;
+  }
+
+  .form-control-pro, .form-select-pro {
+    border: 1.5px solid #e2e8f0;
+    background-color: #f8fafc;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-weight: 600;
+    color: #1e293b;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .form-control-pro:focus, .form-select-pro:focus {
+    background-color: #ffffff;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+  }
+
+  .form-control-pro:disabled, .form-select-pro:disabled {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .pro-label {
+    font-size: 0.825rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  .btn-gradient-submit {
+    background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+    border: none;
+    border-radius: 14px;
+    padding: 14px 28px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);
+    transition: all 0.25s ease;
+  }
+
+  .btn-gradient-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 30px rgba(79, 70, 229, 0.4);
+  }
+
+  .info-pill {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 12px 16px;
+  }
+</style>
+
+<div class="page-container my-4 px-3">
+
+  <div class="text-center mb-4 pb-2">
+
+  <h3 class="fw-bold text-dark mb-1"> 🚩 Student Add Marks</h3>
+  <p class="text-muted small mb-0">Select class filters below to view published marksheets and academic records</p>
+</div>
+
+  <div class="w-100">
+    <div class="card glass-card p-3 p-lg-4">
+      <div class="row g-4 align-items-stretch">
+        
+        <!-- LEFT PANEL: Dark Hero Dashboard Summary (Screen Ghirega) -->
+        <div class="col-lg-4 d-flex">
+          <div class="sidebar-gradient p-4 p-xl-5 w-100 d-flex flex-column justify-content-between">
+            <div>
+              <span class="badge bg-primary rounded-pill px-3 py-2 mb-3 fw-bold fs-7">
+                Marks Entry Portal
+              </span>
+              <h2 class="fw-extrabold text-white mb-2">Examination Setup</h2>
+              <p class="text-white-50 fs-6">Configure target class parameters and assessment rubrics to generate student marksheets.</p>
+
+              <div class="mt-4 pt-3 d-flex flex-column gap-3">
+                <div class="info-pill">
+                  <div class="text-white-50 small text-uppercase fw-bold">Logged Teacher</div>
+                  <div class="fw-bold text-white fs-6 mt-1"><%= classData.name || "Teacher" %></div>
+                </div>
+
+                <div class="info-pill">
+                  <div class="text-white-50 small text-uppercase fw-bold">Active Session</div>
+                  <div class="fw-bold text-warning fs-6 mt-1"><%= new Date().getFullYear() %> Academic Session</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-4 border-top border-secondary border-opacity-25 mt-4">
+              <small class="text-white-50">⚡ Class cascading logic auto-fetches real-time sections & subjects.</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT PANEL: Full Grid Form (Bina logic chhode) -->
+        <div class="col-lg-8 ps-lg-4">
+          <form action="/add/student/marks-setup" method="POST" class="needs-validation h-100 d-flex flex-column justify-content-between" novalidate>
+            
+            <div>
+              <!-- STEP 1 HEADER -->
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="step-badge">Phase 01</span>
+                <h5 class="fw-bold text-dark mb-0">Class & Subject Mapping</h5>
+              </div>
+
+              <!-- Class & Semester -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="pro-label">Class</label>
+                  <select name="data[className]" id="class" class="form-select form-select-pro shadow-none" required>
+                    <option value="">-- Choose Class --</option>
+                    <% if (classData?.class?.length) { %>
+                      <% classData.class.forEach(cls => { %>
+                        <option value="<%= cls.className %>"><%= cls.className %></option>
+                      <% }) %>
+                    <% } %>
+                  </select>
+                  <div class="invalid-feedback">Please select class</div>
+                </div>
+
+                <div class="col-md-6">
+                  <label class="pro-label">Semester</label>
+                  <select name="data[semester]" id="semester" class="form-select form-select-pro shadow-none" required disabled>
+                    <option value="">-- Choose Semester --</option>
+                  </select>
+                  <div class="invalid-feedback">Please select semester</div>
+                </div>
+              </div>
+
+              <!-- Section & Subject -->
+              <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                  <label class="pro-label">Section</label>
+                  <select name="data[section]" id="section" class="form-select form-select-pro shadow-none" required disabled>
+                    <option value="">-- Choose Section --</option>
+                  </select>
+                  <div class="invalid-feedback">Please select section</div>
+                </div>
+
+                <div class="col-md-6">
+                  <label class="pro-label">Subject</label>
+                  <select name="data[subject]" id="subject" class="form-select form-select-pro shadow-none" required disabled>
+                    <option value="">-- Choose Subject --</option>
+                  </select>
+                  <div class="invalid-feedback">Please select subject</div>
+                </div>
+              </div>
+
+              <hr class="my-4" style="border-top: 1.5px dashed #cbd5e1;">
+
+              <!-- STEP 2 HEADER -->
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="step-badge" style="background:#fef3c7; color:#92400e;">Phase 02</span>
+                <h5 class="fw-bold text-dark mb-0">Exam Evaluation Rules</h5>
+              </div>
+
+              <!-- Academic Year & Exam Name -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="pro-label">Academic Year</label>
+                  <input type="number" name="data[academicYear]" class="form-control form-control-pro shadow-none" value="<%= new Date().getFullYear() %>" required min="2000" max="2099">
+                </div>
+
+                <div class="col-md-6">
+                  <label class="pro-label">Exam Title / Name</label>
+                  <input type="text" name="data[examName]" class="form-control form-control-pro shadow-none" placeholder="e.g. Mid-Term 2026, Quiz 1" required>
+                </div>
+              </div>
+
+              <!-- Exam Type, Max & Pass Marks -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                  <label class="pro-label">Exam Type</label>
+                  <select name="data[examType]" class="form-select form-select-pro shadow-none" required>
+                    <option value="Theory" selected>Theory</option>
+                    <option value="Practical">Practical</option>
+                   
+                    
+                  </select>
+                </div>
+
+                <div class="col-md-4">
+                  <label class="pro-label">Max Marks</label>
+                  <input type="number" name="data[maxMarks]" class="form-control form-control-pro shadow-none" placeholder="Enter max marks" required min="1">
+                </div>
+
+                <div class="col-md-4">
+                  <label class="pro-label">Pass Marks</label>
+                  <input type="number" name="data[passMarks]" class="form-control form-control-pro shadow-none" placeholder="Enter Passing marks" required min="0">
+                </div>
+              </div>
+            </div>
+
+            <!-- UNCHANGED HIDDEN FIELD -->
+            <input type="hidden" name="data[teacherName]" value="<%= classData.name %>">
+
+            <!-- Submit Action Bar -->
+            <div class="pt-4 border-top mt-4 d-flex justify-content-end">
+              <button type="submit" class="btn btn-primary btn-gradient-submit text-white w-100 w-md-auto">
+                Generate Marks Sheet <i class="bi bi-arrow-right-circle-fill ms-2"></i>
+              </button>
+            </div>
+
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCRIPT (100% SAME UNTOUCHED LOGIC) -->
+<script>
+const classSelect = document.getElementById("class");
+const semesterSelect = document.getElementById("semester");
+const sectionSelect = document.getElementById("section");
+const subjectSelect = document.getElementById("subject");
+
+classSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+  semesterSelect.innerHTML = '<option>Loading...</option>';
+  semesterSelect.disabled = true;
+  sectionSelect.innerHTML = '<option value="">-- Choose Section --</option>';
+  sectionSelect.disabled = true;
+  subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
+  subjectSelect.disabled = true;
+
+  if (!className) return;
+
+  const res = await fetch(`/get-semesters?class=${encodeURIComponent(className)}`);
+  const semesters = await res.json();
+
+  semesterSelect.innerHTML = '<option value="">-- Choose Semester --</option>';
+  semesters.forEach(s => {
+    semesterSelect.innerHTML += `<option value="${s}">${s}</option>`;
+  });
+  semesterSelect.disabled = false;
+});
+
+semesterSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+  const semester = semesterSelect.value;
+
+  sectionSelect.innerHTML = '<option>Loading...</option>';
+  sectionSelect.disabled = true;
+  subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
+  subjectSelect.disabled = true;
+
+  if (!className || !semester) return;
+
+  const res = await fetch(`/get-sections?class=${encodeURIComponent(className)}&semester=${encodeURIComponent(semester)}`);
+  const sections = await res.json();
+
+  sectionSelect.innerHTML = '<option value="">-- Choose Section --</option>';
+  sections.forEach(sec => {
+    sectionSelect.innerHTML += `<option value="${sec}">${sec}</option>`;
+  });
+  sectionSelect.disabled = false;
+});
+
+sectionSelect.addEventListener("change", async () => {
+  const className = classSelect.value;
+  const semester = semesterSelect.value;
+  const section = sectionSelect.value;
+
+  subjectSelect.innerHTML = '<option>Loading Subjects...</option>';
+  subjectSelect.disabled = true;
+
+  if (!className || !semester || !section) return;
+
+  const res = await fetch(`/get-subjects?class=${encodeURIComponent(className)}&semester=${encodeURIComponent(semester)}&section=${encodeURIComponent(section)}`);
+  const subjects = await res.json();
+
+  subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
+  subjects.forEach(sub => {
+    subjectSelect.innerHTML += `<option value="${sub}">${sub}</option>`;
+  });
+  subjectSelect.disabled = false;
+});
+</script>

@@ -1,0 +1,235 @@
+<%- layout("/layouts/boilerplate") -%>
+
+<div class="container my-5">
+
+  <!-- ===== PAGE HEADER ===== -->
+  <div class="text-center mb-4">
+    <h1 class="fw-bold text-primary">👩‍🏫 Assigning Student Management</h1>
+    <p class="text-muted">Bulk assign subjects to students easily</p>
+  </div>
+
+  <!-- ===== TOP ACTION BUTTONS ===== -->
+  <div class="d-flex gap-3 mb-4 justify-content-start ms-3">
+    <a href="/add/studentData" class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold">
+      <i class="fa-solid fa-plus me-2"></i>Add Student
+    </a>
+    <a href="/show/student" class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold">
+      <i class="fa-solid fa-eye me-2"></i>Show Student Data
+    </a>
+  </div>
+
+  <!-- ===== MAIN CARD ===== -->
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+      <div class="card shadow-lg rounded-4">
+        <div class="card-body p-4">
+
+          <h4 class="fw-bold text-center mb-4">📘 Assign Subjects to Students</h4>
+
+          <form action="/assign/student/subject" method="post" novalidate class="needs-validation">
+
+            <!-- ===== CLASS & SEMESTER ===== -->
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Class</label>
+                <select name="data[class]" id="class" class="form-select shadow-sm" required>
+                  <option value="">Choose class & year</option>
+                  <% for(let data of classData){ %>
+                    <option value="<%= data.class %>"><%= data.class %></option>
+                  <% } %>
+                </select>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Semester</label>
+                <input name="data[semester]" id="semester" class="form-control shadow-sm"
+                       placeholder="Enter semester" list="option" required autocomplete="off">
+                <datalist id="option">
+                  <% for(let i=1; i<=8; i++){ %>
+                    <option value="<%= i %>"></option>
+                  <% } %>
+                </datalist>
+              </div>
+            </div>
+
+            <!-- ===== SUBJECTS ===== -->
+            <div class="mt-4">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="fw-semibold">📚 Subjects</label>
+                <div class="form-check">
+                  <input type="checkbox" id="selectAllSubjects" class="form-check-input">
+                  <label class="form-check-label" for="selectAllSubjects">Select All</label>
+                </div>
+              </div>
+
+              <div id="subject-container" class="border rounded-3 p-3 bg-light" style="max-height:220px; overflow-y:auto;">
+                <p class="text-muted text-center mb-0">Select class & semester to load subjects</p>
+              </div>
+            </div>
+
+            <!-- ===== STUDENTS ===== -->
+            <div class="mt-4">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="fw-semibold">👨‍🎓 Students</label>
+                <div class="form-check">
+                  <input type="checkbox" id="selectAllStudents" class="form-check-input">
+                  <label class="form-check-label" for="selectAllStudents">Select All</label>
+                </div>
+              </div>
+
+              <div class="d-flex fw-bold border-bottom pb-1 mb-2 px-2">
+                <div class="col-6">Name</div>
+                <div class="col-6">Father Name</div>
+              </div>
+
+              <div id="student-container" class="border rounded-3 p-2 bg-light" style="max-height:220px; overflow-y:auto;">
+                <p class="text-muted text-center mb-0">Select class & semester to load students</p>
+              </div>
+            </div>
+
+            <!-- ===== SUBMIT ===== -->
+            <div class="text-center mt-4">
+              <button type="submit" class="btn btn-primary px-5 py-2 rounded-pill shadow">
+                ✅ Assign Subjects
+              </button>
+            </div>
+
+          </form>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadData() {
+  const className = document.getElementById("class").value.trim();
+  const semester = document.getElementById("semester").value.trim();
+  
+  if (!className || !semester) return;
+
+  const subContainer = document.getElementById("subject-container");
+  const stuContainer = document.getElementById("student-container");
+
+  // Reset Select All Checkboxes
+  document.getElementById("selectAllSubjects").checked = false;
+  document.getElementById("selectAllStudents").checked = false;
+
+  subContainer.innerHTML = `<p class="text-center text-muted my-2"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading subjects...</p>`;
+  stuContainer.innerHTML = `<p class="text-center text-muted my-2"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading students...</p>`;
+
+  try {
+    const [resSub, resStu] = await Promise.all([
+      fetch(`/get-subjects/${encodeURIComponent(className)}/${encodeURIComponent(semester)}`),
+      fetch(`/get-students/${encodeURIComponent(className)}/${encodeURIComponent(semester)}`)
+    ]);
+
+    const subjects = await resSub.json();
+    const students = await resStu.json();
+
+    // RENDER SUBJECTS
+    subContainer.innerHTML = "";
+    if (!Array.isArray(subjects) || subjects.length === 0) {
+      subContainer.innerHTML = `<p class="text-warning text-center mb-0">No subjects found for this class & semester.</p>`;
+    } else {
+      subjects.forEach((sub, i) => {
+        const subjectObj = {
+          subjectId: sub._id || sub.subjectId,
+          name: sub.name,
+          code: sub.code,
+          maxMarks: sub.maxMarks,
+          minMarks: sub.minMarks,
+          subjectType: sub.subjectType
+        };
+
+        const jsonString = JSON.stringify(subjectObj).replace(/"/g, '&quot;');
+
+        subContainer.innerHTML += `
+          <div class="form-check border-bottom py-1">
+            <input class="form-check-input subject-checkbox"
+                   type="checkbox"
+                   name="data[subjects][]"
+                   value="${jsonString}"
+                   id="subject${i}">
+            <label class="form-check-label" for="subject${i}">
+              <strong>${sub.name || 'N/A'}</strong>
+              <small class="text-muted">
+                (Code: ${sub.code || 'N/A'}, Max: ${sub.maxMarks || 0}, Min: ${sub.minMarks || 0}, Type: ${sub.subjectType || 'N/A'})
+              </small>
+            </label>
+          </div>
+        `;
+      });
+    }
+
+    // RENDER STUDENTS
+    stuContainer.innerHTML = "";
+    if (!Array.isArray(students) || students.length === 0) {
+      stuContainer.innerHTML = `<p class="text-warning text-center mb-0">No students found for this class & semester.</p>`;
+    } else {
+      students.forEach((stu, i) => {
+        stuContainer.innerHTML += `
+          <div class="form-check d-flex align-items-center border-bottom py-1 px-2">
+            <input class="form-check-input student-checkbox me-2"
+                   type="checkbox"
+                   name="data[students][]"
+                   value="${stu._id}"
+                   id="student${i}">
+            <label class="form-check-label w-100 d-flex mb-0" for="student${i}">
+              <span class="col-6">${stu.name || 'N/A'}</span>
+              <span class="col-6">${stu.fatherName || 'N/A'}</span>
+            </label>
+          </div>
+        `;
+      });
+    }
+
+  } catch (err) {
+    console.error("Error fetching class data:", err);
+    subContainer.innerHTML = `<p class="text-danger text-center mb-0">Failed to load subjects.</p>`;
+    stuContainer.innerHTML = `<p class="text-danger text-center mb-0">Failed to load students.</p>`;
+  }
+}
+
+// Event Listeners (Fixed race-condition bug on semester input)
+document.getElementById("class").addEventListener("change", loadData);
+document.getElementById("semester").addEventListener("change", loadData);
+
+// Select All functionality
+document.getElementById("selectAllSubjects").addEventListener("change", e => {
+  document.querySelectorAll(".subject-checkbox").forEach(cb => cb.checked = e.target.checked);
+});
+
+document.getElementById("selectAllStudents").addEventListener("change", e => {
+  document.querySelectorAll(".student-checkbox").forEach(cb => cb.checked = e.target.checked);
+});
+
+// Auto uncheck 'Select All' if user unchecks individual checkbox
+document.getElementById("subject-container").addEventListener("change", e => {
+  if (e.target.classList.contains("subject-checkbox")) {
+    const total = document.querySelectorAll(".subject-checkbox").length;
+    const checked = document.querySelectorAll(".subject-checkbox:checked").length;
+    document.getElementById("selectAllSubjects").checked = (total > 0 && total === checked);
+  }
+});
+
+document.getElementById("student-container").addEventListener("change", e => {
+  if (e.target.classList.contains("student-checkbox")) {
+    const total = document.querySelectorAll(".student-checkbox").length;
+    const checked = document.querySelectorAll(".student-checkbox:checked").length;
+    document.getElementById("selectAllStudents").checked = (total > 0 && total === checked);
+  }
+});
+
+// Form Validation Safeguard
+document.querySelector("form").addEventListener("submit", function(e) {    
+  const checkedSub = document.querySelectorAll(".subject-checkbox:checked").length;
+  const checkedStu = document.querySelectorAll(".student-checkbox:checked").length;
+
+  if (checkedSub === 0 || checkedStu === 0) {    
+    e.preventDefault();    
+    alert("Please select at least one subject and one student!");    
+  }    
+});
+</script>

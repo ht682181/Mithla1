@@ -1,0 +1,147 @@
+<style>
+  /* Navigation Bar Base Container */
+  .msg-nav-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 14px;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03);
+    margin-bottom: 24px;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .msg-nav-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+
+  /* Universal Nav Link Styling */
+  .msg-nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 18px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #64748b;
+    text-decoration: none;
+    border-radius: 10px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+  }
+
+  /* Hover State */
+  .msg-nav-link:hover {
+    color: #0f172a;
+    background-color: #f1f5f9;
+  }
+
+  /* Active State Styling */
+  .msg-nav-link.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, #064e3b 0%, #10b981 100%);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  }
+
+  /* Icons inside Links */
+  .msg-nav-link i {
+    font-size: 1rem;
+    transition: transform 0.2s ease;
+  }
+
+  .msg-nav-link:hover i {
+    transform: translateY(-1px);
+  }
+
+  /* Dynamic Badge Styling */
+  .msg-nav-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background-color: #ef4444;
+    color: #ffffff;
+    min-width: 18px;
+    height: 18px;
+    line-height: 1;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+    animation: pulseBadge 2s infinite;
+  }
+
+  /* Inactive Link Badge variation */
+  .msg-nav-link.active .msg-nav-badge {
+    background-color: #ffffff;
+    color: #064e3b;
+    box-shadow: none;
+  }
+
+  @keyframes pulseBadge {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+</style>
+
+<div class="msg-nav-container">
+  <!-- Message Students -->
+  <a href="/admin/message/student/compose" 
+     class="msg-nav-link <%= active === 'compose-student' ? 'active' : '' %>">
+    <i class="bi bi-mortarboard-fill"></i>
+    <span>Message Students</span>
+  </a>
+
+  <!-- Sent to Students -->
+  <a href="/admin/message/student/sent" 
+     class="msg-nav-link <%= active === 'sent-student' ? 'active' : '' %>">
+    <i class="bi bi-send-check-fill"></i>
+    <span>Sent to Students</span>
+  </a>
+
+  <!-- Message Teachers -->
+  <a href="/admin/message/teacher/compose" 
+     class="msg-nav-link <%= active === 'compose-teacher' ? 'active' : '' %>">
+    <i class="bi bi-person-badge-fill"></i>
+    <span>Message Teachers</span>
+  </a>
+
+  <!-- Sent to Teachers -->
+  <a href="/admin/message/teacher/sent" 
+     class="msg-nav-link <%= active === 'sent-teacher' ? 'active' : '' %>">
+    <i class="bi bi-journal-check"></i>
+    <span>Sent to Teachers</span>
+  </a>
+
+  <!-- Received Messages -->
+  <a href="/admin/message/received" 
+     class="msg-nav-link <%= active === 'received' ? 'active' : '' %>">
+    <i class="bi bi-inbox-fill"></i>
+    <span>Received</span>
+    <span id="notif-badge" class="msg-nav-badge d-none">0</span>
+  </a>
+
+  <!-- Settings -->
+  <a href="/admin/message/settings" 
+     class="msg-nav-link <%= active === 'settings' ? 'active' : '' %>">
+    <i class="bi bi-gear-wide-connected"></i>
+    <span>Settings</span>
+  </a>
+</div>
+
+<script>
+  // Simple helper to toggle badge visibility when counts are updated
+  document.addEventListener("DOMContentLoaded", () => {
+    const badge = document.getElementById("notif-badge");
+    if (badge && parseInt(badge.textContent || "0") > 0) {
+      badge.classList.remove("d-none");
+    }
+  });
+</script>

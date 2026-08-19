@@ -1,0 +1,408 @@
+<% layout("/layouts/boilerplate") -%>
+
+<style>
+   .page-container {
+    max-width: 1320px;
+    margin: 0 auto;
+  }
+  
+  /* 🌟 Elite Light Ice-Blue Canvas Vibe */
+  body {
+    background: linear-gradient(135deg, #f4f7fa 0%, #e9eff5 100%);
+    color: #1e293b;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ✨ Smooth Core Entrance Animation */
+  .animate-entrance {
+    animation: smoothSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes smoothSlideUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 💎 Glossy Premium Soft Cards */
+  .premium-card {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.8) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .premium-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  /* 🎛️ Modern Form Controls */
+  .premium-control {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    padding: 11px 16px !important;
+    font-size: 14px;
+    transition: all 0.2s ease;
+  }
+
+  .premium-control:focus {
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1) !important;
+  }
+
+  /* 🚀 Interactive Action Buttons (Scale Effect) */
+  .btn-premium-action {
+    border-radius: 10px !important;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 11px 24px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-premium-action:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+  }
+
+  /* 📊 High-End Gradient Header Data Grid */
+  .grid-header-gradient {
+    background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%) !important;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    padding: 18px !important;
+  }
+
+  .premium-table th {
+    background-color: #f8fafc !important;
+    color: #475569 !important;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 16px 14px !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+  }
+
+  .premium-table td {
+    padding: 16px 14px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    font-size: 14px;
+    color: #334155;
+  }
+
+  .premium-table tbody tr {
+    transition: background-color 0.2s ease;
+  }
+
+  .premium-table tbody tr:hover {
+    background-color: rgba(37, 99, 235, 0.015) !important;
+  }
+
+  /* ⚙️ Smooth Circular Action Triggers */
+  .action-icon-trigger {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+  }
+  .action-icon-trigger:hover {
+    transform: scale(1.18);
+  }
+
+  /* 📄 Minimalist Polished Pagination Controls */
+  .premium-page-link {
+    color: #475569;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 9px 16px;
+    font-weight: 600;
+    font-size: 13px;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+  }
+
+  .premium-page-link:hover {
+    background-color: #f8fafc;
+    color: #2563eb;
+    border-color: #cbd5e1;
+  }
+
+  .premium-page-item.active .premium-page-link {
+    background-color: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  }
+
+  .premium-dots {
+    padding: 8px 10px;
+    color: #94a3b8;
+    font-weight: 700;
+    user-select: none;
+  }
+
+  /* ⚠️ Premium Floating Validation Banner */
+  .validation-banner {
+    display: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: #c2410c;
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+    border: 1px solid #fed7aa;
+    padding: 12px 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.05);
+    animation: smoothSlideUp 0.3s ease forwards;
+  }
+</style>
+
+<div class="page-container my-4 px-3 animate-entrance">
+
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+    <div>
+      <h2 class="fw-bold text-dark m-0" style="letter-spacing: -0.8px;">🎓 Student Management</h2>
+      <p class="text-muted small mb-3 mt-1">Add, Search & Manage Student Information</p>
+    </div>
+    
+    <div class="d-flex gap-2">
+      <a href="/add/studentData" class="btn btn-dark shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 btn-premium-action" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: none;">
+        <i class="fa-solid fa-plus" style="font-size: 12px;"></i> Add Student
+      </a>
+      <a href="/assign/student/subject" class="btn btn-light border shadow-sm px-4 py-2 rounded-pill fw-semibold d-inline-flex align-items-center gap-2 bg-white text-secondary btn-premium-action">
+        <i class="fa-solid fa-arrow-right-arrows-left" style="font-size: 12px;"></i> Assigning
+      </a>
+    </div>
+  </div>
+
+  <div class="card p-4 premium-card mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+          <h3 class="fw-bold text-secondary text text-center">
+          🔍 Search Student
+        </h3>
+        <p class="text-muted">Find Students by name or class </p>
+      </div>
+      
+      <% if(searchName || searchClass) { %>
+        <a href="/show/student" class="btn btn-sm btn-danger px-3 py-1.5 rounded-pill fw-semibold d-inline-flex align-items-center gap-1 shadow-sm btn-premium-action" style="font-size: 13px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none;">
+          <i class="fa-solid fa-arrow-rotate-left"></i> Back to Default
+        </a>
+      <% } %>
+    </div>
+    
+    <form action="/show/student" method="GET" class="row justify-content-center g-3" id="searchForm" novalidate>
+      
+      <div class="col-12">
+        <div class="validation-banner" id="validationAlert">
+          <i class="fa-solid fa-triangle-exclamation me-2 text-warning"></i> Please choose at least one search criterion.
+        </div>
+      </div>
+
+      <div class="col-md-5">
+        <label class="form-label small fw-bold text-secondary">Name</label>
+        <input type="text" name="name" id="searchNameField" value="<%= searchName %>" class="form-control shadow-none premium-control" placeholder="Search criteria by string...">
+      </div>
+      
+      <div class="col-md-4">
+        <label class="form-label small fw-bold text-secondary">Class</label>
+        <select name="class" id="searchClassField" class="form-select shadow-none premium-control">
+          <option value="">Choose class & year</option>
+          <% for(let data of course){ %>
+            <option value="<%= data.class %>" <%= searchClass === data.class ? 'selected' : '' %>><%= data.class %></option>
+          <% } %>
+        </select>
+      </div>
+      
+      <div class="col-md-3 d-grid align-items-end">
+        <button type="submit" class="btn btn-primary btn-premium-action shadow-sm text-white" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border: none;">Execute Query</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card premium-card overflow-hidden">
+    <div class="grid-header-gradient text-center">
+      <h5 class="mb-0 fw-bold text-white" style="letter-spacing: 0.5px;">Student Records Registry</h5>
+    </div>
+    
+    <div class="table-responsive">
+      <table class="table table-hover premium-table align-middle text-center mb-0" style="border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th class="p-3">Admin No</th>
+            <th>Name</th>
+            <th>Father's Name</th>
+            <th>Class</th>
+            <th>Semester</th>
+            <th>Section</th>
+            <th>Subject</th>
+            <th>Session</th>
+            <th>Email</th>
+            <th>Action</th>
+             <th>Attendance</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if(datas && datas.length > 0) { %>
+            <% for (let data of datas) { %>
+              <tr>
+                <td class="fw-bold text-secondary" style="font-size: 13.5px;"><%= data.rollNo %></td>
+                <td>
+                  <a href="/student/profile/<%= data._id %>" class="fw-bold text-dark text-decoration-none text-primary-hover" style="color: #1e3a8a !important;"><%= data.name %></a>
+                </td>
+                <td><%= data.fatherName %></td>
+                <td><span class="badge bg-light text-dark border px-2.5 py-1.5 rounded-2 fw-semibold" style="border-color: #cbd5e1 !important;"><%= data.class %></span></td>
+                <td><%= data.semester %></td>
+                <td class="text-uppercase fw-bold text-secondary"><%= data.section %></td>
+                <td>
+                  <a href="/show/student/subject/<%= data.rollNo %>" class="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-semibold btn-premium-action" style="font-size: 12px; padding: 5px 14px;">View</a>
+                </td>
+                <td class="text-muted small"><%= data.session %></td>
+                <td class="small text-muted"><%= data.email %></td>
+                <td>
+                  <div class="d-inline-flex gap-1">
+                    <a href="/edit/student/<%= data._id %>" class="action-icon-trigger text-warning btn-outline-light"><i class="fa-solid fa-pen" style="font-size: 13px;"></i></a>
+                    <form action="/delete/student/<%= data._id %>?_method=Delete" method="post" style="display:inline;" onsubmit="return confirm('Are you sure you want to permanently wipe out this student index?');">
+                      <button type="submit" class="action-icon-trigger text-danger btn-outline-light border-0" style="background: none;"><i class="fa-solid fa-trash" style="font-size: 13px;"></i></button>
+                    </form>
+                  </div>
+                </td>
+                <td>
+                  <a href="/student/status/<%= data.rollNo %>" class="btn btn-sm btn-dark rounded-pill px-3 fw-bold btn-premium-action" style="background: #0f172a; font-size: 12px; padding: 6px 14px; border: none;">View</a>
+                </td>
+
+                <!-- ⚡ UPDATED DYNAMIC STATUS BLOCK -->
+                <td>
+                  <div class="d-flex flex-column align-items-center gap-1">
+                    <!-- Status Badge -->
+                    <% if (data.status === 'Blocked') { %>
+                      <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 rounded-pill fw-bold" style="font-size: 11px;">
+                        <i class="fa-solid fa-lock me-1"></i> Blocked
+                      </span>
+                    <% } else { %>
+                      <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill fw-bold" style="font-size: 11px;">
+                        <i class="fa-solid fa-circle-check me-1"></i> Active
+                      </span>
+                    <% } %>
+
+                    <!-- Action Toggle Button -->
+                    <form action="/student/toggle-status/<%= data._id %>" method="POST" style="display: inline;">
+                      <% if (data.status === 'Blocked') { %>
+                        <button type="submit" class="btn btn-sm btn-success rounded-pill px-3 fw-bold btn-premium-action" style="font-size: 11px; padding: 3px 10px;" onclick="return confirm('Do you want to Unblock/Activate this student?');">
+                          <i class="fa-solid fa-unlock me-1"></i> Activate
+                        </button>
+                      <% } else { %>
+                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold btn-premium-action" style="font-size: 11px; padding: 3px 10px;" onclick="return confirm('Are you sure you want to Block this student?');">
+                          <i class="fa-solid fa-ban me-1"></i> Block
+                        </button>
+                      <% } %>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            <% } %>
+          <% } else { %>
+            <tr>
+              <td colspan="11" class="text-center py-5 text-muted">
+                <i class="fa-solid fa-box-open fs-2 d-block mb-2 opacity-40"></i>
+                No matching dynamic records found inside the repository logs.
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if (totalPages > 1) { %>
+      <div class="card-footer bg-white border-0 py-4 d-flex justify-content-center border-top">
+        <nav>
+          <ul class="pagination pagination-sm gap-2 mb-0 align-items-center">
+            
+            <% if (currentPage > 1) { %>
+              <li class="premium-page-item">
+                <a class="premium-page-link btn-premium-action" style="padding: 8px 14px;" href="?page=<%= currentPage - 1 %>&name=<%= searchName %>&class=<%= searchClass %>">Previous</a>
+              </li>
+            <% } %>
+
+            <% 
+              let delta = 1; 
+              let left = currentPage - delta;
+              let right = currentPage + delta + 1;
+              let range = [];
+              let rangeWithDots = [];
+              let l;
+
+              for (let i = 1; i <= totalPages; i++) {
+                  if (i == 1 || i == totalPages || (i >= left && i < right)) {
+                      range.push(i);
+                  }
+              }
+
+              for (let i of range) {
+                  if (l) {
+                      if (i - l === 2) {
+                          rangeWithDots.push(l + 1);
+                      } else if (i - l !== 1) {
+                          rangeWithDots.push('...');
+                      }
+                  }
+                  rangeWithDots.push(i);
+                  l = i;
+              }
+            %>
+
+            <% for(let pageNumber of rangeWithDots) { %>
+              <% if(pageNumber === '...') { %>
+                <li class="premium-dots">...</li>
+              <% } else { %>
+                <li class="premium-page-item <%= currentPage === pageNumber ? 'active' : '' %>">
+                  <a class="premium-page-link" href="?page=<%= pageNumber %>&name=<%= searchName %>&class=<%= searchClass %>"><%= pageNumber %></a>
+                </li>
+              <% } %>
+            <% } %>
+
+            <% if (currentPage < totalPages) { %>
+              <li class="premium-page-item">
+                <a class="premium-page-link btn-premium-action" style="padding: 8px 14px;" href="?page=<%= currentPage + 1 %>&name=<%= searchName %>&class=<%= searchClass %>">Next</a>
+              </li>
+            <% } %>
+
+          </ul>
+        </nav>
+      </div>
+    <% } %>
+
+  </div>
+</div>
+
+<script>
+  // 🔍 Pure Clean Form Validation Filter Engine 
+  document.getElementById('searchForm').addEventListener('submit', function (e) {
+    const nameInput = document.getElementById('searchNameField');
+    const classSelect = document.getElementById('searchClassField');
+    const alertBanner = document.getElementById('validationAlert');
+
+    const nameVal = nameInput.value.trim();
+    const classVal = classSelect.value;
+
+    // Reset layout defaults on request trigger
+    nameInput.style.borderColor = "#cbd5e1";
+    classSelect.style.borderColor = "#cbd5e1";
+    alertBanner.style.display = "none";
+
+    // Trigger validation view state if both options are unselected
+    if (!nameVal && !classVal) {
+      e.preventDefault(); 
+
+      nameInput.style.borderColor = "#fca5a5";
+      classSelect.style.borderColor = "#fca5a5";
+      alertBanner.style.display = "block";
+    }
+  });
+</script>

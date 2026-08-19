@@ -1,0 +1,881 @@
+<% layout("layouts/boilerplate") %>
+
+<style>
+  :root {
+    --primary-gradient: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+    --accent-teal: #14b8a6;
+    --accent-indigo: #6366f1;
+    --border-color: #e2e8f0;
+    --card-bg: #ffffff;
+    --radius-lg: 16px;
+  }
+
+  body { 
+    background-color: #f8fafc; 
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  .sent-wrapper { max-width: 1320px; margin: 0 auto; }
+
+  .glass-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 25px -5px rgba(30, 27, 75, 0.04);
+  }
+
+  .msg-row { transition: all 0.2s ease; }
+  .msg-row:hover { background-color: #f1f5f9; }
+
+  .msg-stamp {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .stamp-teacher { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+  .stamp-removed { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+  .btn-icon-action {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+  .btn-icon-action:hover { transform: translateY(-1px); }
+
+  .search-box-group {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  }
+  .search-box-group input {
+    padding-left: 42px;
+    height: 44px;
+    font-size: 14px;
+  }
+  .search-box-group .search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    color: #64748b;
+  }
+
+  .spinner-live {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  /* Attachment Styles */
+  .att-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #334155;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+  .att-chip:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+  .att-chip img {
+    width: 20px;
+    height: 20px;
+    object-fit: cover;
+    border-radius: 4px;
+  }
+  
+  /* Edit Mode Attachment Styling */
+  .edit-att-wrapper {
+    position: relative;
+    display: inline-block;
+  }
+  .edit-att-wrapper .remove-att-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 1px solid #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    z-index: 10;
+  }
+  .edit-att-wrapper.marked-removed {
+    opacity: 0.35;
+    text-decoration: line-through;
+  }
+</style>
+
+<!-- Bootstrap Toast Notifications Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
+  <div id="liveToast" class="toast align-items-center text-white border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body d-flex align-items-center gap-2" id="toastMessage"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid py-4 sent-wrapper">
+  <%- include("./_nav.ejs", { active: "sent-teacher" }) %>
+
+  <!-- Header Banner -->
+  <div class="p-4 p-md-5 mb-4 rounded-4 text-white shadow-lg position-relative overflow-hidden" style="background: var(--primary-gradient);">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 position-relative" style="z-index: 2;">
+      <div>
+        <span class="badge bg-white text-dark mb-2 px-3 py-2 rounded-pill fw-bold text-uppercase fs-12 d-inline-flex align-items-center gap-2">
+          <i class="fa-solid fa-chalkboard-user text-indigo"></i> Outbox Log <%= showArchived ? '(Archived Storage)' : '' %>
+        </span>
+        <h2 class="fw-bold display-6 mb-1">Messages to Teachers</h2>
+        <p class="text-slate-300 mb-0 opacity-87 fs-6">Manage dispatched teacher communications with real-time database search.</p>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <% if (showArchived) { %>
+          <a href="/admin/message/teacher/sent" class="btn btn-outline-light fw-bold px-3 py-2.5 rounded-3 d-inline-flex align-items-center gap-2">
+            <i class="fa-solid fa-inbox"></i> View Active
+          </a>
+          <button id="clearArchiveBtn" class="btn btn-danger fw-bold px-3 py-2.5 rounded-3 d-inline-flex align-items-center gap-2">
+            <i class="fa-solid fa-trash-can"></i> Empty Archive
+          </button>
+        <% } else { %>
+          <a href="/admin/message/teacher/sent?view=archived" class="btn btn-outline-light fw-bold px-3 py-2.5 rounded-3 d-inline-flex align-items-center gap-2">
+            <i class="fa-solid fa-box-archive"></i> View Archive
+          </a>
+        <% } %>
+        <a href="/admin/message/teacher/compose" class="btn fw-bold px-4 py-2.5 rounded-3 text-white shadow-sm d-inline-flex align-items-center gap-2" style="background-color: var(--accent-teal);">
+          <i class="fa-solid fa-plus"></i> New Message
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Search Bar -->
+  <div class="glass-card p-3 mb-4">
+    <div class="row g-3 align-items-center">
+      <div class="col-md-9">
+        <div class="search-box-group">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="liveSearchInput" class="form-control border-1" placeholder="Search entire DB (Teacher Name, Email, Content)..." value="<%= searchQuery %>" />
+          <div id="searchSpinner" class="spinner-border text-primary spinner-live d-none" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3 d-flex justify-content-md-end gap-2">
+        <div class="dropdown w-100 w-md-auto">
+          <button class="btn btn-outline-secondary dropdown-toggle fw-semibold w-100" style="height: 44px;" type="button" id="bulkActionBtn" data-bs-toggle="dropdown" disabled>
+            <i class="fa-solid fa-list-check me-1"></i> Bulk (<span id="selectedCount">0</span>)
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+            <% if (!showArchived) { %>
+              <li>
+                <a class="dropdown-item text-warning fw-semibold d-flex align-items-center gap-2 py-2" href="#" id="bulkSoftDeleteOpt">
+                  <i class="fa-solid fa-box-archive"></i> Soft Delete Selected
+                </a>
+              </li>
+            <% } %>
+            <li>
+              <a class="dropdown-item text-danger fw-semibold d-flex align-items-center gap-2 py-2" href="#" id="bulkHardDeleteOpt">
+                <i class="fa-solid fa-trash-can"></i> Hard Delete Selected
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table Section -->
+  <div class="glass-card mb-4 overflow-hidden">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light fs-12 text-uppercase text-muted">
+          <tr>
+            <th style="width: 40px;" class="ps-3">
+              <input class="form-check-input" type="checkbox" id="selectAllCheckbox" />
+            </th>
+            <th style="width: 260px;">Recipient Teacher</th>
+            <th>Message Content</th>
+            <th style="width: 190px;">Date Dispatched</th>
+            <th style="width: 130px;" class="text-end pe-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="messageTableBody">
+          <% if (!teacherMessages || teacherMessages.length === 0) { %>
+            <tr>
+              <td colspan="5" class="text-center py-5 text-muted">
+                <i class="fa-solid fa-inbox display-5 d-block mb-2 opacity-50"></i>
+                No teacher messages found matching query.
+              </td>
+            </tr>
+          <% } else { %>
+            <% teacherMessages.forEach(function(m) { %>
+              <tr class="msg-row" data-id="<%= m._id %>">
+                <td class="ps-3">
+                  <input class="form-check-input row-checkbox" type="checkbox" value="<%= m._id %>" />
+                </td>
+                <td>
+                  <% if (m.recipientId && m.recipientId.name) { %>
+                    <span class="msg-stamp stamp-teacher mb-1 d-inline-block"><i class="fa-solid fa-chalkboard-user"></i> TEACHER</span>
+                    <div class="lh-1">
+                      <span class="fw-bold text-dark fs-12 d-block mt-1"><%= m.recipientId.name %></span>
+                      <% if (m.recipientId.email) { %>
+                        <span class="text-muted fs-11 mt-1 d-block"><%= m.recipientId.email %></span>
+                      <% } %>
+                    </div>
+                  <% } else { %>
+                    <span class="msg-stamp stamp-removed"></i>ALL</span>
+                  <% } %>
+                </td>
+                <td>
+                  <!-- Content & Attachments Display View -->
+                  <div id="display-content-<%= m._id %>" class="text-dark small text-break">
+                    <div><%= m.content %></div>
+                    
+                    <% if (m.attachments && m.attachments.length > 0) { %>
+                      <div class="d-flex flex-wrap gap-2 mt-2">
+                        <% m.attachments.forEach(function(att) { %>
+                          <% if (att.fileType === 'image') { %>
+                            <span class="att-chip view-att-trigger" data-url="<%= att.url %>" data-type="image" data-filename="<%= att.filename %>">
+                              <img src="<%= att.url %>" alt="<%= att.filename %>" />
+                              <span class="text-truncate" style="max-width: 120px;"><%= att.filename %></span>
+                            </span>
+                          <% } else { %>
+                            <a href="<%= att.url %>" target="_blank" class="att-chip">
+                              <i class="fa-solid fa-file-pdf text-danger"></i>
+                              <span class="text-truncate" style="max-width: 120px;"><%= att.filename %></span>
+                            </a>
+                          <% } %>
+                        <% }) %>
+                      </div>
+                    <% } %>
+                  </div>
+
+                  <!-- Inline Edit View -->
+                  <div id="edit-box-<%= m._id %>" class="d-none mt-2">
+                    <textarea id="edit-input-<%= m._id %>" class="form-control form-control-sm mb-2" rows="3" maxlength="1800"><%= m.content %></textarea>
+                    
+                    <div id="existing-att-container-<%= m._id %>" class="d-flex flex-wrap gap-2 mb-2">
+                      <% if (m.attachments && m.attachments.length > 0) { %>
+                        <% m.attachments.forEach(function(att) { %>
+                          <div class="edit-att-wrapper" data-url="<%= att.url %>">
+                            <span class="remove-att-btn" title="Remove attachment"><i class="fa-solid fa-xmark"></i></span>
+                            <span class="att-chip">
+                              <% if (att.fileType === 'image') { %>
+                                <img src="<%= att.url %>" alt="<%= att.filename %>" />
+                              <% } else { %>
+                                <i class="fa-solid fa-file-pdf text-danger"></i>
+                              <% } %>
+                              <span class="text-truncate" style="max-width: 100px;"><%= att.filename %></span>
+                            </span>
+                          </div>
+                        <% }) %>
+                      <% } %>
+                    </div>
+
+                    <div class="mb-2">
+                      <label class="form-label fs-11 text-muted mb-1 fw-bold"><i class="fa-solid fa-paperclip me-1"></i>Add New Attachments</label>
+                      <input type="file" id="edit-file-input-<%= m._id %>" class="form-control form-control-sm" multiple accept="image/*,.pdf,.doc,.docx" />
+                    </div>
+
+                    <div class="d-flex align-items-center justify-content-between">
+                      <small class="text-muted fs-11"><span id="char-count-<%= m._id %>"><%= m.content ? m.content.length : 0 %></span>/1800 chars</small>
+                      <div class="d-flex gap-2">
+                        <button class="btn btn-primary btn-sm save-edit-btn" data-id="<%= m._id %>">Save</button>
+                        <button class="btn btn-light btn-sm cancel-edit-btn" data-id="<%= m._id %>">Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td class="text-muted fs-12">
+                  <i class="fa-regular fa-clock me-1 opacity-75"></i> <%= new Date(m.createdAt).toLocaleString() %>
+                  <% if (m.isEdited) { %> <span class="badge bg-light text-secondary border ms-1">edited</span> <% } %>
+                </td>
+                <td class="text-end pe-3">
+                  <div class="d-inline-flex gap-1">
+                    <% if (!showArchived) { %>
+                      <button class="btn btn-outline-primary btn-icon-action edit-btn" data-id="<%= m._id %>" title="Edit Message">
+                        <i class="fa-solid fa-pen"></i>
+                      </button>
+                      <button class="btn btn-outline-warning btn-icon-action soft-del-btn" data-id="<%= m._id %>" title="Soft Delete (Archive)">
+                        <i class="fa-solid fa-box-archive"></i>
+                      </button>
+                    <% } %>
+                    <button class="btn btn-outline-danger btn-icon-action hard-del-btn" data-id="<%= m._id %>" title="Hard Delete (Permanent)">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pagination Controls -->
+  <div id="paginationWrapper">
+    <% if (totalPages > 1) { %>
+      <nav class="d-flex justify-content-center">
+        <ul class="pagination pagination-sm">
+          <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+            <a class="page-link" href="?page=<%= currentPage - 1 %>&q=<%= searchQuery %><%= showArchived ? '&view=archived' : '' %>">Previous</a>
+          </li>
+          <% for(let i = 1; i <= totalPages; i++) { %>
+            <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+              <a class="page-link" href="?page=<%= i %>&q=<%= searchQuery %><%= showArchived ? '&view=archived' : '' %>"><%= i %></a>
+            </li>
+          <% } %>
+          <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+            <a class="page-link" href="?page=<%= currentPage + 1 %>&q=<%= searchQuery %><%= showArchived ? '&view=archived' : '' %>">Next</a>
+          </li>
+        </ul>
+      </nav>
+    <% } %>
+  </div>
+</div>
+
+<!-- Image/Attachment Viewer Modal -->
+<div class="modal fade" id="attachmentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold" id="attModalTitle">Attachment Viewer</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center p-3" id="attModalBody">
+        <img id="attModalImage" src="" class="img-fluid rounded" style="max-height: 75vh; object-fit: contain;" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Action Confirmation Modal -->
+<div class="modal fade" id="actionModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="modalTitle">Confirm Action</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-3 text-secondary" id="modalBody">
+        Are you sure you want to proceed with this operation?
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light fw-bold" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger fw-bold px-3" id="modalConfirmBtn">Proceed</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  'use strict';
+
+  const liveSearchInput = document.getElementById("liveSearchInput");
+  const searchSpinner = document.getElementById("searchSpinner");
+  const selectAllCheckbox = document.getElementById("selectAllCheckbox");
+  const bulkActionBtn = document.getElementById("bulkActionBtn");
+  const selectedCountBadge = document.getElementById("selectedCount");
+  const clearArchiveBtn = document.getElementById("clearArchiveBtn");
+  const messageTableBody = document.getElementById("messageTableBody");
+  const paginationWrapper = document.getElementById("paginationWrapper");
+
+  const showArchived = "<%= showArchived %>" === "true";
+
+  const actionModal = new bootstrap.Modal(document.getElementById('actionModal'));
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+
+  // Attachment Modal
+  const attachmentModal = new bootstrap.Modal(document.getElementById('attachmentModal'));
+  const attModalTitle = document.getElementById('attModalTitle');
+  const attModalImage = document.getElementById('attModalImage');
+
+  // Toast Control Elements
+  const liveToastElement = document.getElementById('liveToast');
+  const liveToast = new bootstrap.Toast(liveToastElement, { delay: 4000 });
+  const toastMessage = document.getElementById('toastMessage');
+
+  let pendingActionCallback = null;
+  let debounceTimer = null;
+
+  function showToast(message, type = 'success') {
+    liveToastElement.className = `toast align-items-center text-white border-0 shadow bg-${type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'danger'}`;
+    const iconClass = type === 'success' ? 'fa-circle-check' : type === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-xmark';
+    toastMessage.innerHTML = `<i class="fa-solid ${iconClass} fs-5"></i> <span>${message}</span>`;
+    liveToast.show();
+  }
+
+  function showModal(title, body, confirmClass, callback) {
+    modalTitle.innerText = title;
+    modalBody.innerText = body;
+    modalConfirmBtn.className = `btn fw-bold px-3 ${confirmClass}`;
+    pendingActionCallback = callback;
+    actionModal.show();
+  }
+
+  modalConfirmBtn.addEventListener("click", () => {
+    if (pendingActionCallback) pendingActionCallback();
+    actionModal.hide();
+  });
+
+  // Attach Handlers on Table Elements
+  function attachEventHandlers() {
+    document.querySelectorAll(".row-checkbox").forEach((chk) => {
+      chk.removeEventListener("change", updateSelectionState);
+      chk.addEventListener("change", updateSelectionState);
+    });
+
+    // Attachment Modal Preview
+    document.querySelectorAll(".view-att-trigger").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const url = btn.dataset.url;
+        const filename = btn.dataset.filename;
+        attModalTitle.innerText = filename || "Image Viewer";
+        attModalImage.src = url;
+        attachmentModal.show();
+      });
+    });
+
+    // Cross button toggle for marking attachment deletion
+    document.querySelectorAll(".remove-att-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const wrapper = btn.closest(".edit-att-wrapper");
+        wrapper.classList.toggle("marked-removed");
+      });
+    });
+
+    document.querySelectorAll(".edit-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        document.getElementById(`display-content-${id}`).classList.add("d-none");
+        document.getElementById(`edit-box-${id}`).classList.remove("d-none");
+      });
+    });
+
+    document.querySelectorAll(".cancel-edit-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        document.getElementById(`display-content-${id}`).classList.remove("d-none");
+        document.getElementById(`edit-box-${id}`).classList.add("d-none");
+        
+        document.querySelectorAll(`#existing-att-container-${id} .edit-att-wrapper`).forEach(w => {
+          w.classList.remove("marked-removed");
+        });
+        const fileInput = document.getElementById(`edit-file-input-${id}`);
+        if (fileInput) fileInput.value = "";
+      });
+    });
+
+    // Character Counter Listener
+    document.querySelectorAll("textarea[id^='edit-input-']").forEach((textarea) => {
+      textarea.addEventListener("input", () => {
+        const id = textarea.id.replace("edit-input-", "");
+        const counter = document.getElementById(`char-count-${id}`);
+        if (counter) counter.innerText = textarea.value.length;
+      });
+    });
+
+    // Save Edit Functionality with Double Click Prevention
+    document.querySelectorAll(".save-edit-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const content = document.getElementById(`edit-input-${id}`).value.trim();
+
+        const removedWrappers = document.querySelectorAll(`#existing-att-container-${id} .edit-att-wrapper.marked-removed`);
+        const removedAttachments = Array.from(removedWrappers).map(w => w.dataset.url);
+
+        const fileInput = document.getElementById(`edit-file-input-${id}`);
+        const files = fileInput ? fileInput.files : [];
+
+        const totalExisting = document.querySelectorAll(`#existing-att-container-${id} .edit-att-wrapper`).length;
+        const remainingCount = totalExisting - removedAttachments.length;
+
+        // Valid as long as there is text OR at least one remaining/new attachment
+        if (!content && remainingCount === 0 && files.length === 0) {
+          showToast("Message cannot be completely empty.", "warning");
+          return;
+        }
+
+        if (content.length > 1800) {
+          showToast("Message exceeds maximum character limit of 1800 characters.", "danger");
+          return;
+        }
+
+        // Disable button to prevent double clicks
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving...`;
+
+        const formData = new FormData();
+        formData.append("content", content);
+        formData.append("removedAttachments", JSON.stringify(removedAttachments));
+
+        for (let i = 0; i < files.length; i++) {
+          formData.append("attachments", files[i]);
+        }
+
+        try {
+          const res = await fetch(`/admin/message/teacher/${id}`, {
+            method: "PUT",
+            body: formData,
+          });
+          
+          if (res.ok) {
+            showToast("Message updated successfully!", "success");
+            performLiveSearch();
+          } else {
+            const errData = await res.json();
+            showToast(errData.message || "Failed to update message.", "danger");
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+          }
+        } catch (err) {
+          showToast("An error occurred while saving.", "danger");
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }
+      });
+    });
+
+    document.querySelectorAll(".soft-del-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        showModal("Confirm Soft Delete", "This message will be archived.", "btn-warning", async () => {
+          try {
+            const res = await fetch(`/admin/message/teacher/${id}?type=soft`, { method: "DELETE" });
+            if (res.ok) {
+              showToast("Message archived successfully!", "success");
+              performLiveSearch();
+            } else {
+              showToast("Failed to archive message.", "danger");
+            }
+          } catch (err) {
+            showToast("Error processing request.", "danger");
+          }
+        });
+      });
+    });
+
+    document.querySelectorAll(".hard-del-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        showModal("Confirm Hard Delete", "PERMANENTLY remove this message from DB?", "btn-danger", async () => {
+          try {
+            const res = await fetch(`/admin/message/teacher/${id}?type=hard`, { method: "DELETE" });
+            if (res.ok) {
+              showToast("Message deleted successfully!", "success");
+              performLiveSearch();
+            } else {
+              showToast("Failed to delete message.", "danger");
+            }
+          } catch (err) {
+            showToast("Error processing deletion.", "danger");
+          }
+        });
+      });
+    });
+  }
+
+  // Render Table Payload via Live Search
+  function renderTableData(messages) {
+    if (!messages || messages.length === 0) {
+      messageTableBody.innerHTML = `
+        <tr>
+          <td colspan="5" class="text-center py-5 text-muted">
+            <i class="fa-solid fa-inbox display-5 d-block mb-2 opacity-50"></i>
+            No teacher messages found matching query.
+          </td>
+        </tr>`;
+      return;
+    }
+
+    messageTableBody.innerHTML = messages.map(m => {
+      let stampHTML = '';
+      if (m.recipientId && m.recipientId.name) {
+        stampHTML = `
+          <span class="msg-stamp stamp-teacher mb-1 d-inline-block"><i class="fa-solid fa-chalkboard-user"></i> TEACHER</span>
+          <div class="lh-1">
+            <span class="fw-bold text-dark fs-12 d-block mt-1">${m.recipientId.name}</span>
+            ${m.recipientId.email ? `<span class="text-muted fs-11 mt-1 d-block">${m.recipientId.email}</span>` : ''}
+          </div>`;
+      } else {
+        stampHTML = `<span class="msg-stamp stamp-removed">All</span>`;
+      }
+
+      let attachmentsHTML = '';
+      if (m.attachments && m.attachments.length > 0) {
+        attachmentsHTML = `<div class="d-flex flex-wrap gap-2 mt-2">` + m.attachments.map(att => {
+          if (att.fileType === 'image') {
+            return `
+              <span class="att-chip view-att-trigger" data-url="${att.url}" data-type="image" data-filename="${att.filename}">
+                <img src="${att.url}" alt="${att.filename}" />
+                <span class="text-truncate" style="max-width: 120px;">${att.filename}</span>
+              </span>`;
+          } else {
+            return `
+              <a href="${att.url}" target="_blank" class="att-chip">
+                <i class="fa-solid fa-file-pdf text-danger"></i>
+                <span class="text-truncate" style="max-width: 120px;">${att.filename}</span>
+              </a>`;
+          }
+        }).join('') + `</div>`;
+      }
+
+      let editAttachmentsHTML = '';
+      if (m.attachments && m.attachments.length > 0) {
+        editAttachmentsHTML = m.attachments.map(att => `
+          <div class="edit-att-wrapper" data-url="${att.url}">
+            <span class="remove-att-btn" title="Remove attachment"><i class="fa-solid fa-xmark"></i></span>
+            <span class="att-chip">
+              ${att.fileType === 'image' ? `<img src="${att.url}" alt="${att.filename}" />` : `<i class="fa-solid fa-file-pdf text-danger"></i>`}
+              <span class="text-truncate" style="max-width: 100px;">${att.filename}</span>
+            </span>
+          </div>
+        `).join('');
+      }
+
+      const safeContent = m.content || "";
+
+      return `
+        <tr class="msg-row" data-id="${m._id}">
+          <td class="ps-3">
+            <input class="form-check-input row-checkbox" type="checkbox" value="${m._id}" />
+          </td>
+          <td>${stampHTML}</td>
+          <td>
+            <div id="display-content-${m._id}" class="text-dark small text-break">
+              <div>${safeContent}</div>
+              ${attachmentsHTML}
+            </div>
+            <div id="edit-box-${m._id}" class="d-none mt-2">
+              <textarea id="edit-input-${m._id}" class="form-control form-control-sm mb-2" rows="3" maxlength="1800">${safeContent}</textarea>
+              
+              <div id="existing-att-container-${m._id}" class="d-flex flex-wrap gap-2 mb-2">
+                ${editAttachmentsHTML}
+              </div>
+
+              <div class="mb-2">
+                <label class="form-label fs-11 text-muted mb-1 fw-bold"><i class="fa-solid fa-paperclip me-1"></i>Add New Attachments</label>
+                <input type="file" id="edit-file-input-${m._id}" class="form-control form-control-sm" multiple accept="image/*,.pdf,.doc,.docx" />
+              </div>
+
+              <div class="d-flex align-items-center justify-content-between">
+                <small class="text-muted fs-11"><span id="char-count-${m._id}">${safeContent.length}</span>/1800 chars</small>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-primary btn-sm save-edit-btn" data-id="${m._id}">Save</button>
+                  <button class="btn btn-light btn-sm cancel-edit-btn" data-id="${m._id}">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </td>
+          <td class="text-muted fs-12">
+            <i class="fa-regular fa-clock me-1 opacity-75"></i> ${new Date(m.createdAt).toLocaleString()}
+            ${m.isEdited ? '<span class="badge bg-light text-secondary border ms-1">edited</span>' : ''}
+          </td>
+          <td class="text-end pe-3">
+            <div class="d-inline-flex gap-1">
+              ${!showArchived ? `
+                <button class="btn btn-outline-primary btn-icon-action edit-btn" data-id="${m._id}" title="Edit Message">
+                  <i class="fa-solid fa-pen"></i>
+                </button>
+                <button class="btn btn-outline-warning btn-icon-action soft-del-btn" data-id="${m._id}" title="Soft Delete (Archive)">
+                  <i class="fa-solid fa-box-archive"></i>
+                </button>
+              ` : ''}
+              <button class="btn btn-outline-danger btn-icon-action hard-del-btn" data-id="${m._id}" title="Hard Delete (Permanent)">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </td>
+        </tr>`;
+    }).join("");
+
+    attachEventHandlers();
+    updateSelectionState();
+  }
+
+  function renderPagination(currentPage, totalPages, query) {
+    if (totalPages <= 1) {
+      paginationWrapper.innerHTML = '';
+      return;
+    }
+
+    let links = '';
+    for (let i = 1; i <= totalPages; i++) {
+      links += `
+        <li class="page-item ${currentPage === i ? 'active' : ''}">
+          <a class="page-link" href="?page=${i}&q=${encodeURIComponent(query)}${showArchived ? '&view=archived' : ''}">${i}</a>
+        </li>`;
+    }
+
+    paginationWrapper.innerHTML = `
+      <nav class="d-flex justify-content-center">
+        <ul class="pagination pagination-sm">
+          <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="?page=${currentPage - 1}&q=${encodeURIComponent(query)}${showArchived ? '&view=archived' : ''}">Previous</a>
+          </li>
+          ${links}
+          <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="?page=${currentPage + 1}&q=${encodeURIComponent(query)}${showArchived ? '&view=archived' : ''}">Next</a>
+          </li>
+        </ul>
+      </nav>`;
+  }
+
+  async function performLiveSearch() {
+    searchSpinner.classList.remove("d-none");
+    const q = liveSearchInput.value.trim();
+
+    try {
+      const res = await fetch(`/admin/message/teacher/api/search?q=${encodeURIComponent(q)}${showArchived ? '&view=archived' : ''}`);
+      const data = await res.json();
+      if (data.success) {
+        renderTableData(data.teacherMessages);
+        renderPagination(data.currentPage, data.totalPages, q);
+      }
+    } catch (err) {
+      console.error("Live Search Error:", err);
+    } finally {
+      searchSpinner.classList.add("d-none");
+    }
+  }
+
+  liveSearchInput.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(performLiveSearch, 300);
+  });
+
+  function updateSelectionState() {
+    const checkboxes = Array.from(document.querySelectorAll(".row-checkbox"));
+    const checkedCheckboxes = checkboxes.filter((c) => c.checked);
+
+    selectedCountBadge.innerText = checkedCheckboxes.length;
+    bulkActionBtn.disabled = checkedCheckboxes.length === 0;
+
+    if (checkboxes.length > 0) {
+      selectAllCheckbox.checked = checkboxes.every((c) => c.checked);
+    } else {
+      selectAllCheckbox.checked = false;
+    }
+  }
+
+  selectAllCheckbox.addEventListener("change", () => {
+    const checkboxes = document.querySelectorAll(".row-checkbox");
+    checkboxes.forEach((chk) => { chk.checked = selectAllCheckbox.checked; });
+    updateSelectionState();
+  });
+
+  const bulkSoft = document.getElementById("bulkSoftDeleteOpt");
+  if (bulkSoft) {
+    bulkSoft.addEventListener("click", (e) => {
+      e.preventDefault();
+      const ids = Array.from(document.querySelectorAll(".row-checkbox:checked")).map((c) => c.value);
+      if (!ids.length) return;
+
+      showModal("Bulk Soft Delete", `Archive ${ids.length} selected teacher message(s)?`, "btn-warning", async () => {
+        try {
+          const res = await fetch("/admin/message/teacher/bulk-delete", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids, type: "soft" }),
+          });
+          if (res.ok) {
+            showToast(`${ids.length} messages archived successfully!`, "success");
+            performLiveSearch();
+          } else {
+            showToast("Bulk archive operation failed.", "danger");
+          }
+        } catch (err) {
+          showToast("Error processing bulk soft delete.", "danger");
+        }
+      });
+    });
+  }
+
+  const bulkHard = document.getElementById("bulkHardDeleteOpt");
+  if (bulkHard) {
+    bulkHard.addEventListener("click", (e) => {
+      e.preventDefault();
+      const ids = Array.from(document.querySelectorAll(".row-checkbox:checked")).map((c) => c.value);
+      if (!ids.length) return;
+
+      showModal("Bulk Hard Delete", `PERMANENTLY remove ${ids.length} teacher message(s) from DB?`, "btn-danger", async () => {
+        try {
+          const res = await fetch("/admin/message/teacher/bulk-delete", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids, type: "hard" }),
+          });
+          if (res.ok) {
+            showToast(`${ids.length} messages deleted permanently!`, "success");
+            performLiveSearch();
+          } else {
+            showToast("Bulk deletion failed.", "danger");
+          }
+        } catch (err) {
+          showToast("Error processing bulk deletion.", "danger");
+        }
+      });
+    });
+  }
+
+  if (clearArchiveBtn) {
+    clearArchiveBtn.addEventListener("click", () => {
+      showModal("Clear Entire Archive", "PERMANENTLY wipe all archived messages for teachers?", "btn-danger", async () => {
+        try {
+          const res = await fetch("/admin/message/teacher/clear-archive", { method: "DELETE" });
+          if (res.ok) {
+            showToast("Archive cleared successfully!", "success");
+            window.location.href = "/admin/message/teacher/sent";
+          } else {
+            showToast("Failed to clear archive.", "danger");
+          }
+        } catch (err) {
+          showToast("Error clearing archive.", "danger");
+        }
+      });
+    });
+  }
+
+  attachEventHandlers();
+});
+</script>

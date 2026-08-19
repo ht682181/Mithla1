@@ -1,0 +1,753 @@
+<% layout("layouts/boilerplate") %>
+
+<style>
+  :root {
+    --primary-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    --accent-blue: #3b82f6;
+    --accent-blue-hover: #1d4ed8;
+    --accent-indigo: #6366f1;
+    --bg-slate: #f8fafc;
+    --card-bg: #ffffff;
+    --border-color: #e2e8f0;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+  }
+
+  body {
+    background-color: #f1f5f9;
+  }
+
+  .dispatch-wrapper {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .glass-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .segmented-control {
+    background: #f1f5f9;
+    padding: 6px;
+    border-radius: var(--radius-md);
+    display: flex;
+    gap: 6px;
+    border: 1px solid var(--border-color);
+  }
+
+  .segmented-control .btn-segment {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.88rem;
+    padding: 12px 16px;
+    border-radius: 8px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .segmented-control .btn-segment:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  .segmented-control .btn-segment.active {
+    background: var(--card-bg);
+    color: var(--accent-blue);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  }
+
+  .filter-box {
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: var(--radius-md);
+    padding: 24px;
+    transition: all 0.3s ease;
+  }
+
+  .form-select, .form-control {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.92rem;
+    transition: all 0.2s ease;
+  }
+
+  .form-select:focus, .form-control:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+  }
+
+  .upload-zone {
+    border: 2px dashed #cbd5e1;
+    border-radius: var(--radius-md);
+    padding: 24px;
+    text-align: center;
+    background: #f8fafc;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .upload-zone:hover {
+    border-color: var(--accent-blue);
+    background: #eff6ff;
+  }
+
+  .student-list-container {
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: #ffffff;
+  }
+
+  .student-list-container::-webkit-scrollbar {
+    width: 6px;
+  }
+  .student-list-container::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 4px;
+  }
+
+  .student-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s ease-in-out;
+  }
+
+  .student-item:hover {
+    background: #eff6ff;
+  }
+
+  .student-badge {
+    font-size: 11px;
+    font-weight: 700;
+    background: #e0e7ff;
+    color: var(--accent-indigo);
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+
+  .toast-container-custom {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 9999;
+  }
+
+  .custom-toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 320px;
+    padding: 16px 20px;
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+    border-left: 5px solid var(--accent-blue);
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .custom-toast.toast-danger {
+    border-left-color: #ef4444;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .msg-hidden {
+    display: none !important;
+  }
+
+  /* File item badge hover styling for removal */
+  .attachment-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--text-main);
+  }
+  .attachment-remove-btn {
+    cursor: pointer;
+    color: #ef4444;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    padding: 2px;
+    transition: background 0.15s ease;
+  }
+  .attachment-remove-btn:hover {
+    background: #fee2e2;
+  }
+</style>
+
+<script>window.CURRENT_USER_ROLE = "Admin";</script>
+
+<div id="toastContainer" class="toast-container-custom"></div>
+
+<!-- Modal Structure Reused Safely -->
+<div class="modal fade" id="appAlertModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="appAlertModalTitle">
+          <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i> Attention
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-3 text-secondary" id="appAlertModalBody"></div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-primary rounded-3 px-4 fw-semibold" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid py-4 dispatch-wrapper">
+  <%- include("./_nav.ejs", { active: "compose-student" }) %>
+
+  <div class="p-4 p-md-5 mb-4 rounded-4 text-white shadow-lg position-relative overflow-hidden" style="background: var(--primary-gradient);">
+    <div class="position-relative z-1 max-w-2xl">
+      <span class="badge bg-white text-dark mb-2 px-3 py-2 rounded-pill fw-bold text-uppercase tracking-wider fs-12">
+        <i class="bi bi-broadcast text-primary me-1"></i> Notification Engine
+      </span>
+      <h2 class="fw-bold display-6 mb-2">Dispatch Student Announcement</h2>
+      <p class="text-slate-300 mb-0 opacity-87 fs-6">Target specific audiences, attach official documents, and broadcast live alerts to student portals instantaneously.</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="glass-card p-4 p-md-5">
+        <form 
+          id="composeForm" 
+          action="/admin/message/student" 
+          method="POST" 
+          enctype="multipart/form-data"
+          class="needs-validation" 
+          novalidate
+        >
+          <div class="mb-4">
+            <label class="form-label fw-bold text-dark small text-uppercase tracking-wider mb-2">
+              1. Select Recipient Scope
+            </label>
+            <div class="segmented-control" role="group">
+              <button type="button" class="btn-segment active" data-audience="all">
+                <i class="bi bi-people-fill me-1.5"></i> All Students
+              </button>
+              <button type="button" class="btn-segment" data-audience="filter">
+                <i class="bi bi-diagram-3-fill me-1.5"></i> Class / Section
+              </button>
+              <button type="button" class="btn-segment" data-audience="individual">
+                <i class="bi bi-person-check-fill me-1.5"></i> Selective
+              </button>
+            </div>
+            <input type="hidden" name="audienceType" id="audienceType" value="all" />
+          </div>
+
+          <div id="filterFields" class="msg-hidden mb-4 filter-box">
+            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-funnel-fill text-primary me-1"></i> Audience Filter Options</h6>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label for="filterClass" class="form-label fw-semibold small">Class *</label>
+                <select name="class" id="filterClass" class="form-select">
+                  <option value="">Select Class</option>
+                  <% classes.forEach(function(c) { %>
+                    <option value="<%= c %>"><%= c %></option>
+                  <% }) %>
+                </select>
+                <div class="invalid-feedback">Please select a class.</div>
+              </div>
+              <div class="col-md-4">
+                <label for="filterSemester" class="form-label fw-semibold small">Semester *</label>
+                <select name="semester" id="filterSemester" class="form-select" disabled>
+                  <option value="">Select Class First</option>
+                </select>
+                <div class="invalid-feedback">Please select a semester.</div>
+              </div>
+              <div class="col-md-4">
+                <label for="filterSection" class="form-label fw-semibold small">Section *</label>
+                <select name="section" id="filterSection" class="form-select" disabled>
+                  <option value="">Select Semester First</option>
+                </select>
+                <div class="invalid-feedback">Please select a section.</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="individualStudentBox" class="msg-hidden mb-4 filter-box">
+            <label class="form-label fw-bold small text-dark mb-2">Student Selection Panel *</label>
+            
+            <div class="input-group mb-3">
+              <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+              <input 
+                type="text" 
+                id="studentSearchInput" 
+                class="form-control border-start-0 ps-0" 
+                placeholder="Search by student name, father name, or admin number..." 
+                disabled 
+              />
+            </div>
+
+            <div class="d-flex align-items-center justify-content-between px-3 py-2 bg-white border rounded mb-2 shadow-sm">
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="selectAllCheckbox" disabled>
+                <label class="form-check-label fw-semibold small text-dark" for="selectAllCheckbox">
+                  Select All Displayed Students
+                </label>
+              </div>
+              <span id="selectedCountBadge" class="badge bg-primary rounded-pill px-3 py-1.5 fs-12">0 Selected</span>
+            </div>
+
+            <div id="studentListContainer" class="student-list-container p-2">
+              <div class="text-center text-muted py-4 small" id="emptyStudentListMsg">
+                <i class="bi bi-info-circle me-1"></i> Select Class, Semester, and Section filters above to view students.
+              </div>
+            </div>
+            <div id="individualErrorMsg" class="text-danger small mt-2 msg-hidden">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i> Select at least one student recipient.
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label for="content" class="form-label fw-bold text-dark small text-uppercase tracking-wider">2. Message Content</label>
+            <textarea 
+              name="content" 
+              id="content" 
+              class="form-control" 
+              rows="6" 
+              maxlength="1800" 
+              placeholder="Write your detailed announcement here..."
+            ></textarea>
+            <div class="d-flex justify-content-between mt-1">
+              <span class="invalid-feedback d-block m-0 msg-hidden" id="contentReqErr">Message body or an attached file is required.</span>
+              <span class="text-muted ms-auto fs-12"><span id="charCounter">0</span>/1800 characters</span>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-bold text-dark small text-uppercase tracking-wider">3. Attachments</label>
+            <div class="upload-zone" onclick="document.getElementById('attachments').click();">
+              <i class="bi bi-cloud-arrow-up-fill text-primary display-6 mb-2 d-block"></i>
+              <p class="fw-semibold text-dark mb-1">Click or drag files here to upload</p>
+              <span class="text-muted small">Images, PDF, DOCX, XLSX, PPTX (Max 5 files, up to 10MB each)</span>
+              <input 
+                type="file" 
+                name="attachments" 
+                id="attachments" 
+                class="d-none" 
+                multiple 
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+              />
+            </div>
+            <div id="filePreviewList" class="mt-2 d-flex flex-wrap gap-2"></div>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100 py-3 fw-bold rounded-3 shadow-sm" id="sendBtn" style="background-color: var(--accent-blue);">
+            <i class="bi bi-send-fill me-2"></i> Dispatch Message Now
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="sticky-top" style="top: 24px;">
+        <div class="glass-card p-4 mb-4">
+          <h6 class="fw-bold text-dark mb-3">
+            <i class="bi bi-eye-fill text-primary me-1.5"></i> Live Card Preview
+          </h6>
+          <div class="border rounded-3 p-3 bg-light">
+            <div class="d-flex align-items-center mb-2">
+              <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-weight: bold;">
+                A
+              </div>
+              <div>
+                <span class="fw-bold d-block text-dark small">Admin Broadcast</span>
+                <span class="text-muted fs-12" id="previewAudience">Recipient: All Students</span>
+              </div>
+            </div>
+            <p class="text-secondary small mb-2 text-break" id="previewText">Your message content will appear here in real time...</p>
+            <div id="previewBadge" class="badge bg-secondary rounded-pill fs-12">No Attachments</div>
+          </div>
+        </div>
+
+        <div class="glass-card p-4 bg-white border-start border-4 border-primary">
+          <h6 class="fw-bold text-dark mb-2"><i class="bi bi-lightbulb-fill text-warning me-1.5"></i> Best Practices</h6>
+          <ul class="text-muted small ps-3 mb-0">
+            <li class="mb-1">Double check selective student lists before broadcasting.</li>
+            <li class="mb-1">Keep attachments under 10MB per file.</li>
+            <li>Broadcast notifications reach active student apps instantly via WebSockets.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  let alertModalInstance = null;
+  function showBootstrapModal(message, title = "Attention") {
+    document.getElementById("appAlertModalTitle").innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i> ${title}`;
+    document.getElementById("appAlertModalBody").innerText = message;
+    
+    const modalEl = document.getElementById('appAlertModal');
+    if (!alertModalInstance && window.bootstrap) {
+      alertModalInstance = new bootstrap.Modal(modalEl);
+    }
+    if (alertModalInstance) {
+      alertModalInstance.show();
+    } else {
+      alert(message);
+    }
+  }
+
+  const segButtons = document.querySelectorAll(".segmented-control .btn-segment");
+  const audienceInput = document.getElementById("audienceType");
+  const filterFields = document.getElementById("filterFields");
+  const individualStudentBox = document.getElementById("individualStudentBox");
+
+  const classSelect = document.getElementById("filterClass");
+  const semesterSelect = document.getElementById("filterSemester");
+  const sectionSelect = document.getElementById("filterSection");
+
+  const studentSearchInput = document.getElementById("studentSearchInput");
+  const studentListContainer = document.getElementById("studentListContainer");
+  const selectAllCheckbox = document.getElementById("selectAllCheckbox");
+  const selectedCountBadge = document.getElementById("selectedCountBadge");
+  const composeForm = document.getElementById("composeForm");
+  const sendBtn = document.getElementById("sendBtn");
+  const individualErrorMsg = document.getElementById("individualErrorMsg");
+
+  const contentInput = document.getElementById("content");
+  const fileInput = document.getElementById("attachments");
+  const charCounter = document.getElementById("charCounter");
+  const previewText = document.getElementById("previewText");
+  const previewAudience = document.getElementById("previewAudience");
+  const previewBadge = document.getElementById("previewBadge");
+  const filePreviewList = document.getElementById("filePreviewList");
+
+  let fetchedStudents = [];
+
+  contentInput.addEventListener("input", () => {
+    const val = contentInput.value;
+    charCounter.innerText = val.length;
+    previewText.innerText = val.trim() ? val : "Your message content will appear here in real time...";
+  });
+
+  // Function to render file attachments with remove button (Cross Icon)
+  function renderFilePreview() {
+    const files = Array.from(fileInput.files);
+    filePreviewList.innerHTML = "";
+
+    if (files.length > 0) {
+      previewBadge.className = "badge bg-success rounded-pill fs-12";
+      previewBadge.innerText = `${files.length} File(s) Attached`;
+      
+      files.forEach((f, index) => {
+        const item = document.createElement("span");
+        item.className = "attachment-badge shadow-sm";
+        item.innerHTML = `
+          <i class="bi bi-paperclip text-primary"></i>
+          <span>${f.name}</span>
+          <i class="bi bi-x-circle-fill attachment-remove-btn" title="Remove file" data-index="${index}"></i>
+        `;
+        filePreviewList.appendChild(item);
+      });
+    } else {
+      previewBadge.className = "badge bg-secondary rounded-pill fs-12";
+      previewBadge.innerText = "No Attachments";
+    }
+  }
+
+  // Remove individual file using DataTransfer API
+  filePreviewList.addEventListener("click", (e) => {
+    if (e.target.classList.contains("attachment-remove-btn")) {
+      const indexToRemove = parseInt(e.target.dataset.index, 10);
+      const dt = new DataTransfer();
+      const files = Array.from(fileInput.files);
+
+      files.forEach((file, index) => {
+        if (index !== indexToRemove) {
+          dt.items.add(file);
+        }
+      });
+
+      fileInput.files = dt.files;
+      renderFilePreview();
+    }
+  });
+
+  fileInput.addEventListener("change", () => {
+    const files = Array.from(fileInput.files);
+    
+    // File size safety check
+    for (const f of files) {
+      if (f.size > 10 * 1024 * 1024) {
+        showBootstrapModal(`File "${f.name}" exceeds the maximum limit of 10MB.`, "File Limit Exceeded");
+        fileInput.value = "";
+        filePreviewList.innerHTML = "";
+        previewBadge.className = "badge bg-secondary rounded-pill fs-12";
+        previewBadge.innerText = "No Attachments";
+        return;
+      }
+    }
+
+    renderFilePreview();
+  });
+
+  segButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      segButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const mode = btn.dataset.audience;
+      audienceInput.value = mode;
+
+      if (mode === "all") {
+        previewAudience.innerText = "Recipient: All Students";
+        filterFields.classList.add("msg-hidden");
+        individualStudentBox.classList.add("msg-hidden");
+        toggleRequiredFields(false, false);
+      } else if (mode === "filter") {
+        previewAudience.innerText = "Recipient: Entire Class / Section";
+        filterFields.classList.remove("msg-hidden");
+        individualStudentBox.classList.add("msg-hidden");
+        toggleRequiredFields(true, false);
+      } else if (mode === "individual") {
+        previewAudience.innerText = "Recipient: Selective Students";
+        filterFields.classList.remove("msg-hidden");
+        individualStudentBox.classList.remove("msg-hidden");
+        toggleRequiredFields(true, true);
+      }
+    });
+  });
+
+  function toggleRequiredFields(filterReq, individualReq) {
+    classSelect.required = filterReq;
+    semesterSelect.required = filterReq;
+    sectionSelect.required = filterReq;
+  }
+
+  classSelect.addEventListener("change", async () => {
+    semesterSelect.innerHTML = '<option value="">Loading…</option>';
+    semesterSelect.disabled = true;
+    sectionSelect.innerHTML = '<option value="">Select Semester First</option>';
+    sectionSelect.disabled = true;
+    resetStudentList();
+
+    if (!classSelect.value) {
+      semesterSelect.innerHTML = '<option value="">Select Class First</option>';
+      return;
+    }
+    try {
+      const res = await fetch(`/admin/message/meta/semesters?class=${encodeURIComponent(classSelect.value)}`);
+      const data = await res.json();
+      semesterSelect.innerHTML = '<option value="">Select Semester</option>' +
+        (data.semesters || []).map((s) => `<option value="${s}">${s}</option>`).join("");
+      semesterSelect.disabled = false;
+    } catch (err) {
+      semesterSelect.innerHTML = '<option value="">Failed to load semesters</option>';
+    }
+  });
+
+  semesterSelect.addEventListener("change", async () => {
+    sectionSelect.innerHTML = '<option value="">Loading…</option>';
+    sectionSelect.disabled = true;
+    resetStudentList();
+
+    if (!semesterSelect.value) {
+      sectionSelect.innerHTML = '<option value="">Select Semester First</option>';
+      return;
+    }
+    try {
+      const res = await fetch(
+        `/admin/message/meta/sections?class=${encodeURIComponent(classSelect.value)}&semester=${encodeURIComponent(semesterSelect.value)}`
+      );
+      const data = await res.json();
+      sectionSelect.innerHTML = '<option value="">Select Section</option>' +
+        (data.sections || []).map((s) => `<option value="${s}">${s}</option>`).join("");
+      sectionSelect.disabled = false;
+    } catch (err) {
+      sectionSelect.innerHTML = '<option value="">Failed to load sections</option>';
+    }
+  });
+
+  sectionSelect.addEventListener("change", async () => {
+    if (!classSelect.value || !semesterSelect.value || !sectionSelect.value) {
+      resetStudentList();
+      return;
+    }
+
+    studentListContainer.innerHTML = '<div class="text-center py-4 text-muted small"><div class="spinner-border spinner-border-sm me-2 text-primary"></div> Fetching student roster...</div>';
+    
+    try {
+      const res = await fetch(
+        `/admin/message/meta/students-by-filter?class=${encodeURIComponent(classSelect.value)}&semester=${encodeURIComponent(semesterSelect.value)}&section=${encodeURIComponent(sectionSelect.value)}`
+      );
+      const data = await res.json();
+      fetchedStudents = data.students || [];
+
+      renderStudentList(fetchedStudents);
+    } catch (err) {
+      studentListContainer.innerHTML = '<div class="text-center text-danger py-4 small">Failed to load student list.</div>';
+    }
+  });
+
+  function renderStudentList(students) {
+    if (students.length === 0) {
+      studentListContainer.innerHTML = '<div class="text-center text-muted py-4 small">No active students registered under this filter.</div>';
+      selectAllCheckbox.disabled = true;
+      studentSearchInput.disabled = true;
+      updateSelectedCount();
+      return;
+    }
+
+    selectAllCheckbox.disabled = false;
+    studentSearchInput.disabled = false;
+
+    studentListContainer.innerHTML = students.map((s) => {
+      const fatherName = s.fatherName || s.father_name || "N/A";
+      const rollNoDisplay = s.rollNo ? `Admin no #${s.rollNo}` : "N/A";
+      return `
+        <div class="student-item d-flex align-items-center justify-content-between" data-search="${(s.name || '').toLowerCase()} ${(fatherName || '').toLowerCase()} ${(s.rollNo || '').toString().toLowerCase()}">
+          <div class="form-check mb-0">
+            <input class="form-check-input student-checkbox" type="checkbox" name="studentIds" value="${s._id}" id="chk_${s._id}">
+            <label class="form-check-label fw-semibold text-dark ms-2 small" for="chk_${s._id}">
+              ${s.name}
+              <span class="d-block text-muted fw-normal" style="font-size: 11px;">S/O: ${fatherName}</span>
+            </label>
+          </div>
+          <span class="student-badge">${rollNoDisplay}</span>
+        </div>
+      `;
+    }).join("");
+
+    bindCheckboxEvents();
+    updateSelectedCount();
+  }
+
+  function resetStudentList() {
+    fetchedStudents = [];
+    studentListContainer.innerHTML = '<div class="text-center text-muted py-4 small"><i class="bi bi-info-circle me-1"></i> Select Class, Semester, and Section to view target list.</div>';
+    selectAllCheckbox.checked = false;
+    selectAllCheckbox.disabled = true;
+    studentSearchInput.value = "";
+    studentSearchInput.disabled = true;
+    updateSelectedCount();
+  }
+
+  studentSearchInput.addEventListener("input", () => {
+    const q = studentSearchInput.value.toLowerCase().trim();
+    const items = studentListContainer.querySelectorAll(".student-item");
+    items.forEach((item) => {
+      const text = item.dataset.search || "";
+      if (text.includes(q)) {
+        item.classList.remove("msg-hidden");
+      } else {
+        item.classList.add("msg-hidden");
+      }
+    });
+
+    const visibleCheckboxes = Array.from(studentListContainer.querySelectorAll(".student-item:not(.msg-hidden) .student-checkbox"));
+    if (visibleCheckboxes.length > 0) {
+      selectAllCheckbox.checked = visibleCheckboxes.every((c) => c.checked);
+    }
+  });
+
+  selectAllCheckbox.addEventListener("change", () => {
+    const visibleCheckboxes = studentListContainer.querySelectorAll(".student-item:not(.msg-hidden) .student-checkbox");
+    visibleCheckboxes.forEach((chk) => {
+      chk.checked = selectAllCheckbox.checked;
+    });
+    updateSelectedCount();
+  });
+
+  function bindCheckboxEvents() {
+    const checkboxes = studentListContainer.querySelectorAll(".student-checkbox");
+    checkboxes.forEach((chk) => {
+      chk.addEventListener("change", () => {
+        updateSelectedCount();
+        const visibleCheckboxes = Array.from(studentListContainer.querySelectorAll(".student-item:not(.msg-hidden) .student-checkbox"));
+        if (visibleCheckboxes.length > 0) {
+          selectAllCheckbox.checked = visibleCheckboxes.every((c) => c.checked);
+        }
+      });
+    });
+  }
+
+  function updateSelectedCount() {
+    const checked = studentListContainer.querySelectorAll(".student-checkbox:checked");
+    selectedCountBadge.innerText = `${checked.length} Selected`;
+    if (checked.length > 0) {
+      individualErrorMsg.classList.add("msg-hidden");
+    }
+  }
+
+  composeForm.addEventListener("submit", function (e) {
+    const audience = audienceInput.value;
+    const contentVal = contentInput.value.trim();
+    const attachmentsVal = fileInput.files;
+
+    let isFormValid = true;
+
+    if (!composeForm.checkValidity()) {
+      e.preventDefault();
+      e.stopPropagation();
+      isFormValid = false;
+    }
+
+    if (!contentVal && attachmentsVal.length === 0) {
+      e.preventDefault();
+      showBootstrapModal("Please provide a message body or attach a file.", "Missing Information");
+      return;
+    }
+
+    if (attachmentsVal.length > 5) {
+      e.preventDefault();
+      showBootstrapModal("Maximum attachment limit is 5 files.", "File Limit Exceeded");
+      return;
+    }
+
+    if (audience === "individual") {
+      const checkedStudents = studentListContainer.querySelectorAll(".student-checkbox:checked");
+      if (checkedStudents.length === 0) {
+        e.preventDefault();
+        individualErrorMsg.classList.remove("msg-hidden");
+        showBootstrapModal("Select at least one student recipient.", "Recipient Required");
+        isFormValid = false;
+      }
+    }
+
+    composeForm.classList.add("was-validated");
+
+    if (isFormValid) {
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Dispatching Message...`;
+    } else {
+      sendBtn.disabled = false;
+    }
+  });
+
+})();
+</script>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/socketClient.js"></script>

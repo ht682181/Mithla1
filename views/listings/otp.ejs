@@ -1,0 +1,700 @@
+<!-- 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mithla | OTP Verification</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="website icon" type="png" href="/images/logo.png">
+
+    <style>
+        /* Modern Bright/Light Space Gradient Background */
+        body {
+            background: linear-gradient(-45deg, #eef2ff, #e0e7ff, #f3e8ff, #f8fafc);
+            background-size: 400% 400%;
+            animation: gradientMove 15s ease infinite;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradientMove {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Ambient Pastel Glowing Circles behind the card */
+        .bg-glow-1 {
+            position: absolute;
+            width: 320px;
+            height: 320px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(0,0,0,0) 70%);
+            top: 15%;
+            left: 20%;
+            z-index: 1;
+            animation: floatGlow 8s ease-in-out infinite alternate;
+        }
+
+        .bg-glow-2 {
+            position: absolute;
+            width: 360px;
+            height: 360px;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, rgba(0,0,0,0) 70%);
+            bottom: 15%;
+            right: 20%;
+            z-index: 1;
+            animation: floatGlow 10s ease-in-out infinite alternate-reverse;
+        }
+
+        @keyframes floatGlow {
+            0% { transform: translateY(0px) scale(1); }
+            100% { transform: translateY(25px) scale(1.05); }
+        }
+
+        /* Premium LIGHT Glassmorphic Card */
+        .otp-card {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(99, 102, 241, 0.1), 
+                        0 0 30px rgba(168, 85, 247, 0.05);
+            width: 100%;
+            max-width: 440px;
+            z-index: 2;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: cardFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes cardFadeIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Lock Icon Box with Bright Royal Gradient */
+        .otp-icon-box {
+            width: 76px;
+            height: 76px;
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin: 0 auto 15px;
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.25);
+            animation: pulseGlow 2s infinite;
+        }
+
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(99, 102, 241, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+        }
+
+        /* Dark Typography for Light Background */
+        .form-heading {
+            color: #1e1b4b;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .email-badge {
+            background: #e0e7ff;
+            color: #4f46e5;
+            border: 1px solid rgba(79, 70, 229, 0.15);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: inline-block;
+            margin-top: 5px;
+            font-weight: 600;
+        }
+
+        .form-label {
+            color: #475569;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        /* Clean Light Input Field */
+        .otp-input {
+            background: rgba(255, 255, 255, 0.8) !important;
+            border: 1.5px solid #cbd5e1 !important;
+            color: #0f172a !important;
+            height: 54px;
+            text-align: center;
+            font-size: 24px;
+            letter-spacing: 8px;
+            font-weight: bold;
+            border-radius: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .otp-input:focus {
+            border-color: #4f46e5 !important;
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15) !important;
+            background: #ffffff !important;
+        }
+
+        /* Shake & Red Glow on Error */
+        .was-validated .form-control:invalid {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15) !important;
+            animation: shakeError 0.4s ease-in-out;
+        }
+
+        @keyframes shakeError {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+
+        .was-validated .form-control:valid {
+            border-color: #10b981 !important;
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1) !important;
+        }
+
+        .invalid-feedback {
+            color: #dc2626;
+            font-size: 0.82rem;
+            margin-top: 6px;
+            font-weight: 500;
+        }
+
+        /* Premium Interactive Primary Button */
+        .btn-gradient {
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            border: none;
+            color: #ffffff;
+            font-weight: 600;
+            padding: 14px 20px;
+            border-radius: 12px;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .btn-gradient::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .btn-gradient:hover::before {
+            opacity: 1;
+        }
+
+        .btn-gradient:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);
+            color: #ffffff;
+        }
+
+        /* Resend Link Dynamic Styles */
+        .resend-active {
+            color: #4f46e5 !important;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .resend-active:hover {
+            text-shadow: 0 0 4px rgba(79, 70, 229, 0.2);
+            text-decoration: underline !important;
+        }
+
+        /* Responsive Alert Container */
+        .alert-holder {
+            width: 100%;
+            max-width: 440px;
+            z-index: 3;
+        }
+        .alert {
+            border-radius: 14px;
+            border: 1px solid rgba(0,0,0,0.05);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+
+    <div class="alert-holder mb-3">
+        < if (error && error.length) { %>
+        <div class="alert alert-danger alert-dismissible fade show text-danger bg-danger bg-opacity-10" role="alert">
+            <strong>Error!</strong> <= error %>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        < } %>
+    </div>
+
+    <div class="otp-card p-4 p-md-5">
+        <div class="text-center">
+            <div class="otp-icon-box">🔐</div>
+            <h2 class="form-heading mb-2">OTP Verification</h2>
+            <p class="text-muted small mb-1">We’ve sent a one-time password to</p>
+
+           <  --
+                const [otpEmailUser, otpEmailDomain] = email.split("@");
+                const visible = otpEmailUser.slice(-4);
+                const masked = "*".repeat(Math.max(0, otpEmailUser.length - 4));
+                const maskedEmail = masked + visible + "@" + otpEmailDomain;
+            // %>
+            <div class="email-badge"><= maskedEmail %></div>
+        </div>
+
+        <form action="/verify-otp" method="post" class="needs-validation mt-4" novalidate>
+            <div class="mb-4">
+                <label class="form-label">Enter 6-Digit OTP</label>
+                <input 
+                    type="text"
+                    name="otp"
+                    class="form-control otp-input shadow-sm"
+                    placeholder="••••••"
+                    maxlength="6"
+                    pattern="\d{6}"
+                    required
+                    autocomplete="off"
+                >
+                <div class="invalid-feedback text-start">
+                    Please enter a valid 6-digit OTP.
+                </div>
+            </div>
+
+            <button type="submit" class="w-100 btn btn-gradient fw-semibold">
+                Verify OTP
+            </button>
+        </form>
+
+        <div class="text-center mt-4">
+            <small class="text-muted">
+                OTP valid only for 
+                <span class="fw-semibold text-danger">
+                    <span id="otpTimer">30</span> seconds
+                </span>
+            </small>
+        </div>
+
+        <div class="text-center mt-2">
+            <a
+                href="/student/attendance/login"
+                id="resendLink"
+                class="text-decoration-none text-muted small"
+                style="pointer-events: none; cursor: not-allowed;"
+            >
+                Resend OTP
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        (() => {
+          'use strict'
+          const forms = document.querySelectorAll('.needs-validation')
+          Array.from(forms).forEach(form => {
+            form.addEventListener('submit', event => {
+              if (!form.checkValidity()) {
+                event.preventDefault()
+                event.stopPropagation()
+              }
+              form.classList.add('was-validated')
+            }, false)
+          })
+        })()
+    </script>
+
+    <script>
+        let timeLeft = 30;
+        const timerEl = document.getElementById("otpTimer");
+        const resendLink = document.getElementById("resendLink");
+
+        const timer = setInterval(() => {
+            timeLeft--;
+            timerEl.textContent = timeLeft;
+
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+
+                // Enable link safely with premium light styles
+                resendLink.style.pointerEvents = "auto";
+                resendLink.style.cursor = "pointer";
+                resendLink.classList.remove("text-muted");
+                resendLink.classList.add("resend-active");
+            }
+        }, 1000);
+    </script>
+
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mithla | OTP Verification</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="website icon" type="png" href="/images/logo.png">
+
+    <style>
+        /* Modern Bright/Light Space Gradient Background */
+        body {
+            background: linear-gradient(-45deg, #eef2ff, #e0e7ff, #f3e8ff, #f8fafc);
+            background-size: 400% 400%;
+            animation: gradientMove 15s ease infinite;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradientMove {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Ambient Pastel Glowing Circles behind the card */
+        .bg-glow-1 {
+            position: absolute;
+            width: 320px;
+            height: 320px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(0,0,0,0) 70%);
+            top: 15%;
+            left: 20%;
+            z-index: 1;
+            animation: floatGlow 8s ease-in-out infinite alternate;
+        }
+
+        .bg-glow-2 {
+            position: absolute;
+            width: 360px;
+            height: 360px;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, rgba(0,0,0,0) 70%);
+            bottom: 15%;
+            right: 20%;
+            z-index: 1;
+            animation: floatGlow 10s ease-in-out infinite alternate-reverse;
+        }
+
+        @keyframes floatGlow {
+            0% { transform: translateY(0px) scale(1); }
+            100% { transform: translateY(25px) scale(1.05); }
+        }
+
+        /* Premium LIGHT Glassmorphic Card */
+        .otp-card {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(99, 102, 241, 0.1), 
+                        0 0 30px rgba(168, 85, 247, 0.05);
+            width: 100%;
+            max-width: 440px;
+            z-index: 2;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: cardFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes cardFadeIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Lock Icon Box with Bright Royal Gradient */
+        .otp-icon-box {
+            width: 76px;
+            height: 76px;
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin: 0 auto 15px;
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.25);
+            animation: pulseGlow 2s infinite;
+        }
+
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(99, 102, 241, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+        }
+
+        .form-heading { color: #1e1b4b; font-weight: 800; letter-spacing: -0.5px; }
+
+        .email-badge {
+            background: #e0e7ff;
+            color: #4f46e5;
+            border: 1px solid rgba(79, 70, 229, 0.15);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: inline-block;
+            margin-top: 5px;
+            font-weight: 600;
+        }
+
+        .form-label { color: #475569; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; }
+
+        .otp-input {
+            background: rgba(255, 255, 255, 0.8) !important;
+            border: 1.5px solid #cbd5e1 !important;
+            color: #0f172a !important;
+            height: 54px;
+            text-align: center;
+            font-size: 24px;
+            letter-spacing: 8px;
+            font-weight: bold;
+            border-radius: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .otp-input:focus {
+            border-color: #4f46e5 !important;
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15) !important;
+            background: #ffffff !important;
+        }
+
+        .was-validated .form-control:invalid {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15) !important;
+            animation: shakeError 0.4s ease-in-out;
+        }
+
+        @keyframes shakeError {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+
+        .was-validated .form-control:valid {
+            border-color: #10b981 !important;
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1) !important;
+        }
+
+        .invalid-feedback { color: #dc2626; font-size: 0.82rem; margin-top: 6px; font-weight: 500; }
+
+        .btn-gradient {
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            border: none;
+            color: #ffffff;
+            font-weight: 600;
+            padding: 14px 20px;
+            border-radius: 12px;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .btn-gradient::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            z-index: -1; opacity: 0; transition: opacity 0.4s ease;
+        }
+
+        .btn-gradient:hover::before { opacity: 1; }
+        .btn-gradient:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3); color: #ffffff; }
+
+        .resend-active { color: #4f46e5 !important; font-weight: 600; transition: all 0.3s ease; }
+        .resend-active:hover { text-shadow: 0 0 4px rgba(79, 70, 229, 0.2); text-decoration: underline !important; }
+
+        .alert-holder { width: 100%; max-width: 440px; z-index: 3; }
+        .alert { border-radius: 14px; border: 1px solid rgba(0,0,0,0.05); backdrop-filter: blur(10px); }
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+
+    <div class="alert-holder mb-3">
+        <% if (error && error.length) { %>
+        <div class="alert alert-danger alert-dismissible fade show text-danger bg-danger bg-opacity-10" role="alert">
+            <strong>Error!</strong> <%= error %>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <% } %>
+    </div>
+
+    <div class="otp-card p-4 p-md-5">
+        <div class="text-center">
+            <div class="otp-icon-box">🔐</div>
+            <h2 class="form-heading mb-2">OTP Verification</h2>
+            <p class="text-muted small mb-1">We’ve sent a one-time password to</p>
+
+            <% 
+                const [otpEmailUser, otpEmailDomain] = email.split("@");
+                const visible = otpEmailUser.slice(-4);
+                const masked = "*".repeat(Math.max(0, otpEmailUser.length - 4));
+                const maskedEmail = masked + visible + "@" + otpEmailDomain;
+            %>
+            <div class="email-badge"><%= maskedEmail %></div>
+        </div>
+
+        <form action="/verify-otp" method="post" class="needs-validation mt-4" novalidate>
+            <div class="mb-4">
+                <label class="form-label">Enter 6-Digit OTP</label>
+                <input 
+                    type="text"
+                    name="otp"
+                    class="form-control otp-input shadow-sm"
+                    placeholder="••••••"
+                    maxlength="6"
+                    pattern="\d{6}"
+                    required
+                    autocomplete="off"
+                >
+                <div class="invalid-feedback text-start">
+                    Please enter a valid 6-digit OTP.
+                </div>
+            </div>
+
+            <button type="submit" class="w-100 btn btn-gradient fw-semibold">
+                Verify OTP
+            </button>
+        </form>
+
+        <!-- TIMER SECTION -->
+        <div class="text-center mt-4">
+            <small class="text-muted">
+                OTP valid only for 
+                <span class="fw-semibold text-danger">
+                    <span id="otpTimer">30</span> seconds
+                </span>
+            </small>
+        </div>
+
+        <!-- RESEND LINK SECTION (Bina page refresh ka jugaad) -->
+        <div class="text-center mt-2">
+            <a
+                href="javascript:void(0);"
+                id="resendLink"
+                onclick="handleResendOTP()"
+                class="text-decoration-none text-muted small"
+                style="pointer-events: none; cursor: not-allowed;"
+            >
+                Resend OTP
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Bootstrap Form Validation -->
+    <script>
+        (() => {
+          'use strict'
+          const forms = document.querySelectorAll('.needs-validation')
+          Array.from(forms).forEach(form => {
+            form.addEventListener('submit', event => {
+              if (!form.checkValidity()) {
+                event.preventDefault()
+                event.stopPropagation()
+              }
+              form.classList.add('was-validated')
+            }, false)
+          })
+        })()
+    </script>
+
+    <!-- Dynamic Timer + AJAX Fetch Call for Brevo API -->
+    <script>
+        let timeLeft = 30;
+        let timer;
+        const timerEl = document.getElementById("otpTimer");
+        const resendLink = document.getElementById("resendLink");
+
+        function startTimer() {
+            timeLeft = 30;
+            timerEl.textContent = timeLeft;
+            resendLink.style.pointerEvents = "none";
+            resendLink.style.cursor = "not-allowed";
+            resendLink.classList.remove("resend-active");
+            resendLink.classList.add("text-muted");
+            resendLink.innerText = "Resend OTP";
+
+            timer = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = timeLeft;
+
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    resendLink.style.pointerEvents = "auto";
+                    resendLink.style.cursor = "pointer";
+                    resendLink.classList.remove("text-muted");
+                    resendLink.classList.add("resend-active");
+                }
+            }, 1000);
+        }
+
+        // Pehli baar load par timer chalayein
+        startTimer();
+
+        // AJAX (Fetch) Call handler
+        async function handleResendOTP() {
+            if (timeLeft > 0) return; 
+
+            resendLink.innerText = "Sending..."; 
+            resendLink.style.pointerEvents = "none";
+
+            try {
+                // Background POST call to server
+                const response = await fetch('/resend-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert("Resend otp successfully");
+                    startTimer(); // Timer wapas reset ho jayega
+                } else {
+                    alert("Error: " + data.message);
+                    resendLink.innerText = "Resend OTP";
+                    resendLink.style.pointerEvents = "auto";
+                }
+            } catch (error) {
+                console.error("AJAX Error:", error);
+                alert("Network issue. Please try again.");
+                resendLink.innerText = "Resend OTP";
+                resendLink.style.pointerEvents = "auto";
+            }
+        }
+    </script>
+</body>
+</html>

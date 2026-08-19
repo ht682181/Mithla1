@@ -1,0 +1,474 @@
+<% layout("/layouts/boilerplate") -%>
+
+<style>
+  body {
+    background: #f8fafc;
+    color: #0f172a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* Smooth Entrance Animation */
+  .profile-animate-entrance {
+    animation: profileSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes profileSlideUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Glassmorphic Shell Container */
+  .profile-shell {
+    background: #ffffff;
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+    overflow: hidden;
+  }
+
+  /* Header Banner */
+  .profile-cover-banner {
+    height: 140px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #3b82f6 100%);
+    position: relative;
+  }
+
+  .banner-status-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-size: 12px;
+    font-weight: 600;
+    backdrop-filter: blur(8px);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: 0.3px;
+  }
+
+  /* Active Status Styles */
+  .status-badge-active {
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid rgba(52, 211, 153, 0.4);
+    color: #ecfdf5;
+  }
+
+  /* Blocked Status Styles */
+  .status-badge-blocked {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    color: #fef2f2;
+  }
+
+  /* Interactive Clickable Avatar Ring */
+  .profile-avatar-wrapper {
+    position: relative;
+    margin-top: -60px;
+    display: inline-block;
+  }
+
+  .profile-avatar-img {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid #ffffff;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease;
+  }
+
+  .profile-avatar-img:hover {
+    transform: scale(1.05);
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.25);
+  }
+
+  .avatar-zoom-badge {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: #2563eb;
+    color: #ffffff;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    pointer-events: none;
+  }
+
+  /* Live Online/Status Dot Indicator on Avatar */
+  .status-pulse-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 3px solid #ffffff;
+  }
+
+  .status-pulse-dot.active {
+    background-color: #10b981;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    animation: statusPulse 2s infinite;
+  }
+
+  .status-pulse-dot.blocked {
+    background-color: #ef4444;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+
+  @keyframes statusPulse {
+    0% {
+      transform: scale(0.95);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+    70% {
+      transform: scale(1);
+      box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    }
+    100% {
+      transform: scale(0.95);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+  }
+
+  /* Core Stats Cards */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    background: #f8fafc;
+    padding: 16px;
+    border-radius: 14px;
+    border: 1px solid #f1f5f9;
+  }
+
+  .stat-box {
+    text-align: center;
+    padding: 10px 8px;
+    background: #ffffff;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .stat-box span {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: #64748b;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .stat-box b {
+    font-size: 15px;
+    color: #0f172a;
+    font-weight: 700;
+  }
+
+  /* Details Grid */
+  .details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  @media (max-width: 576px) {
+    .details-grid {
+      grid-template-columns: 1fr;
+    }
+    .detail-card.full-width-mobile {
+      grid-column: span 1 !important;
+    }
+  }
+
+  .detail-card {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .detail-card span {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .detail-card b {
+    font-size: 14px;
+    color: #1e293b;
+    word-break: break-word;
+  }
+
+  /* Status Pill inside Details Grid */
+  .status-text-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .status-text-pill.active {
+    color: #059669;
+  }
+
+  .status-text-pill.blocked {
+    color: #dc2626;
+  }
+
+  /* Premium Buttons */
+  .btn-edit-profile {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 10px 28px;
+    border-radius: 50px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  }
+
+  .btn-edit-profile:hover {
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.3);
+  }
+
+  /* Lightbox Modal CSS */
+  .image-lightbox-modal {
+    display: none;
+    position: fixed;
+    z-index: 1090;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  .image-lightbox-modal.show {
+    display: flex;
+    opacity: 1;
+  }
+
+  .lightbox-content {
+    max-width: 90%;
+    max-height: 85vh;
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    transform: scale(0.9);
+    transition: transform 0.25s ease;
+    border: 3px solid #ffffff;
+    object-fit: contain;
+  }
+
+  .image-lightbox-modal.show .lightbox-content {
+    transform: scale(1);
+  }
+
+  .lightbox-close-btn {
+    position: absolute;
+    top: 24px;
+    right: 28px;
+    color: #ffffff;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.15);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease;
+  }
+
+  .lightbox-close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+</style>
+
+<div class="container my-5 profile-animate-entrance">
+  <div class="row justify-content-center">
+    <div class="col-lg-7 col-md-9">
+
+      <div class="profile-shell">
+        
+        <!-- Banner Header -->
+        <div class="profile-cover-banner">
+          <% if (student.status === 'Active') { %>
+            <span class="banner-status-badge status-badge-active">
+              <i class="fa-solid fa-circle-check"></i> Active Account
+            </span>
+          <% } else if (student.status === 'Blocked') { %>
+            <span class="banner-status-badge status-badge-blocked">
+              <i class="fa-solid fa-circle-xmark"></i> Account Blocked
+            </span>
+          <% } else { %>
+            <span class="banner-status-badge bg-secondary text-white">
+              <i class="fa-solid fa-circle-info"></i> <%= student.status || 'Pending' %>
+            </span>
+          <% } %>
+        </div>
+
+        <!-- Top Header Info -->
+        <div class="text-center px-4 pb-3">
+          <div class="profile-avatar-wrapper">
+            <img src="<%= student.image.url %>" 
+                 alt="Student Profile" 
+                 class="profile-avatar-img" 
+                 id="studentAvatarImg" 
+                 title="Click to view full image">
+                 
+            <div class="avatar-zoom-badge">
+              <i class="fa-solid fa-magnifying-glass-plus"></i>
+            </div>
+
+            <!-- Glowing Light Indicator on Avatar -->
+            <% if (student.status === 'Active') { %>
+              <div class="status-pulse-dot active" title="Status: Active"></div>
+            <% } else if (student.status === 'Blocked') { %>
+              <div class="status-pulse-dot blocked" title="Status: Blocked"></div>
+            <% } %>
+          </div>
+          
+          <h4 class="fw-bold text-dark mt-3 mb-1" style="letter-spacing: -0.3px;"><%= student.name %></h4>
+          <span class="badge bg-light text-secondary border px-3 py-1.5 rounded-pill fw-medium" style="font-size: 12.5px;">
+            <i class="fa-solid fa-id-card me-1 text-primary"></i> Admin No • <%= student.rollNo %>
+          </span>
+        </div>
+
+        <div class="px-4 pb-4">
+          <!-- Quick Stats Grid -->
+          <div class="stats-grid mb-4">
+            <div class="stat-box">
+              <span>Class</span>
+              <b><%= student.class %></b>
+            </div>
+            <div class="stat-box">
+              <span>Section</span>
+              <b><%= student.section %></b>
+            </div>
+            <div class="stat-box">
+              <span>Semester</span>
+              <b><%= student.semester %></b>
+            </div>
+          </div>
+
+          <!-- Extended Details Grid -->
+          <div class="details-grid mb-4">
+            <div class="detail-card">
+              <span><i class="fa-solid fa-user-tie text-muted"></i> Father Name</span>
+              <b><%= student.fatherName %></b>
+            </div>
+
+            <div class="detail-card">
+              <span><i class="fa-solid fa-shield-halved text-muted"></i> Account Status</span>
+              <b>
+                <% if (student.status === 'Active') { %>
+                  <span class="status-text-pill active">
+                    <i class="fa-solid fa-circle text-success" style="font-size: 9px;"></i> Active
+                  </span>
+                <% } else if (student.status === 'Blocked') { %>
+                  <span class="status-text-pill blocked">
+                    <i class="fa-solid fa-circle text-danger" style="font-size: 9px;"></i> Blocked
+                  </span>
+                <% } else { %>
+                  <span class="text-secondary"><%= student.status || 'N/A' %></span>
+                <% } %>
+              </b>
+            </div>
+
+            <div class="detail-card">
+              <span><i class="fa-solid fa-calendar-days text-muted"></i> Session</span>
+              <b><%= student.session %></b>
+            </div>
+
+            <div class="detail-card">
+              <span><i class="fa-solid fa-envelope text-muted"></i> Email Address</span>
+              <b><%= student.email %></b>
+            </div>
+          </div>
+
+          <!-- Action Button -->
+          <div class="text-center pt-2">
+            <a href="/edit/student/<%= student._id %>" class="btn-edit-profile">
+              <i class="fa-solid fa-pen-to-square"></i> Edit Profile
+            </a>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Image Lightbox Zoom Modal -->
+<div class="image-lightbox-modal" id="imageLightboxModal">
+  <span class="lightbox-close-btn" id="lightboxCloseBtn">&times;</span>
+  <img class="lightbox-content" id="lightboxModalImage" alt="Zoomed Profile Picture">
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const studentAvatar = document.getElementById('studentAvatarImg');
+    const lightboxModal = document.getElementById('imageLightboxModal');
+    const lightboxImg = document.getElementById('lightboxModalImage');
+    const closeBtn = document.getElementById('lightboxCloseBtn');
+
+    // Avatar click event -> Open Lightbox
+    if (studentAvatar && lightboxModal && lightboxImg) {
+      studentAvatar.addEventListener('click', () => {
+        lightboxImg.src = studentAvatar.src;
+        lightboxModal.classList.add('show');
+      });
+
+      // Close modal events
+      const closeModal = () => {
+        lightboxModal.classList.remove('show');
+      };
+
+      closeBtn.addEventListener('click', closeModal);
+
+      lightboxModal.addEventListener('click', (e) => {
+        if (e.target === lightboxModal) {
+          closeModal();
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && lightboxModal.classList.contains('show')) {
+          closeModal();
+        }
+      });
+    }
+  });
+</script>

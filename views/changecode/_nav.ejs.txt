@@ -1,0 +1,9 @@
+<%# views/admin/messages/_nav.ejs — include karo har admin messaging page me %>
+<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px;">
+  <a href="/admin/message/student/compose" class="msg-btn msg-btn-sm <%= active === 'compose-student' ? 'msg-btn-primary' : 'msg-btn-ghost' %>">Message Students</a>
+  <a href="/admin/message/student/sent" class="msg-btn msg-btn-sm <%= active === 'sent-student' ? 'msg-btn-primary' : 'msg-btn-ghost' %>">Sent to Students</a>
+  <a href="/admin/message/teacher/compose" class="msg-btn msg-btn-sm <%= active === 'compose-teacher' ? 'msg-btn-primary' : 'msg-btn-ghost' %>">Message Teachers</a>
+  <a href="/admin/message/teacher/sent" class="msg-btn msg-btn-sm <%= active === 'sent-teacher' ? 'msg-btn-primary' : 'msg-btn-ghost' %>">Sent to Teachers</a>
+  <a href="/admin/message/received" class="msg-btn msg-btn-sm <%= active === 'received' ? 'msg-btn-primary' : 'msg-btn-ghost' %>">Received <span id="notif-badge"></span></a>
+  <a href="/admin/message/settings" class="msg-btn msg-btn-sm <%= active === 'settings' ? 'msg-btn-primary' : 'msg-btn-ghost' %>">Settings</a>
+</div>

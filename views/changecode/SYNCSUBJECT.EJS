@@ -1,0 +1,253 @@
+const mongoose = require("mongoose");
+
+// Safe Dynamic Imports for Models
+let Student, Teacher, Subject, TimeTable;
+try {
+  Student = mongoose.models.Student || require("../models/student.js");
+} catch (e) {
+  Student = mongoose.models.Student;
+}
+
+try {
+  Teacher = mongoose.models.Teacher || require("../models/teacher.js");
+} catch (e) {
+  Teacher = mongoose.models.Teacher;
+}
+
+try {
+  Subject = mongoose.models.Subject || require("../models/subject.js");
+} catch (e) {
+  Subject = mongoose.models.Subject;
+}
+
+try {
+  TimeTable = mongoose.models.TimeTable || require("../models/timetable.js");
+} catch (e) {
+  TimeTable = mongoose.models.TimeTable;
+}
+
+/**
+ * Sync updated Subject details across Student, Teacher, and TimeTable collections.
+ * @param {String|mongoose.Types.ObjectId} subjectId - The ObjectId of Subject Master.
+ * @param {Object} updatedData - Updated subject fields.
+ * @param {mongoose.ClientSession} [externalSession] - Optional existing transaction session.
+ */
+const syncSubjectUpdate = async (subjectId, updatedData, externalSession = null) => {
+  if (!subjectId || !mongoose.Types.ObjectId.isValid(subjectId)) {
+    throw new Error("Invalid or missing subjectId for syncSubjectUpdate");
+  }
+
+  const sId = new mongoose.Types.ObjectId(subjectId);
+  const { name, code, maxMarks, minMarks, subjectType } = updatedData;
+
+  let session = externalSession;
+  let isInternalSession = false;
+
+  // Handle Session initialization ONLY if externalSession is not passed
+  if (!session) {
+    try {
+      session = await mongoose.startSession();
+      session.startTransaction();
+      isInternalSession = true;
+    } catch (sessionErr) {
+      console.warn("⚠️ MongoDB Standalone Mode detected. Proceeding without transaction.");
+      session = null;
+      isInternalSession = false;
+    }
+  }
+
+  const queryOptions = session ? { session } : {};
+
+  try {
+    // ------------------------------------------------------------------
+    // 1. UPDATE STUDENTS ARRAY BY subjectId MATCHING
+    // ------------------------------------------------------------------
+    const studentUpdateFields = {};
+    if (name !== undefined) studentUpdateFields["subject.$[elem].name"] = name;
+    if (code !== undefined) studentUpdateFields["subject.$[elem].code"] = code;
+    if (maxMarks !== undefined) studentUpdateFields["subject.$[elem].maxMarks"] = Number(maxMarks);
+    if (minMarks !== undefined) studentUpdateFields["subject.$[elem].minMarks"] = Number(minMarks);
+    if (subjectType !== undefined) studentUpdateFields["subject.$[elem].subjectType"] = subjectType;
+
+    if (Object.keys(studentUpdateFields).length > 0 && Student) {
+      await Student.updateMany(
+        { "subject.subjectId": sId },
+        { $set: studentUpdateFields },
+        {
+          arrayFilters: [{ "elem.subjectId": sId }],
+          strict: false,
+          ...queryOptions,
+        }
+      );
+    }
+
+    // ------------------------------------------------------------------
+    // 2. UPDATE TEACHERS NESTED SUBJECTS & TEMPORARY SUBJECTS
+    // ------------------------------------------------------------------
+    if (Teacher && name !== undefined) {
+      // 2a. Sync permanent subjects in class -> semesters -> sections -> subjects
+      await Teacher.updateMany(
+        { "class.semesters.sections.subjects.subjectId": sId },
+        { $set: { "class.$[].semesters.$[].sections.$[].subjects.$[sub].subjectName": name } },
+        {
+          arrayFilters: [{ "sub.subjectId": sId }],
+          strict: false,
+          ...queryOptions,
+        }
+      );
+
+      // 2b. Sync temporary subjects in class -> semesters -> sections -> temporarySubjects
+      await Teacher.updateMany(
+        { "class.semesters.sections.temporarySubjects.subjectId": sId },
+        { $set: { "class.$[].semesters.$[].sections.$[].temporarySubjects.$[tempSub].subjectName": name } },
+        {
+          arrayFilters: [{ "tempSub.subjectId": sId }],
+          strict: false,
+          ...queryOptions,
+        }
+      );
+    }
+
+    // ------------------------------------------------------------------
+    // 3. UPDATE TIMETABLE SUBJECT NAMES BY subject_id MATCHING
+    // ------------------------------------------------------------------
+    if (TimeTable && name !== undefined) {
+      await TimeTable.updateMany(
+        { subject_id: sId },
+        { $set: { subject_name: name } },
+        queryOptions
+      );
+    }
+
+    // Only commit/end if this function initiated the session
+    if (isInternalSession && session) {
+      await session.commitTransaction();
+      session.endSession();
+    }
+  } catch (error) {
+    if (isInternalSession && session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
+    console.error("❌ Error syncing subject updates across collections:", error);
+    throw error;
+  }
+};
+
+/**
+ * Remove/Clean deleted Subject references across Student, Teacher, and TimeTable collections.
+ * @param {String|mongoose.Types.ObjectId} subjectId - The ObjectId of Subject Master to remove.
+ * @param {mongoose.ClientSession} [externalSession] - Optional existing transaction session.
+ */
+const syncSubjectDelete = async (subjectId, externalSession = null) => {
+  if (!subjectId || !mongoose.Types.ObjectId.isValid(subjectId)) {
+    throw new Error("Invalid or missing subjectId for syncSubjectDelete");
+  }
+
+  const sId = new mongoose.Types.ObjectId(subjectId);
+
+  let session = externalSession;
+  let isInternalSession = false;
+
+  if (!session) {
+    try {
+      session = await mongoose.startSession();
+      session.startTransaction();
+      isInternalSession = true;
+    } catch (sessionErr) {
+      console.warn("⚠️ MongoDB Standalone Mode detected. Proceeding without transaction.");
+      session = null;
+      isInternalSession = false;
+    }
+  }
+
+  const queryOptions = session ? { session } : {};
+
+  try {
+    // ------------------------------------------------------------------
+    // 1. REMOVE FROM STUDENTS
+    // ------------------------------------------------------------------
+    if (Student) {
+      await Student.updateMany(
+        { "subject.subjectId": sId },
+        { $pull: { subject: { subjectId: sId } } },
+        queryOptions
+      );
+    }
+
+    // ------------------------------------------------------------------
+    // 2. REMOVE FROM TEACHERS (Nested in Sections) & CLEAN GHOST ENTRIES
+    // ------------------------------------------------------------------
+    if (Teacher) {
+      // 2a. Pull permanent subjects
+      await Teacher.updateMany(
+        { "class.semesters.sections.subjects.subjectId": sId },
+        { $pull: { "class.$[].semesters.$[].sections.$[].subjects": { subjectId: sId } } },
+        queryOptions
+      );
+
+      // 2b. Pull temporary subjects
+      await Teacher.updateMany(
+        { "class.semesters.sections.temporarySubjects.subjectId": sId },
+        { $pull: { "class.$[].semesters.$[].sections.$[].temporarySubjects": { subjectId: sId } } },
+        queryOptions
+      );
+
+      // 2c. CLEANUP GHOST ENTRIES (Sections, Semesters, Classes jinke subjects ab zero reh gaye hain)
+      
+      // Remove Sections where BOTH 'subjects' and 'temporarySubjects' arrays are empty
+      await Teacher.updateMany(
+        { "class.semesters.sections": { $elemMatch: { subjects: { $size: 0 }, temporarySubjects: { $size: 0 } } } },
+        { $pull: { "class.$[].semesters.$[].sections": { subjects: { $size: 0 }, temporarySubjects: { $size: 0 } } } },
+        queryOptions
+      );
+
+      // Remove Semesters where 'sections' array became empty
+      await Teacher.updateMany(
+        { "class.semesters": { $elemMatch: { sections: { $size: 0 } } } },
+        { $pull: { "class.$[].semesters": { sections: { $size: 0 } } } },
+        queryOptions
+      );
+
+      // Remove Classes where 'semesters' array became empty
+      await Teacher.updateMany(
+        { class: { $elemMatch: { semesters: { $size: 0 } } } },
+        { $pull: { class: { semesters: { $size: 0 } } } },
+        queryOptions
+      );
+    }
+
+    // ------------------------------------------------------------------
+    // 3. REMOVE ONLY subject_id AND subject_name FIELDS FROM TIMETABLE
+    // ------------------------------------------------------------------
+    if (TimeTable) {
+      await TimeTable.updateMany(
+        { subject_id: sId },
+        { $unset: { subject_id: "", subject_name: "" } },
+        {
+          strict: false,
+          validateBeforeSave: false,
+          ...queryOptions
+        }
+      );
+    }
+
+    // Only commit/end if this function initiated the session
+    if (isInternalSession && session) {
+      await session.commitTransaction();
+      session.endSession();
+    }
+  } catch (error) {
+    if (isInternalSession && session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
+    console.error("❌ Error deleting subject references across collections:", error);
+    throw error;
+  }
+};
+
+module.exports = {
+  syncSubjectUpdate,
+  syncSubjectDelete,
+};
