@@ -1,4 +1,5 @@
 
+
 const ExpressError = require("./utils/ExpressError.js");
 const Student = require("./models/studentData.js");
 const Teacher = require("./models/teacherRecord.js");
@@ -138,24 +139,24 @@ const isStudentVerified = (req, res, next) => {
   next();
 };
 
+
 // =========================================================================
-// 3. 👨‍🏫 TEACHER GUARD (Role + Passport/Session Check)
+// 🛡️ 3. STRICT TEACHER GUARD MIDDLEWARE
 // =========================================================================
 const isLoggedIn = (req, res, next) => {
   const teacherRole = process.env.ROLE_2 || "Teacher";
-  
-  const isTeacherRole = req.session && (req.session.role === teacherRole || req.session.role === "Teacher");
-  const isPassportAuth = req.isAuthenticated ? req.isAuthenticated() : false;
 
-  // Strict check: Teacher role match OR Passport authenticated
-  if (!isTeacherRole && !isPassportAuth) {
+  const isTeacherRole = req.session && req.session.role === teacherRole;
+  const isPassportAuth = typeof req.isAuthenticated === "function" ? req.isAuthenticated() : false;
+
+  // STRICT CHECK: Both conditions MUST be true (Teacher Role AND Active Passport Session)
+  if (!isTeacherRole || !isPassportAuth) {
     req.flash("error", "Unauthorized! Only Teachers can access this page.");
     return res.redirect("/student/attendance/login");
   }
 
   next();
 };
-
 // =========================================================================
 // 4. 👑 ADMIN GUARD (Role + Verification Flag Check)
 // =========================================================================
