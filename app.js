@@ -1,18 +1,39 @@
 if (process.env.NODE_ENV != "production") {
   require("dotenv").config();
 }
-
 const express = require("express");
+ 
+
+// const http = require("http");
+// const socketIo = require("socket.io");
+
 const app = express();
+// const server = http.createServer(app);
+// const io = socketIo(server);
+
 const mongoose = require("mongoose");
 const ExpressError = require("./utils/ExpressError.js");
 const WrapAsync = require("./utils/WrapAsync.js");
+const syncStudentDetails = require("./utils/syncStudent.js");
 const path = require("path");
 const ejsmate = require("ejs-mate");
 const methodOverride = require("method-override");
-const multer = require("multer");
-const { storage } = require("./cloudStorage.js");
-const upload = multer({ storage });
+
+const http = require("http");
+const { Server } = require("socket.io");
+
+const Message = require("./models/message.js");
+const MessageSettings = require("./models/messageSettings.js");
+const Notification = require("./models/notification.js");
+// Student, Teacher, Admin, ExpressError, WrapAsync already required upar
+// tere original app.js me — dobara require nahi kar rahe taaki duplicate
+// binding na bane.
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: { origin: true, credentials: true },
+});
 
 const nodemailer = require("nodemailer");
 const AttendenceDuplicate = require("./models/attenDanceDuplicate.js");
@@ -48,6 +69,7 @@ const normalizeDate = require("./utils/normalizeDate.js");
 const StudentArchive = require("./models/studentArchive.js");
 const Section = require("./models/section.js");
 
+
 const validateTeacher = require("./schema/teacherSchema.js");
 const validateTeacherEdit = require("./schema/editTeacherSchema.js");
 const validateStudent = require("./schema/studentSchema.js");
@@ -72,12 +94,110 @@ const {
   ADMIN_PASSWORD,
 } = require("./schema/preventUnauthorizedAPICalls.js");
 
-const storageMemory = multer.memoryStorage();
-const uploadBuffer = multer({ storage: storageMemory });
+
 const xlsx = require("xlsx");
 const AttendanceArchive = require("./models/attendanceArchive.js");
 const TimeTable = require("./models/TimeTable.js");
 const { FeeLedger, FeeTransaction } = require("./models/feesRecord.js");
+
+// -----------------------------------------FIX UPLOAD-----------------------------------------------------
+
+const cloudinary = require('cloudinary').v2;
+const multer = require("multer");
+const { storage } = require("./cloudStorage.js");
+
+const storageMemory = multer.memoryStorage();
+const uploadBuffer = multer({ storage: storageMemory });
+
+
+
+// MIME TYPE MAP FOR ALLOWED ATTACHMENTS
+const MIME_TYPE_MAP = {
+  "image/jpeg": "image",
+  "image/png": "image",
+  "image/gif": "image",
+  "image/webp": "image",
+  "application/pdf": "document",
+  "application/msword": "document",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "document",
+  "application/vnd.ms-excel": "document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "document",
+  "application/vnd.ms-powerpoint": "document",
+  "application/vnd.openxmlformats-officedocument.presentationml.slideshow": "document",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "document",
+};
+
+
+// Single, Production-Ready Multer Upload Middleware
+const upload = multer({
+  storage: storage, // Cloudinary Storage Use Ho Raha Hai
+  limits: { fileSize: 30 * 1024 * 1024 }, // 10MB Limit
+  fileFilter: (req, file, cb) => {
+    if (MIME_TYPE_MAP[file.mimetype]) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file format. Allowed: Images, PDF, Word, Excel, PPT."));
+    }
+  },
+});
+
+
+
+
+//---------------------------delete raw data(image,pdf etc...) from cloud----------------------------------
+
+// Helper Function: Handles both Images & Documents in Cloudinary
+const deleteFilesFromCloud = async (attachments = []) => {
+  if (!attachments || attachments.length === 0) return;
+
+  try {
+    const deletePromises = attachments.map(async (item) => {
+      if (!item) return null;
+
+      const public_id = typeof item === "string" ? item : item.public_id;
+      if (!public_id) return null;
+
+      // Detect if file is an image or non-image document
+      let isImage = false;
+      if (typeof item === "object") {
+        if (item.fileType === "image") isImage = true;
+        else if (item.originalMime && item.originalMime.startsWith("image/")) isImage = true;
+      } else if (/\.(jpg|jpeg|png|webp|gif)$/i.test(public_id)) {
+        isImage = true;
+      }
+
+      // 1. Agar Image hai -> Direct Image delete call
+      if (isImage) {
+        const res = await cloudinary.uploader.destroy(public_id, { resource_type: "image" });
+        if (res.result === "ok") return res;
+      }
+
+      // 2. Agar Document (PDF, DOCX, XLSX, PPTX) hai -> Raw resource_type handle karo
+      // Try 1: Public ID as-is with raw type
+      let rawRes = await cloudinary.uploader.destroy(public_id, { resource_type: "raw" });
+      if (rawRes.result === "ok") return rawRes;
+
+      // Try 2: Raw files often require extension (e.g. filename.pdf / filename.xlsx)
+      if (typeof item === "object" && item.filename && !public_id.includes(".")) {
+        const ext = item.filename.split(".").pop();
+        if (ext) {
+          rawRes = await cloudinary.uploader.destroy(`${public_id}.${ext}`, { resource_type: "raw" });
+          if (rawRes.result === "ok") return rawRes;
+        }
+      }
+
+      // Try 3: Fallback check image resource type for PDFs (in case Cloudinary generated image preview)
+      return await cloudinary.uploader.destroy(public_id, { resource_type: "image" });
+    });
+
+    await Promise.allSettled(deletePromises);
+  } catch (err) {
+    console.error("Cloud storage deletion error:", err);
+  }
+};
+
+
+//|-----------------------------------------------------------------------------------------------------|
 
 // ------------------ MongoStore + Session Setup ------------------
 
@@ -85,11 +205,11 @@ const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const dbUrl = process.env.ATLASDB_URL;
 
-// const dns = require("dns");
+const dns = require("dns");
 
-// // Google Public DNS set karein SRV lookup ke liye
-// dns.setDefaultResultOrder("ipv4first");
-// dns.setServers(["8.8.8.8", "8.8.4.4"]);
+// Google Public DNS set karein SRV lookup ke liye
+dns.setDefaultResultOrder("ipv4first");
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 const store = MongoStore.create({
   mongoUrl: dbUrl,
@@ -112,6 +232,10 @@ const sessionOptions = {
   },
 };
 
+
+
+
+
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.use(express.json());
@@ -119,11 +243,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "/public")));
 app.use(methodOverride("_method"));
 app.engine("ejs", ejsmate);
-const createStudent = require("./helpers/createStudent.js");
-// const { VERSION } = require("ejs");
-// // const { Verify } = require("crypto");
 
-app.use(session(sessionOptions));
+
+const sessionMiddleware = session(sessionOptions);
+app.use(sessionMiddleware);
+io.engine.use(sessionMiddleware);
 app.use(flash());
 
 app.use(passport.initialize());
@@ -150,16 +274,3991 @@ main()
   .then(() => console.log("MongoDB Connected Successfully ✔"))
   .catch((err) => console.log("MongoDB Error ❌", err));
 
-// session function for verify the user
 
-function verifiedAny(req, res, next) {
-  if (req.session.adminVerified || req.session.otpVerified) {
-    return next();
+function roomForClassFilter(cls, semester, section) {
+  return `class:${cls}:${semester}:${section}`;
+}
+function roomForUser(role, userId) {
+  return `user:${role}:${userId}`;
+}
+
+io.on("connection", async (socket) => {
+  try {
+    const session = socket.request.session;
+    const userId = session?.userId;
+    const role = session?.role;
+    if (!userId || !role) return;
+
+    socket.join(roomForUser(role, userId));
+
+    if (role === "Admin") {
+      socket.join("room:admins");
+    }
+
+    if (role === "Student") {
+      socket.join("room:all-students");
+      const student = await Student.findById(userId).select("class semester section");
+      if (student) {
+        socket.join(roomForClassFilter(student.class, student.semester, student.section));
+      }
+    }
+
+    if (role === "Teacher") {
+      socket.join("room:all-teachers");
+    }
+  } catch (err) {
+    console.error("Socket connection error:", err);
+  }
+});
+
+
+// #########################################################################
+// SECTION B — SHARED HELPERS (permission checks + notification dispatch)
+// #########################################################################
+
+// 🔒 Teacher ke paas is class/semester/section ka access hai ya nahi
+function teacherHasAccess(teacher, className, semester, section) {
+  if (!className || !semester || !section) return false;
+  const cls = teacher.class.find((c) => c.className === className);
+  if (!cls) return false;
+  const sem = cls.semesters.find((s) => s.semester === semester);
+  if (!sem) return false;
+  const sec = sem.sections.find((sec) => sec.section === section);
+  return !!sec;
+}
+
+// Teacher ki saari assigned class/semester/section combos ek flat array me
+function teacherAssignedCombos(teacher) {
+  const combos = [];
+  for (const cls of teacher.class || []) {
+    for (const sem of cls.semesters || []) {
+      for (const sec of sem.sections || []) {
+        combos.push({ class: cls.className, semester: sem.semester, section: sec.section });
+      }
+    }
+  }
+  return combos;
+}
+
+function serializeForEmit(message) {
+  return {
+    _id: message._id,
+    sender: message.sender,
+    recipientRole: message.recipientRole,
+    audienceType: message.audienceType,
+    filter: message.filter,
+    recipientId: message.recipientId,
+    content: message.content,
+    parentMessage: message.parentMessage,
+    isReply: message.isReply,
+    createdAt: message.createdAt,
+  };
+}
+
+async function resolveStudentRecipients(message) {
+  if (message.audienceType === "all") {
+    return Student.find({ status: "Active" }).select("_id");
+  }
+  if (message.audienceType === "filter") {
+    return Student.find({
+      status: "Active",
+      class: message.filter.class,
+      semester: message.filter.semester,
+      section: message.filter.section,
+    }).select("_id");
+  }
+  if (message.audienceType === "individual" && message.recipientId) {
+    return [{ _id: message.recipientId }];
+  }
+  return [];
+}
+
+// Master dispatch — DB me notification persist + socket se live emit
+async function dispatchMessageNotification(message) {
+  const title = `New message from ${message.sender.name} (${message.sender.role})`;
+  const preview = message.content.slice(0, 120);
+
+  if (message.recipientRole === "Student") {
+    const recipients = await resolveStudentRecipients(message);
+    const docs = recipients.map((r) => ({
+      recipientId: r._id,
+      recipientRole: "Student",
+      message: message._id,
+      title,
+      preview,
+      isDelivered: true,
+    }));
+    if (docs.length) await Notification.insertMany(docs);
+
+    if (message.audienceType === "all") {
+      io.to("room:all-students").emit("new-message", serializeForEmit(message));
+    } else if (message.audienceType === "filter") {
+      io.to(roomForClassFilter(message.filter.class, message.filter.semester, message.filter.section))
+        .emit("new-message", serializeForEmit(message));
+    } else if (message.audienceType === "individual") {
+      io.to(roomForUser("Student", message.recipientId)).emit("new-message", serializeForEmit(message));
+    }
   }
 
-  req.flash("error", "Please login now!");
-  return res.redirect("/student/attendance/login");
+  if (message.recipientRole === "Teacher" && message.recipientId) {
+    await Notification.create({
+      recipientId: message.recipientId,
+      recipientRole: "Teacher",
+      message: message._id,
+      title,
+      preview,
+      isDelivered: true,
+    });
+    io.to(roomForUser("Teacher", message.recipientId)).emit("new-message", serializeForEmit(message));
+  }
+
+  if (message.recipientRole === "Admin" && message.recipientId) {
+    await Notification.create({
+      recipientId: message.recipientId,
+      recipientRole: "Admin",
+      message: message._id,
+      title,
+      preview,
+      isDelivered: true,
+    });
+    io.to(roomForUser("Admin", message.recipientId)).emit("new-message", serializeForEmit(message));
+  }
 }
+
+// async function dispatchReplyNotification(replyMessage, originalSenderRole, originalSenderId) {
+//   const title = `${replyMessage.sender.name} replied to your message`;
+//   const preview = replyMessage.content.slice(0, 120);
+
+//   await Notification.create({
+//     recipientId: originalSenderId,
+//     recipientRole: originalSenderRole,
+//     message: replyMessage._id,
+//     title,
+//     preview,
+//     isDelivered: true,
+//   });
+
+//   io.to(roomForUser(originalSenderRole, originalSenderId)).emit("new-reply", serializeForEmit(replyMessage));
+// }
+
+
+
+
+// Helper function to dispatch reply notification
+async function dispatchReplyNotification(replyMessage, originalSenderRole, originalSenderId, session = null) {
+  if (!originalSenderId || !originalSenderRole) return;
+
+  const title = `${replyMessage.sender?.name || "Admin"} replied to your message`;
+  const preview = replyMessage.content ? replyMessage.content.slice(0, 120) : "";
+
+  const notificationOptions = session ? { session } : {};
+
+  await Notification.create(
+    [
+      {
+        recipientId: originalSenderId,
+        recipientRole: originalSenderRole,
+        message: replyMessage._id,
+        title,
+        preview,
+        isDelivered: true,
+      },
+    ],
+    notificationOptions
+  );
+
+  if (global.io) {
+    global.io.to(roomForUser(originalSenderRole, originalSenderId)).emit("new-reply", serializeForEmit(replyMessage));
+  }
+}
+
+
+// #########################################################################
+// SECTION C — ADMIN ROUTES  (/admin/message/...)
+// #########################################################################
+
+// GET: COMPOSE FORM FOR STUDENT MESSAGES
+app.get(
+  "/admin/message/student/compose",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const classes = await Student.distinct("class", { status: "Active" });
+    res.render("admin/messages/compose-student.ejs", { classes });
+  })
+);
+
+// GET: METADATA API
+app.get(
+  "/admin/message/meta/students-by-filter",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const { class: className, semester, section } = req.query;
+    if (!className || !semester || !section) {
+      return res.json({ students: [] });
+    }
+    const students = await Student.find({
+      status: "Active",
+      class: className,
+      semester,
+      section,
+    })
+      .select("_id name rollNo class semester section fatherName")
+      .sort({ rollNo: 1, name: 1 });
+
+    res.json({ students });
+  })
+);
+
+app.get(
+  "/admin/message/meta/semesters",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const { class: className } = req.query;
+    if (!className) return res.json({ semesters: [] });
+    const semesters = await Student.distinct("semester", { class: className, status: "Active" });
+    res.json({ semesters });
+  })
+);
+
+app.get(
+  "/admin/message/meta/sections",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const { class: className, semester } = req.query;
+    if (!className || !semester) return res.json({ sections: [] });
+    const sections = await Student.distinct("section", { class: className, semester, status: "Active" });
+    res.json({ sections });
+  })
+);
+
+// POST: DISPATCH STUDENT MESSAGES
+app.post(
+  "/admin/message/student",
+  verifySession,
+  isAdminVerified,
+  (req, res, next) => {
+    // Handling Multer error gracefully before hitting async route handler
+    upload.array("attachments", 5)(req, res, (err) => {
+      if (err) {
+        req.flash("error", err.message || "File upload failed.");
+        return res.redirect("/admin/message/student/compose");
+      }
+      next();
+    });
+  },
+  WrapAsync(async (req, res) => {
+    let { audienceType, class: className, semester, section, studentIds, content } = req.body;
+
+    if (studentIds && !Array.isArray(studentIds)) {
+      studentIds = [studentIds];
+    }
+
+    if ((!content || !content.trim()) && (!req.files || req.files.length === 0)) {
+      req.flash("error", "Message content or at least one attachment is required.");
+      return res.redirect("/admin/message/student/compose");
+    }
+
+    // Process File Attachments
+    const attachments = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const fileType = MIME_TYPE_MAP[file.mimetype] || "document";
+        attachments.push({
+          url: file.path,
+          public_id: file.filename || file.public_id || null, // Capture cloud public_id
+          filename: file.originalname,
+          fileType: fileType,
+          originalMime: file.mimetype,
+        });
+      }
+    }
+
+    const createdMessages = [];
+    const dbSession = await mongoose.startSession();
+
+    try {
+      // 4. FIXED: DATABASE TRANSACTION ONLY HANDLES MONGO CREATION
+      await dbSession.withTransaction(async () => {
+        if (audienceType === "all") {
+          const [message] = await Message.create(
+            [
+              {
+                sender: { id: req.user._id, role: "Admin", name: req.user.name },
+                recipientRole: "Student",
+                audienceType: "all",
+                content: content ? content.trim() : "",
+                attachments,
+              },
+            ],
+            { session: dbSession }
+          );
+          createdMessages.push(message);
+        } else if (audienceType === "filter") {
+          if (!className || !semester || !section) {
+            throw new Error("Class, Semester, and Section are required for targeted messages.");
+          }
+          const [message] = await Message.create(
+            [
+              {
+                sender: { id: req.user._id, role: "Admin", name: req.user.name },
+                recipientRole: "Student",
+                audienceType: "filter",
+                filter: { class: className, semester, section },
+                content: content ? content.trim() : "",
+                attachments,
+              },
+            ],
+            { session: dbSession }
+          );
+          createdMessages.push(message);
+        } else if (audienceType === "individual") {
+          if (!studentIds || studentIds.length === 0) {
+            throw new Error("Please select at least one student from the list.");
+          }
+
+          for (const sId of studentIds) {
+            const [message] = await Message.create(
+              [
+                {
+                  sender: { id: req.user._id, role: "Admin", name: req.user.name },
+                  recipientRole: "Student",
+                  audienceType: "individual",
+                  recipientId: sId,
+                  content: content ? content.trim() : "",
+                  attachments,
+                },
+              ],
+              { session: dbSession }
+            );
+            createdMessages.push(message);
+          }
+        } else {
+          throw new Error("Invalid audience mode selected.");
+        }
+      });
+
+      // 4. FIXED: SOCKET / PUSH NOTIFICATIONS FIRED AFTER DB TRANSACTION IS COMMITTED
+      Promise.allSettled(
+        createdMessages.map((msg) => dispatchMessageNotification(msg))
+      ).catch((err) => console.error("Notification dispatch error:", err));
+
+      req.flash("success", "Message(s) dispatched successfully!");
+      res.redirect("/admin/message/student/sent");
+    } catch (err) {
+      req.flash("error", err.message || "Failed to dispatch message.");
+      res.redirect("/admin/message/student/compose");
+    } finally {
+      dbSession.endSession();
+    }
+  })
+);
+
+
+
+// Helper function to safely execute DB actions (Supports Standalone & Replica Sets)
+async function safeTransaction(actionCallback) {
+  let session = null;
+  try {
+    session = await mongoose.startSession();
+    let result;
+    await session.withTransaction(async () => {
+      result = await actionCallback(session);
+    });
+    return result;
+  } catch (err) {
+    if (err.message && err.message.includes("Transaction numbers are only allowed on a replica set member")) {
+      return await actionCallback(null);
+    }
+    throw err;
+  } finally {
+    if (session) session.endSession();
+  }
+}
+
+// Utility to escape Special Characters for Regex Search Safety
+function escapeRegex(text) {
+  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
+
+// Helper function to escape regex characters safely
+function escapeRegex(text) {
+  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
+
+// Build Active Query Helper (Fixed for Student Name & RollNo Search)
+async function buildActiveQuery(userId, selectedScope, searchQuery, showArchived) {
+  const baseQuery = {
+    "sender.id": userId,
+    "sender.role": "Admin",
+    recipientRole: "Student",
+    isDeleted: showArchived === true || showArchived === "true",
+  };
+
+  const activeQuery = { ...baseQuery };
+
+  // 1. Scope Filter Logic
+  if (selectedScope.startsWith("CLASS_")) {
+    activeQuery["audienceType"] = "filter";
+    activeQuery["filter.class"] = selectedScope.replace("CLASS_", "");
+  } else if (selectedScope === "INDIVIDUAL") {
+    activeQuery["audienceType"] = "individual";
+  }
+
+  // 2. Search Filter Logic
+  if (searchQuery && searchQuery.trim() !== "") {
+    const safeSearch = escapeRegex(searchQuery.trim());
+    const searchRegex = new RegExp(safeSearch, "i");
+
+    const Student = mongoose.model("Student");
+
+    // Fix: RollNo string or number dono ko handling ke liye $expr / $or conditions
+    const studentSearchConditions = [{ name: searchRegex }];
+
+    // Agar user ne pure numbers ya partial numbers (jaise 62, 062) enter kiye hain
+    const numSearch = Number(searchQuery.trim());
+    if (!isNaN(numSearch)) {
+      studentSearchConditions.push({ rollNo: numSearch });
+    }
+
+    // String regex match on rollNo via Mongoose $expr ($toString)
+    studentSearchConditions.push({
+      $expr: {
+        $regexMatch: {
+          input: { $toString: { $ifNull: ["$rollNo", ""] } },
+          regex: safeSearch,
+          options: "i",
+        },
+      },
+    });
+
+    // Student model se sabhi matched IDs nikalo
+    const matchingStudents = await Student.find({
+      $or: studentSearchConditions,
+    }).select("_id");
+
+    const matchingStudentIds = matchingStudents.map((s) => s._id);
+
+    // Final Message Query Filter
+    activeQuery["$or"] = [
+      { content: searchRegex },
+      { recipientId: { $in: matchingStudentIds } }, // Yahan 'aman' ya '62' wale saare students match honge!
+      { "filter.class": searchRegex },
+      { "filter.section": searchRegex },
+      { "filter.semester": searchRegex },
+      { "subjectContext.subjectName": searchRegex },
+    ];
+  }
+
+  return activeQuery;
+}
+// ================= LIVE SEARCH API ENDPOINT =================
+app.get(
+  "/admin/message/student/api/search",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = 40;
+    const skip = (page - 1) * limit;
+    const selectedScope = req.query.scope || "ALL";
+    const searchQuery = (req.query.q || "").trim();
+    const showArchived = req.query.view === "archived";
+
+    const activeQuery = await buildActiveQuery(req.user._id, selectedScope, searchQuery, showArchived);
+
+    const totalMessages = await Message.countDocuments(activeQuery);
+    const totalPages = Math.ceil(totalMessages / limit) || 1;
+
+    const studentMessages = await Message.find(activeQuery)
+      .populate("recipientId", "name rollNo class semester section")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({
+      success: true,
+      studentMessages,
+      currentPage: page,
+      totalPages,
+      totalMessages,
+    });
+  })
+);
+
+// ================= ADMIN -> STUDENT (Sent List Page) =================
+app.get(
+  "/admin/message/student/sent",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = 40;
+    const skip = (page - 1) * limit;
+    const selectedScope = req.query.scope || "ALL";
+    const searchQuery = (req.query.q || "").trim();
+    const showArchived = req.query.view === "archived";
+
+    const activeQuery = await buildActiveQuery(req.user._id, selectedScope, searchQuery, showArchived);
+
+    const distinctClasses = await Message.distinct("filter.class", {
+      "sender.id": req.user._id,
+      "sender.role": "Admin",
+      recipientRole: "Student",
+    });
+
+    const totalMessages = await Message.countDocuments(activeQuery);
+    const totalPages = Math.ceil(totalMessages / limit) || 1;
+
+    const studentMessages = await Message.find(activeQuery)
+      .populate("recipientId", "name rollNo class semester section fatherName")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.render("admin/messages/sent-student.ejs", {
+      studentMessages,
+      availableClasses: distinctClasses.filter(Boolean),
+      selectedScope,
+      searchQuery,
+      showArchived,
+      currentPage: page,
+      totalPages,
+      totalMessages,
+    });
+  })
+);
+
+
+
+// ================= DELETE BULK =================
+app.delete(
+  "/admin/message/student/bulk-delete",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const { ids, type } = req.body;
+    const deleteType = type || "soft";
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: "No valid message IDs provided." });
+    }
+
+    if (ids.length > 1000) {
+      return res.status(400).json({ success: false, message: "Cannot process more than 1000 items at once." });
+    }
+
+    const query = {
+      _id: { $in: ids },
+      "sender.id": req.user._id,
+      "sender.role": "Admin",
+    };
+
+    // Remove files from Cloud Storage if Hard Delete
+    if (deleteType === "hard") {
+      const messagesToDelete = await Message.find(query).select("attachments");
+      const cloudIds = messagesToDelete
+        .flatMap((msg) => msg.attachments || [])
+        .map((att) => att.public_id)
+        .filter(Boolean);
+
+      await deleteFilesFromCloud(cloudIds);
+    }
+
+    await safeTransaction(async (session) => {
+      if (deleteType === "hard") {
+        await Message.deleteMany(query, { session });
+      } else {
+        await Message.updateMany(
+          query,
+          { $set: { isDeleted: true, deletedAt: new Date() } },
+          { session }
+        );
+      }
+    });
+
+    req.flash("success", `${ids.length} message(s) processed successfully.`);
+    res.json({ success: true, message: "Bulk operation successful." });
+  })
+);
+// ================= CLEAR ENTIRE ARCHIVE =================
+app.delete(
+  "/admin/message/student/clear-archive",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const archiveQuery = {
+      "sender.id": req.user._id,
+      "sender.role": "Admin",
+      recipientRole: "Student",
+      isDeleted: true,
+    };
+
+    // Find archived messages and delete attachments from Cloud
+    const archivedMessages = await Message.find(archiveQuery).select("attachments");
+    const cloudIds = archivedMessages
+      .flatMap((msg) => msg.attachments || [])
+      .map((att) => att.public_id)
+      .filter(Boolean);
+
+    await deleteFilesFromCloud(cloudIds);
+
+    await safeTransaction(async (session) => {
+      await Message.deleteMany(archiveQuery, { session });
+    });
+
+    req.flash("success", "Archive cleared completely.");
+    res.json({ success: true, message: "Archive cleared." });
+  })
+);
+
+
+
+// ================= EDIT / UPDATE MESSAGE =================
+app.put(
+  "/admin/message/student/:id",
+  verifySession,
+  isAdminVerified,
+  (req, res, next) => {
+    upload.array("attachments", 5)(req, res, (err) => {
+      if (err) {
+        req.flash("error", err.message || "File upload failed.");
+        return res.redirect("/admin/message/student/sent");
+      }
+      next();
+    });
+  },
+  WrapAsync(async (req, res) => {
+    const { content, removedAttachments } = req.body;
+    const trimmedContent = (content || "").trim();
+
+    const message = await Message.findById(req.params.id);
+    if (!message || message.isDeleted) {
+      return res.status(404).json({ success: false, message: "Message not found or deleted." });
+    }
+
+    if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Admin") {
+      return res.status(403).json({ success: false, message: "Unauthorized action." });
+    }
+
+    // Process attachments to remove
+    let toRemove = [];
+    if (removedAttachments) {
+      try {
+        toRemove = typeof removedAttachments === "string" ? JSON.parse(removedAttachments) : removedAttachments;
+      } catch (e) {
+        toRemove = [removedAttachments];
+      }
+    }
+
+    // Collect public_ids and filter remaining attachments
+    const filesToDeleteFromCloud = [];
+    const remainingAttachments = message.attachments.filter((att) => {
+      const isRemoved = toRemove.includes(att.url) || toRemove.includes(att.public_id);
+      if (isRemoved) {
+        if (att.public_id) filesToDeleteFromCloud.push(att.public_id);
+      }
+      return !isRemoved;
+    });
+
+    const files = req.files || [];
+
+    if (!trimmedContent && remainingAttachments.length === 0 && files.length === 0) {
+      return res.status(400).json({ success: false, message: "Message must contain text or attachments." });
+    }
+
+    // Prepare new attachments
+    const newAttachments = files.map((file) => {
+      const isImage = file.mimetype.startsWith("image/");
+      return {
+        url: file.path || `/uploads/${file.filename}`,
+        public_id: file.filename || file.public_id || null,
+        filename: file.originalname,
+        fileType: isImage ? "image" : "document",
+        originalMime: file.mimetype,
+      };
+    });
+
+    // Clean removed attachments from Cloud Storage
+    if (filesToDeleteFromCloud.length > 0) {
+      await deleteFilesFromCloud(filesToDeleteFromCloud);
+    }
+
+    await safeTransaction(async (session) => {
+      message.content = trimmedContent;
+      message.attachments = [...remainingAttachments, ...newAttachments];
+      message.isEdited = true;
+      message.editedAt = new Date();
+      await message.save({ session });
+    });
+
+    req.flash("success", "Message updated successfully.");
+    res.json({ success: true, message: "Message updated successfully." });
+  })
+);
+
+
+
+// ================= DELETE SINGLE (SOFT vs HARD) =================
+app.delete(
+  "/admin/message/student/:id",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const deleteType = req.query.type || "soft";
+    const message = await Message.findById(req.params.id);
+
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found." });
+    }
+
+    if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Admin") {
+      return res.status(403).json({ success: false, message: "Unauthorized action." });
+    }
+
+    // If Hard Delete, remove files from cloud storage
+    if (deleteType === "hard" && message.attachments && message.attachments.length > 0) {
+      const cloudIds = message.attachments.map((att) => att.public_id).filter(Boolean);
+      await deleteFilesFromCloud(cloudIds);
+    }
+
+    await safeTransaction(async (session) => {
+      if (deleteType === "hard") {
+        await Message.deleteOne({ _id: req.params.id }, { session });
+      } else {
+        message.isDeleted = true;
+        message.deletedAt = new Date();
+        await message.save({ session });
+      }
+    });
+
+    req.flash("success", `Message ${deleteType === "hard" ? "permanently deleted" : "archived"}.`);
+    res.json({ success: true, message: "Operation completed successfully." });
+  })
+);
+
+
+
+// // ================= DELETE BULK =================
+// app.delete(
+//   "/admin/message/student/bulk-delete",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { ids, type } = req.body;
+//     const deleteType = type || "soft";
+
+//     if (!ids || !Array.isArray(ids) || ids.length === 0) {
+//       return res.status(400).json({ success: false, message: "No valid message IDs provided." });
+//     }
+
+//     if (ids.length > 1000) {
+//       return res.status(400).json({ success: false, message: "Cannot process more than 1000 items at once." });
+//     }
+
+//     await safeTransaction(async (session) => {
+//       const query = {
+//         _id: { $in: ids },
+//         "sender.id": req.user._id,
+//         "sender.role": "Admin",
+//       };
+
+//       if (deleteType === "hard") {
+//         await Message.deleteMany(query, { session });
+//       } else {
+//         await Message.updateMany(
+//           query,
+//           { $set: { isDeleted: true, deletedAt: new Date() } },
+//           { session }
+//         );
+//       }
+//     });
+
+//     req.flash("success", `${ids.length} message(s) processed successfully.`);
+//     res.json({ success: true, message: "Bulk operation successful." });
+//   })
+// );
+
+// // ================= CLEAR ENTIRE ARCHIVE =================
+// app.delete(
+//   "/admin/message/student/clear-archive",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     await safeTransaction(async (session) => {
+//       await Message.deleteMany(
+//         {
+//           "sender.id": req.user._id,
+//           "sender.role": "Admin",
+//           recipientRole: "Student",
+//           isDeleted: true,
+//         },
+//         { session }
+//       );
+//     });
+
+//     req.flash("success", "Archive cleared completely.");
+//     res.json({ success: true, message: "Archive cleared." });
+//   })
+// );
+
+
+// app.put(
+//   "/admin/message/student/:id",
+//   verifySession,
+//   isAdminVerified,
+//   (req, res, next) => {
+//     // Handling Multer error gracefully before hitting async route handler
+//     upload.array("attachments", 5)(req, res, (err) => {
+//       if (err) {
+//         req.flash("error", err.message || "File upload failed.");
+//         return res.redirect("/admin/message/student/sent");
+//       }
+//       next();
+//     });
+//   },
+//   WrapAsync(async (req, res) => {
+//     const { content, removedAttachments } = req.body;
+//     const trimmedContent = (content || "").trim();
+
+//     const message = await Message.findById(req.params.id);
+//     if (!message || message.isDeleted) {
+//       return res.status(404).json({ success: false, message: "Message not found or deleted." });
+//     }
+
+//     if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Admin") {
+//       return res.status(403).json({ success: false, message: "Unauthorized action." });
+//     }
+
+//     // Validation: Require either text or attachment
+//     const files = req.files || [];
+//     let toRemove = [];
+//     if (removedAttachments) {
+//       try {
+//         toRemove = typeof removedAttachments === "string" ? JSON.parse(removedAttachments) : removedAttachments;
+//       } catch (e) {
+//         toRemove = [removedAttachments];
+//       }
+//     }
+
+//     const remainingAttachments = message.attachments.filter(
+//       (att) => !toRemove.includes(att.url)
+//     );
+
+//     if (!trimmedContent && remainingAttachments.length === 0 && files.length === 0) {
+//       return res.status(400).json({ success: false, message: "Message must contain text or attachments." });
+//     }
+
+//     // Prepare new attachments from uploaded files
+//     const newAttachments = files.map((file) => {
+//       const isImage = file.mimetype.startsWith("image/");
+//       return {
+//         url: file.path || `/uploads/${file.filename}`, // Adjust as per your cloud/local storage setup
+//         filename: file.originalname,
+//         fileType: isImage ? "image" : "document",
+//         originalMime: file.mimetype,
+//       };
+//     });
+
+//     await safeTransaction(async (session) => {
+//       message.content = trimmedContent;
+//       message.attachments = [...remainingAttachments, ...newAttachments];
+//       message.isEdited = true;
+//       message.editedAt = new Date();
+//       await message.save({ session });
+//     });
+
+//     req.flash("success", "Message updated successfully.");
+//     res.json({ success: true, message: "Message updated successfully." });
+//   })
+// );
+
+// // ================= DELETE SINGLE (SOFT vs HARD) =================
+// app.delete(
+//   "/admin/message/student/:id",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const deleteType = req.query.type || "soft";
+//     const message = await Message.findById(req.params.id);
+
+//     if (!message) {
+//       return res.status(404).json({ success: false, message: "Message not found." });
+//     }
+
+//     if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Admin") {
+//       return res.status(403).json({ success: false, message: "Unauthorized action." });
+//     }
+
+//     await safeTransaction(async (session) => {
+//       if (deleteType === "hard") {
+//         await Message.deleteOne({ _id: req.params.id }, { session });
+//       } else {
+//         message.isDeleted = true;
+//         message.deletedAt = new Date();
+//         await message.save({ session });
+//       }
+//     });
+
+//     req.flash("success", `Message ${deleteType === "hard" ? "permanently deleted" : "archived"}.`);
+//     res.json({ success: true, message: "Operation completed successfully." });
+//   })
+// );
+
+
+
+// GET Route: Render Active Teachers List (Name & Username/ID Only)
+app.get(
+  "/admin/message/teacher/compose",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    // Excluded mobile & email to strictly display Name and Username/Emp ID
+    const teachers = await Teacher.find({ status: "Active" })
+      .select("name username teacherId")
+      .sort({ name: 1 });
+
+    res.render("admin/messages/compose-teacher.ejs", { teachers });
+  })
+);
+
+
+app.post(
+  "/admin/message/teacher",
+  verifySession,
+  isAdminVerified,
+   (req, res, next) => {
+    // Handling Multer error gracefully before hitting async route handler
+    upload.array("attachments", 5)(req, res, (err) => {
+      if (err) {
+        req.flash("error", err.message || "File upload failed.");
+        return res.redirect("/admin/message/teacher/compose");
+      }
+      next();
+    });
+  },
+  WrapAsync(async (req, res) => {
+    let { audienceType, teacherIds, content } = req.body;
+
+    if (teacherIds && !Array.isArray(teacherIds)) {
+      teacherIds = [teacherIds];
+    }
+
+    // Validation: Text OR File required
+    if ((!content || !content.trim()) && (!req.files || req.files.length === 0)) {
+      req.flash("error", "Message content or at least one file attachment is required.");
+      return res.redirect("/admin/message/teacher/compose");
+    }
+
+    // if(content||content.trim()>2000){
+    //   req.flash("error","Message is greater than 2000 character");
+    //   return res.redirect("/admin/message/teacher/compose")
+    // }
+
+    // Process File Attachments
+    const attachments = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const fileType = MIME_TYPE_MAP[file.mimetype] || "document";
+        attachments.push({
+          url: file.path,
+           public_id: file.filename || file.public_id || null,
+          filename: file.originalname,
+          fileType: fileType,
+          originalMime: file.mimetype,
+        });
+      }
+    }
+
+    let teachers = [];
+    if (audienceType !== "all") {
+      const targetTeacherIds = Array.isArray(teacherIds)
+        ? teacherIds.filter(Boolean)
+        : [teacherIds].filter(Boolean);
+
+      if (!targetTeacherIds.length) {
+        req.flash("error", "Please select at least one teacher.");
+        return res.redirect("/admin/message/teacher/compose");
+      }
+
+      teachers = await Teacher.find({ _id: { $in: targetTeacherIds }, status: "Active" }).select("_id name");
+      if (!teachers.length) {
+        req.flash("error", "No active teachers found matching selection.");
+        return res.redirect("/admin/message/teacher/compose");
+      }
+    }
+
+    const createdMessages = [];
+
+    // Safe DB Transaction Execution
+    await safeTransaction(async (session) => {
+      if (audienceType === "all") {
+        // 🟢 FIX 1: Save SINGLE BULK Document for ALL TEACHERS
+        const [msg] = await Message.create(
+          [
+            {
+              sender: { id: req.user._id, role: "Admin", name: req.user.name },
+              recipientRole: "Teacher",
+              audienceType: "all",
+              recipientId: null,
+              content: content ? content.trim() : "",
+              attachments: attachments,
+            },
+          ],
+          { session }
+        );
+        createdMessages.push(msg);
+      } else {
+        // 🟢 FIX 2: Save INDIVIDUAL Documents for Specific Teachers
+        for (const teacher of teachers) {
+          const [msg] = await Message.create(
+            [
+              {
+                sender: { id: req.user._id, role: "Admin", name: req.user.name },
+                recipientRole: "Teacher",
+                audienceType: "individual",
+                recipientId: teacher._id,
+                content: content ? content.trim() : "",
+                attachments: attachments,
+              },
+            ],
+            { session }
+          );
+          createdMessages.push(msg);
+        }
+      }
+    });
+
+    // 🟢 FIX 3: Safe Realtime Socket Notification Trigger (Prevents Null Crashes)
+    Promise.allSettled(
+      createdMessages.map((m) => {
+        if (typeof dispatchMessageNotification === "function") {
+          return dispatchMessageNotification(m);
+        }
+        return Promise.resolve();
+      })
+    ).catch((err) => console.error("Notification dispatch error:", err));
+
+    const successMsg = audienceType === "all"
+      ? "Bulk message dispatched to ALL teachers successfully."
+      : `Message sent to ${teachers.length} teacher(s) successfully.`;
+
+    req.flash("success", successMsg);
+    return res.redirect("/admin/message/teacher/sent");
+  })
+);
+
+// // ================= ADMIN -> TEACHER (sent list) =================
+
+// // Query Builder Helper
+// function buildTeacherMessagesQuery(req) {
+//   const showArchived = req.query.view === "archived";
+//   const searchQuery = (req.query.q || "").trim();
+
+//   const query = {
+//     "sender.id": req.user._id,
+//     "sender.role": "Admin",
+//     recipientRole: "Teacher",
+//     isDeleted: showArchived ? true : false,
+//   };
+
+//   return { query, showArchived, searchQuery };
+// }
+
+// // 1. GET: Main Sent Page with Pagination
+// app.get(
+//   "/admin/message/teacher/sent",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const page = Math.max(1, parseInt(req.query.page) || 1);
+//     const limit = 10;
+//     const skip = (page - 1) * limit;
+
+//     const { query, showArchived, searchQuery } = buildTeacherMessagesQuery(req);
+
+//     let matchQuery = { ...query };
+
+//     if (searchQuery) {
+//       const searchRegex = new RegExp(searchQuery, "i");
+//       matchQuery.$or = [
+//         { content: searchRegex }
+//       ];
+//     }
+
+//     const totalRecords = await Message.countDocuments(matchQuery);
+//     const teacherMessages = await Message.find(matchQuery)
+//       .populate("recipientId", "name email")
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limit);
+
+//     const totalPages = Math.ceil(totalRecords / limit) || 1;
+
+//     res.render("admin/messages/sent-teacher.ejs", {
+//       teacherMessages,
+//       showArchived,
+//       searchQuery,
+//       currentPage: page,
+//       totalPages,
+//     });
+//   })
+// );
+
+// // 2. GET: Live API Search Endpoint (DB-Level Search)
+// app.get(
+//   "/admin/message/teacher/api/search",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const page = Math.max(1, parseInt(req.query.page) || 1);
+//     const limit = 20;
+//     const skip = (page - 1) * limit;
+
+//     const showArchived = req.query.view === "archived";
+//     const searchQuery = (req.query.q || "").trim();
+
+//     const matchStage = {
+//       "sender.id": new mongoose.Types.ObjectId(req.user._id),
+//       "sender.role": "Admin",
+//       recipientRole: "Teacher",
+//       isDeleted: showArchived ? true : false,
+//     };
+
+//     let pipeline = [
+//       { $match: matchStage },
+//       {
+//         $lookup: {
+//           from: "teachers", // Apni DB me Teacher collection ka exact name check kar lein
+//           localField: "recipientId",
+//           foreignField: "_id",
+//           as: "recipientDetails"
+//         }
+//       },
+//       {
+//         $unwind: {
+//           path: "$recipientDetails",
+//           preserveNullAndEmptyArrays: true
+//         }
+//       }
+//     ];
+
+//     if (searchQuery) {
+//       const regex = new RegExp(searchQuery, "i");
+//       pipeline.push({
+//         $match: {
+//           $or: [
+//             { content: regex },
+//             { "recipientDetails.name": regex },
+//             { "recipientDetails.email": regex }
+//           ]
+//         }
+//       });
+//     }
+
+//     // Count Total Matching Documents
+//     const countPipeline = [...pipeline, { $count: "total" }];
+//     const countResult = await Message.aggregate(countPipeline);
+//     const totalRecords = countResult.length > 0 ? countResult[0].total : 0;
+
+//     // Paginated Data Pipeline
+//     pipeline.push({ $sort: { createdAt: -1 } });
+//     pipeline.push({ $skip: skip });
+//     pipeline.push({ $limit: limit });
+
+//     // Format output to align with view payload
+//     pipeline.push({
+//       $project: {
+//         _id: 1,
+//         content: 1,
+//         attachments: 1,
+//         isEdited: 1,
+//         editedAt: 1,
+//         isDeleted: 1,
+//         createdAt: 1,
+//         recipientId: {
+//           _id: "$recipientDetails._id",
+//           name: "$recipientDetails.name",
+//           email: "$recipientDetails.email"
+//         }
+//       }
+//     });
+
+//     const teacherMessages = await Message.aggregate(pipeline);
+//     const totalPages = Math.ceil(totalRecords / limit) || 1;
+
+//     res.json({
+//       success: true,
+//       teacherMessages,
+//       currentPage: page,
+//       totalPages,
+//     });
+//   })
+// );
+
+
+
+
+// app.put(
+//   "/admin/message/teacher/:id",
+//   verifySession,
+//   isAdminVerified,
+//   (req, res, next) => {
+//     upload.array("attachments", 5)(req, res, (err) => {
+//       if (err) {
+//         req.flash("error", err.message || "File upload failed.");
+//         return res.redirect("/admin/message/teacher/sent");
+//       }
+//       next();
+//     });
+//   },
+//   WrapAsync(async (req, res) => {
+//     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+//       return res.status(400).json({ success: false, message: "Invalid message ID format." });
+//     }
+
+//     // FIX 1: Content null or undefined protection
+//     const rawContent = req.body.content !== undefined ? req.body.content : "";
+//     const trimmedContent = String(rawContent).trim();
+
+//     const message = await Message.findById(req.params.id);
+//     if (!message || message.isDeleted) {
+//       return res.status(404).json({ success: false, message: "Message not found or deleted." });
+//     }
+
+//     if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Admin") {
+//       return res.status(403).json({ success: false, message: "Unauthorized action." });
+//     }
+
+//     // FIX 2: Dynamic Attachment Removal (Handles JSON String, Normal Array & Path Normalization)
+//     let toRemove = [];
+//     const rawRemoved = req.body.removedAttachments;
+
+//     if (rawRemoved) {
+//       try {
+//         toRemove = typeof rawRemoved === "string" ? JSON.parse(rawRemoved) : rawRemoved;
+//       } catch (e) {
+//         toRemove = [rawRemoved];
+//       }
+//     }
+
+//     if (!Array.isArray(toRemove)) {
+//       toRemove = [toRemove];
+//     }
+
+//     // Clean and decode URLs for accurate matching
+//     const normalizedToRemove = toRemove.map((url) => decodeURIComponent(String(url).trim()));
+
+//     const remainingAttachments = (message.attachments || []).filter((att) => {
+//       const decodedAttUrl = decodeURIComponent(String(att.url || "").trim());
+//       // Match by exact decoded URL or filename fallback
+//       const isRemoved = normalizedToRemove.some(
+//         (remUrl) => remUrl === decodedAttUrl || (att.filename && remUrl.includes(att.filename))
+//       );
+//       return !isRemoved;
+//     });
+
+//     const files = req.files || [];
+
+//     // Validation Check
+//     if (!trimmedContent && remainingAttachments.length === 0 && files.length === 0) {
+//       return res.status(400).json({ success: false, message: "Message must contain text or attachments." });
+//     }
+
+//     // Process new uploads
+//     const newAttachments = files.map((file) => {
+//       const isImage = file.mimetype.startsWith("image/");
+//       return {
+//         url: file.path || `/uploads/${file.filename}`,
+//         filename: file.originalname,
+//         fileType: isImage ? "image" : "document",
+//         originalMime: file.mimetype,
+//       };
+//     });
+
+//     // Save with Atomic Transaction
+//     await safeTransaction(async (session) => {
+//       message.content = trimmedContent; // Null issue fixed
+//       message.attachments = [...remainingAttachments, ...newAttachments]; // Removal fixed
+//       message.isEdited = true;
+//       message.editedAt = new Date();
+//       message.markModified("attachments"); // Explicit Mongoose Array Mutation Signal
+//       await message.save({ session });
+//     });
+
+//     req.flash("success", "Teacher message updated successfully.");
+//     return res.json({ success: true, message: "Teacher message updated successfully." });
+//   })
+// );
+
+// // 1. Bulk Delete Route
+// app.delete(
+//   "/admin/message/teacher/bulk-delete",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     let { ids, type } = req.body;
+
+//     if (typeof ids === "string") {
+//       try {
+//         ids = JSON.parse(ids);
+//       } catch (e) {
+//         ids = [ids];
+//       }
+//     }
+
+//     if (!ids || !Array.isArray(ids) || ids.length === 0) {
+//       return res.status(400).json({ success: false, message: "No IDs provided." });
+//     }
+
+//     const session = await mongoose.startSession();
+//     session.startTransaction();
+
+//     try {
+//       const filter = {
+//         _id: { $in: ids },
+//         "sender.id": req.user._id,
+//         "sender.role": "Admin",
+//         recipientRole: "Teacher",
+//       };
+
+//       if (type === "hard") {
+//         await Message.deleteMany(filter, { session });
+//       } else {
+//         await Message.updateMany(
+//           filter,
+//           { $set: { isDeleted: true, deletedAt: new Date() } },
+//           { session }
+//         );
+//       }
+
+//       await session.commitTransaction();
+//       return res.json({ success: true, message: "Bulk operation completed successfully." });
+//     } catch (err) {
+//       await session.abortTransaction();
+//       throw err;
+//     } finally {
+//       session.endSession(); // Har condition me end hoga
+//     }
+//   })
+// );
+// // 4. DELETE: Single Delete (Soft / Hard)
+// app.delete(
+//   "/admin/message/teacher/:id",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+//       return res.status(400).json({ success: false, message: "Invalid message ID." });
+//     }
+
+//     const deleteType = req.query.type || "soft";
+//     const message = await Message.findById(req.params.id);
+
+//     if (!message) {
+//       return res.status(404).json({ success: false, message: "Message not found." });
+//     }
+
+//     if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Admin") {
+//       return res.status(403).json({ success: false, message: "Unauthorized operation." });
+//     }
+
+//     if (deleteType === "hard") {
+//       await Message.findByIdAndDelete(req.params.id);
+//     } else {
+//       message.isDeleted = true;
+//       message.deletedAt = new Date();
+//       await message.save();
+//     }
+
+//     return res.json({ success: true, message: "Message deleted successfully." });
+//   })
+// );
+
+// // 6. DELETE: Clear Archive with Session Transaction
+// app.delete(
+//   "/admin/message/teacher/clear-archive",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const session = await mongoose.startSession();
+//     session.startTransaction();
+
+//     try {
+//       await Message.deleteMany(
+//         {
+//           "sender.id": req.user._id,
+//           "sender.role": "Admin",
+//           recipientRole: "Teacher",
+//           isDeleted: true,
+//         },
+//         { session }
+//       );
+
+//       await session.commitTransaction();
+//       session.endSession();
+
+//       return res.json({ success: true, message: "Archive cleared successfully." });
+//     } catch (err) {
+//       await session.abortTransaction();
+//       session.endSession();
+//       throw err;
+//     }
+//   })
+// );
+
+
+
+// ================= ADMIN -> TEACHER (sent list) =================
+
+// Query Builder Helper
+function buildTeacherMessagesQuery(req) {
+  const showArchived = req.query.view === "archived";
+  const searchQuery = (req.query.q || "").trim();
+
+  const query = {
+    "sender.id": req.user._id,
+    "sender.role": "Admin",
+    recipientRole: "Teacher",
+    isDeleted: showArchived ? true : false,
+  };
+
+  return { query, showArchived, searchQuery };
+}
+
+// 1. GET: Main Sent Page with Pagination (25 per page)
+ app.get(
+  "/admin/message/teacher/sent",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 25; // Fixed pagination to 25 items per page
+    const skip = (page - 1) * limit;
+
+    const { query, showArchived, searchQuery } = buildTeacherMessagesQuery(req);
+
+    let matchQuery = { ...query };
+
+    if (searchQuery) {
+      const searchRegex = new RegExp(searchQuery, "i");
+      matchQuery.$or = [{ content: searchRegex }];
+    }
+
+    const totalRecords = await Message.countDocuments(matchQuery);
+    const teacherMessages = await Message.find(matchQuery)
+      .populate("recipientId", "name email")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalPages = Math.ceil(totalRecords / limit) || 1;
+
+    res.render("admin/messages/sent-teacher.ejs", {
+      teacherMessages,
+      showArchived,
+      searchQuery,
+      currentPage: page,
+      totalPages,
+    });
+  })
+);
+
+// 2. GET: Live API Search Endpoint (DB-Level Search - 25 per page)
+ app.get(
+  "/admin/message/teacher/api/search",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 25; // Fixed pagination to 25 items per page
+    const skip = (page - 1) * limit;
+
+    const showArchived = req.query.view === "archived";
+    const searchQuery = (req.query.q || "").trim();
+
+    const matchStage = {
+      "sender.id": new mongoose.Types.ObjectId(req.user._id),
+      "sender.role": "Admin",
+      recipientRole: "Teacher",
+      isDeleted: showArchived ? true : false,
+    };
+
+    let pipeline = [
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "teachers", // MongoDB collection name for teachers
+          localField: "recipientId",
+          foreignField: "_id",
+          as: "recipientDetails",
+        },
+      },
+      {
+        $unwind: {
+          path: "$recipientDetails",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+    ];
+
+    if (searchQuery) {
+      const regex = new RegExp(searchQuery, "i");
+      pipeline.push({
+        $match: {
+          $or: [
+            { content: regex },
+            { "recipientDetails.name": regex },
+            { "recipientDetails.email": regex },
+          ],
+        },
+      });
+    }
+
+    // Count Total Matching Documents
+    const countPipeline = [...pipeline, { $count: "total" }];
+    const countResult = await Message.aggregate(countPipeline);
+    const totalRecords = countResult.length > 0 ? countResult[0].total : 0;
+
+    // Paginated Data Pipeline
+    pipeline.push({ $sort: { createdAt: -1 } });
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
+
+    // Format output to align with view payload
+    pipeline.push({
+      $project: {
+        _id: 1,
+        content: 1,
+        attachments: 1,
+        isEdited: 1,
+        editedAt: 1,
+        isDeleted: 1,
+        createdAt: 1,
+        recipientId: {
+          $cond: {
+            if: { $gt: [{ $type: "$recipientDetails._id" }, "missing"] },
+            then: {
+              _id: "$recipientDetails._id",
+              name: "$recipientDetails.name",
+              email: "$recipientDetails.email",
+            },
+            else: null,
+          },
+        },
+      },
+    });
+
+    const teacherMessages = await Message.aggregate(pipeline);
+    const totalPages = Math.ceil(totalRecords / limit) || 1;
+
+    res.json({
+      success: true,
+      teacherMessages,
+      currentPage: page,
+      totalPages,
+    });
+  })
+);
+
+// 3. PUT: Update Teacher Message (Cloud Cleanup -> Then DB Update)
+app.put(
+  "/admin/message/teacher/:id",
+  verifySession,
+  isAdminVerified,
+  (req, res, next) => {
+    upload.array("attachments", 5)(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ success: false, message: err.message || "File upload failed." });
+      }
+      next();
+    });
+  },
+  WrapAsync(async (req, res) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid message ID format." });
+    }
+
+    const rawContent = req.body.content !== undefined ? req.body.content : "";
+    const trimmedContent = String(rawContent).trim();
+
+    const message = await Message.findById(req.params.id);
+    if (!message || message.isDeleted) {
+      return res.status(404).json({ success: false, message: "Message not found or deleted." });
+    }
+
+    if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Admin") {
+      return res.status(403).json({ success: false, message: "Unauthorized action." });
+    }
+
+    // Dynamic Attachment Removal Handling
+    let toRemove = [];
+    const rawRemoved = req.body.removedAttachments;
+
+    if (rawRemoved) {
+      try {
+        toRemove = typeof rawRemoved === "string" ? JSON.parse(rawRemoved) : rawRemoved;
+      } catch (e) {
+        toRemove = [rawRemoved];
+      }
+    }
+
+    if (!Array.isArray(toRemove)) {
+      toRemove = [toRemove];
+    }
+
+    const normalizedToRemove = toRemove.map((url) => decodeURIComponent(String(url).trim()));
+
+    // 1. Identify removed attachments
+    const removedAttachmentsList = [];
+
+    const remainingAttachments = (message.attachments || []).filter((att) => {
+      const decodedAttUrl = decodeURIComponent(String(att.url || "").trim());
+      const isRemoved = normalizedToRemove.some(
+        (remUrl) => remUrl === decodedAttUrl || (att.filename && remUrl.includes(att.filename)) || (att.public_id && remUrl === att.public_id)
+      );
+
+      if (isRemoved) {
+        removedAttachmentsList.push(att);
+      }
+      return !isRemoved;
+    });
+
+    const files = req.files || [];
+
+    // Validation Check
+    if (!trimmedContent && remainingAttachments.length === 0 && files.length === 0) {
+      return res.status(400).json({ success: false, message: "Message cannot be completely empty." });
+    }
+
+    // Process new uploads with public_id
+    const newAttachments = files.map((file) => {
+      const isImage = file.mimetype ? file.mimetype.startsWith("image/") : false;
+      return {
+        url: file.path || `/uploads/${file.filename}`,
+        public_id: file.filename || file.public_id || null,
+        filename: file.originalname,
+        fileType: isImage ? "image" : "document",
+        originalMime: file.mimetype,
+      };
+    });
+
+    // STEP 1: PEHLE CLOUD STORAGE SE DELETE KARO
+    if (removedAttachmentsList.length > 0) {
+      await deleteFilesFromCloud(removedAttachmentsList);
+    }
+
+    // STEP 2: FIR DATABASE ME UPDATE SAVE KARO
+    await safeTransaction(async (session) => {
+      message.content = trimmedContent;
+      message.attachments = [...remainingAttachments, ...newAttachments];
+      message.isEdited = true;
+      message.editedAt = new Date();
+      message.markModified("attachments");
+      await message.save({ session });
+    });
+
+    return res.json({ success: true, message: "Teacher message updated successfully." });
+  })
+);
+
+// 4. DELETE: Bulk Delete Route (Cloud First -> Then DB Delete)
+app.delete(
+  "/admin/message/teacher/bulk-delete",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    let { ids, type } = req.body;
+
+    if (typeof ids === "string") {
+      try {
+        ids = JSON.parse(ids);
+      } catch (e) {
+        ids = [ids];
+      }
+    }
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: "No IDs provided." });
+    }
+
+    const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    if (validIds.length === 0) {
+      return res.status(400).json({ success: false, message: "No valid message IDs provided." });
+    }
+
+    const filter = {
+      _id: { $in: validIds },
+      "sender.id": req.user._id,
+      "sender.role": "Admin",
+      recipientRole: "Teacher",
+    };
+
+    // STEP 1: PEHLE CLOUD STORAGE SE FILES DELETE KARO (HARD DELETE KE WAQT)
+    if (type === "hard") {
+      const messagesToDelete = await Message.find(filter).select("attachments");
+      const attachmentsToDelete = messagesToDelete.flatMap((msg) => msg.attachments || []);
+      if (attachmentsToDelete.length > 0) {
+        await deleteFilesFromCloud(attachmentsToDelete);
+      }
+    }
+
+    // STEP 2: FIR DATABASE TRANSACTION EXECUTE KARO
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      if (type === "hard") {
+        await Message.deleteMany(filter, { session });
+      } else {
+        await Message.updateMany(
+          filter,
+          { $set: { isDeleted: true, deletedAt: new Date() } },
+          { session }
+        );
+      }
+
+      await session.commitTransaction();
+      return res.json({ success: true, message: "Bulk operation completed successfully." });
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      session.endSession();
+    }
+  })
+);
+
+
+// 6. DELETE: Clear Archive (Cloud First -> Then DB Wipe)
+app.delete(
+  "/admin/message/teacher/clear-archive",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const archiveFilter = {
+      "sender.id": req.user._id,
+      "sender.role": "Admin",
+      recipientRole: "Teacher",
+      isDeleted: true,
+    };
+
+    // STEP 1: PEHLE SARI ARCHIVED CLOUD FILES KO CLEARED KARO
+    const archivedMessages = await Message.find(archiveFilter).select("attachments");
+    const attachmentsToDelete = archivedMessages.flatMap((msg) => msg.attachments || []);
+
+    if (attachmentsToDelete.length > 0) {
+      await deleteFilesFromCloud(attachmentsToDelete);
+    }
+
+    // STEP 2: FIR DATABASE SE HARD DELETE KARO
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      await Message.deleteMany(archiveFilter, { session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      return res.json({ success: true, message: "Archive cleared successfully." });
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
+  })
+);
+
+// 5. DELETE: Single Delete (Cloud First -> Then DB Delete)
+app.delete(
+  "/admin/message/teacher/:id",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Invalid message ID." });
+    }
+
+    const deleteType = req.query.type || "soft";
+    const message = await Message.findById(req.params.id);
+
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found." });
+    }
+
+    if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Admin") {
+      return res.status(403).json({ success: false, message: "Unauthorized operation." });
+    }
+
+    // STEP 1: PEHLE CLOUD STORAGE SE ATTACHMENTS DELETE KARO
+    if (deleteType === "hard" && message.attachments && message.attachments.length > 0) {
+      await deleteFilesFromCloud(message.attachments);
+    }
+
+    // STEP 2: FIR DATABASE RECORD DELETE / ARCHIVE KARO
+    if (deleteType === "hard") {
+      await Message.findByIdAndDelete(req.params.id);
+    } else {
+      message.isDeleted = true;
+      message.deletedAt = new Date();
+      await message.save();
+    }
+
+    return res.json({ success: true, message: "Message deleted successfully." });
+  })
+);
+
+
+// // 3. PUT: Update Teacher Message (Attachment Requirement Removed)
+//  app.put(
+//   "/admin/message/teacher/:id",
+//   verifySession,
+//   isAdminVerified,
+//   (req, res, next) => {
+//     upload.array("attachments", 5)(req, res, (err) => {
+//       if (err) {
+//         return res.status(400).json({ success: false, message: err.message || "File upload failed." });
+//       }
+//       next();
+//     });
+//   },
+//   WrapAsync(async (req, res) => {
+//     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+//       return res.status(400).json({ success: false, message: "Invalid message ID format." });
+//     }
+
+//     const rawContent = req.body.content !== undefined ? req.body.content : "";
+//     const trimmedContent = String(rawContent).trim();
+
+//     const message = await Message.findById(req.params.id);
+//     if (!message || message.isDeleted) {
+//       return res.status(404).json({ success: false, message: "Message not found or deleted." });
+//     }
+
+//     if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Admin") {
+//       return res.status(403).json({ success: false, message: "Unauthorized action." });
+//     }
+
+//     // Dynamic Attachment Removal Handling
+//     let toRemove = [];
+//     const rawRemoved = req.body.removedAttachments;
+
+//     if (rawRemoved) {
+//       try {
+//         toRemove = typeof rawRemoved === "string" ? JSON.parse(rawRemoved) : rawRemoved;
+//       } catch (e) {
+//         toRemove = [rawRemoved];
+//       }
+//     }
+
+//     if (!Array.isArray(toRemove)) {
+//       toRemove = [toRemove];
+//     }
+
+//     const normalizedToRemove = toRemove.map((url) => decodeURIComponent(String(url).trim()));
+
+//     const remainingAttachments = (message.attachments || []).filter((att) => {
+//       const decodedAttUrl = decodeURIComponent(String(att.url || "").trim());
+//       const isRemoved = normalizedToRemove.some(
+//         (remUrl) => remUrl === decodedAttUrl || (att.filename && remUrl.includes(att.filename))
+//       );
+//       return !isRemoved;
+//     });
+
+//     const files = req.files || [];
+
+//     // Validation Check: Allowed if at least text content OR remaining/new attachments exist
+//     if (!trimmedContent && remainingAttachments.length === 0 && files.length === 0) {
+//       return res.status(400).json({ success: false, message: "Message cannot be completely empty." });
+//     }
+
+//     // Process new uploads
+//     const newAttachments = files.map((file) => {
+//       const isImage = file.mimetype ? file.mimetype.startsWith("image/") : false;
+//       return {
+//         url: file.path || `/uploads/${file.filename}`,
+//         filename: file.originalname,
+//         fileType: isImage ? "image" : "document",
+//         originalMime: file.mimetype,
+//       };
+//     });
+
+//     // Save with Atomic Transaction
+//     await safeTransaction(async (session) => {
+//       message.content = trimmedContent;
+//       message.attachments = [...remainingAttachments, ...newAttachments];
+//       message.isEdited = true;
+//       message.editedAt = new Date();
+//       message.markModified("attachments");
+//       await message.save({ session });
+//     });
+
+//     return res.json({ success: true, message: "Teacher message updated successfully." });
+//   })
+// );
+
+// // 4. DELETE: Bulk Delete Route
+//  app.delete(
+//   "/admin/message/teacher/bulk-delete",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     let { ids, type } = req.body;
+
+//     if (typeof ids === "string") {
+//       try {
+//         ids = JSON.parse(ids);
+//       } catch (e) {
+//         ids = [ids];
+//       }
+//     }
+
+//     if (!ids || !Array.isArray(ids) || ids.length === 0) {
+//       return res.status(400).json({ success: false, message: "No IDs provided." });
+//     }
+
+//     const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
+//     if (validIds.length === 0) {
+//       return res.status(400).json({ success: false, message: "No valid message IDs provided." });
+//     }
+
+//     const session = await mongoose.startSession();
+//     session.startTransaction();
+
+//     try {
+//       const filter = {
+//         _id: { $in: validIds },
+//         "sender.id": req.user._id,
+//         "sender.role": "Admin",
+//         recipientRole: "Teacher",
+//       };
+
+//       if (type === "hard") {
+//         await Message.deleteMany(filter, { session });
+//       } else {
+//         await Message.updateMany(
+//           filter,
+//           { $set: { isDeleted: true, deletedAt: new Date() } },
+//           { session }
+//         );
+//       }
+
+//       await session.commitTransaction();
+//       return res.json({ success: true, message: "Bulk operation completed successfully." });
+//     } catch (err) {
+//       await session.abortTransaction();
+//       throw err;
+//     } finally {
+//       session.endSession();
+//     }
+//   })
+// );
+
+// // 5. DELETE: Single Delete (Soft / Hard)
+//  app.delete(
+//   "/admin/message/teacher/:id",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+//       return res.status(400).json({ success: false, message: "Invalid message ID." });
+//     }
+
+//     const deleteType = req.query.type || "soft";
+//     const message = await Message.findById(req.params.id);
+
+//     if (!message) {
+//       return res.status(404).json({ success: false, message: "Message not found." });
+//     }
+
+//     if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Admin") {
+//       return res.status(403).json({ success: false, message: "Unauthorized operation." });
+//     }
+
+//     if (deleteType === "hard") {
+//       await Message.findByIdAndDelete(req.params.id);
+//     } else {
+//       message.isDeleted = true;
+//       message.deletedAt = new Date();
+//       await message.save();
+//     }
+
+//     return res.json({ success: true, message: "Message deleted successfully." });
+//   })
+// );
+
+// // 6. DELETE: Clear Archive
+//  app.delete(
+//   "/admin/message/teacher/clear-archive",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const session = await mongoose.startSession();
+//     session.startTransaction();
+
+//     try {
+//       await Message.deleteMany(
+//         {
+//           "sender.id": req.user._id,
+//           "sender.role": "Admin",
+//           recipientRole: "Teacher",
+//           isDeleted: true,
+//         },
+//         { session }
+//       );
+
+//       await session.commitTransaction();
+//       session.endSession();
+
+//       return res.json({ success: true, message: "Archive cleared successfully." });
+//     } catch (err) {
+//       await session.abortTransaction();
+//       session.endSession();
+//       throw err;
+//     }
+//   })
+// );
+
+
+// // ================= ADMIN — RECEIVED (replies from teachers/students) =================
+// app.get(
+//   "/admin/message/received",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const receivedMessages = await Message.find({
+//       recipientRole: "Admin",
+//       recipientId: req.user._id,
+//       isDeleted: false,
+//     }).sort({ createdAt: -1 });
+
+//     res.render("admin/messages/received.ejs", { receivedMessages });
+//   })
+// );
+
+// // ================= ADMIN — REPLY (only to messages addressed to this admin) =================
+// app.post(
+//   "/admin/message/:id/reply",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { content } = req.body;
+//     if (!content || !content.trim()) {
+//       req.flash("error", "Reply cannot be empty.");
+//       return res.redirect("back");
+//     }
+
+//     const parent = await Message.findById(req.params.id);
+//     if (!parent || parent.isDeleted) {
+//       req.flash("error", "Original message not found.");
+//       return res.redirect("back");
+//     }
+
+//     // 🔒 Admin sirf apne-aap ko bheje gaye message par reply kar sakta hai
+//     if (parent.recipientRole !== "Admin" || String(parent.recipientId) !== String(req.user._id)) {
+//       req.flash("error", "You cannot reply to this message.");
+//       return res.redirect("back");
+//     }
+
+//     const reply = await Message.create({
+//       sender: { id: req.user._id, role: "Admin", name: req.user.name },
+//       recipientRole: parent.sender.role,
+//       audienceType: "individual",
+//       recipientId: parent.sender.id,
+//       content: content.trim(),
+//       parentMessage: parent._id,
+//       isReply: true,
+//     });
+
+//     await dispatchReplyNotification(reply, parent.sender.role, parent.sender.id);
+
+//     req.flash("success", "Reply sent.");
+//     return res.redirect("back");
+//   })
+// );
+
+// // ================= ADMIN — META (cascading dropdowns, global — admin sees everything) =================
+// app.get(
+//   "/admin/message/meta/semesters",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { class: className } = req.query;
+//     if (!className) return res.json({ semesters: [] });
+//     const semesters = await Student.distinct("semester", { class: className, status: "Active" });
+//     res.json({ semesters });
+//   })
+// );
+
+// app.get(
+//   "/admin/message/meta/sections",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { class: className, semester } = req.query;
+//     if (!className || !semester) return res.json({ sections: [] });
+//     const sections = await Student.distinct("section", { class: className, semester, status: "Active" });
+//     res.json({ sections });
+//   })
+// );
+
+// app.get(
+//   "/admin/message/student/search",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { q } = req.query;
+//     if (!q || !q.trim()) return res.json({ students: [] });
+
+//     const query = q.trim();
+//     const isNumeric = /^\d+$/.test(query);
+
+//     const students = await Student.find({
+//       status: "Active",
+//       $or: [{ name: { $regex: query, $options: "i" } }, ...(isNumeric ? [{ rollNo: Number(query) }] : [])],
+//     })
+//       .select("name rollNo class semester section")
+//       .limit(15);
+
+//     res.json({ students });
+//   })
+// );
+
+// app.get(
+//   "/admin/message/teacher/search",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { q } = req.query;
+//     if (!q || !q.trim()) return res.json({ teachers: [] });
+
+//     const teachers = await Teacher.find({
+//       status: "Active",
+//       $or: [{ name: { $regex: q.trim(), $options: "i" } }, { mobile: { $regex: q.trim(), $options: "i" } }],
+//     })
+//       .select("name email mobile")
+//       .limit(20);
+
+//     res.json({ teachers });
+//   })
+// );
+
+// // ================= ADMIN — REPLY PERMISSION SETTINGS =================
+// app.get(
+//   "/admin/message/settings",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const messagesettings = await MessageSettings.getSettings();
+    
+//     res.render("admin/messages/settings.ejs", { messagesettings });
+//   })
+// );
+
+// app.post(
+//   "/admin/message/settings/toggle-student-reply",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const settings = await MessageSettings.getSettings();
+//     settings.allowStudentReply = !settings.allowStudentReply;
+//     await settings.save();
+
+//     req.flash("success", `Student reply is now ${settings.allowStudentReply ? "ENABLED" : "DISABLED"}.`);
+//     return res.redirect("back");
+//   })
+// );
+
+// // ================= ADMIN — NOTIFICATIONS =================
+// app.get(
+//   "/admin/notifications/unread-count",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const count = await Notification.countDocuments({
+//       recipientId: req.user._id,
+//       recipientRole: "Admin",
+//       isRead: false,
+//     });
+//     res.json({ count });
+//   })
+// );
+
+// app.post(
+//   "/admin/notifications/mark-all-read",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     await Notification.updateMany(
+//       { recipientId: req.user._id, recipientRole: "Admin", isRead: false },
+//       { $set: { isRead: true } }
+//     );
+//     res.json({ success: true });
+//   })
+// );
+
+///////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+// // Helper function to resolve active tab from query/body
+// const getTargetTab = (req) => {
+//   if (req.body && req.body.tab && ["student", "teacher"].includes(req.body.tab)) {
+//     return req.body.tab;
+//   }
+//   if (req.query && req.query.tab && ["student", "teacher"].includes(req.query.tab)) {
+//     return req.query.tab;
+//   }
+//   return "teacher";
+// };
+
+// // ================= ADMIN — GET RECEIVED THREADS =================
+// app.get(
+//   "/admin/message/received",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const activeTab = req.query.tab === "student" ? "student" : "teacher";
+//     const filterUnread = req.query.filter === "unread";
+//     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+//     const limit = 30;
+//     const skip = (page - 1) * limit;
+
+//     const senderRole = activeTab === "student" ? "Student" : "Teacher";
+//     const selectFields =
+//       activeTab === "student"
+//         ? "name rollNo class semester section"
+//         : "name department designation email";
+
+//     // 1. Find all messages sent BY this senderRole to Admin
+//     const targetMessages = await Message.find({
+//       recipientRole: "Admin",
+//       recipientId: req.user._id,
+//       "sender.role": senderRole,
+//     }).select("parentMessage _id").lean();
+
+//     // Collect Root Parent IDs
+//     const rootIds = [
+//       ...new Set(
+//         targetMessages.map((m) =>
+//           m.parentMessage ? m.parentMessage.toString() : m._id.toString()
+//         )
+//       ),
+//     ];
+
+//     let rootQuery = { _id: { $in: rootIds } };
+
+//     if (filterUnread) {
+//       rootQuery["readBy.userId"] = { $ne: req.user._id };
+//     }
+
+//     const totalThreads = await Message.countDocuments(rootQuery);
+//     const totalPages = Math.ceil(totalThreads / limit) || 1;
+
+//     // Fetch Root Threads
+//     const rootMessages = await Message.find(rootQuery)
+//       .populate({
+//         path: "sender.id",
+//         select: "name role",
+//       })
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limit)
+//       .lean();
+
+//     // Fetch all Child Replies under these root threads with deeper population
+//     const fetchedRootIds = rootMessages.map((m) => m._id);
+//     const allChildReplies = await Message.find({
+//       parentMessage: { $in: fetchedRootIds },
+//     })
+//       .populate({
+//         path: "sender.id",
+//         select: selectFields,
+//       })
+//       .populate({
+//         path: "recipientId",
+//         select: "name department designation rollNo class semester section",
+//       })
+//       .sort({ createdAt: 1 })
+//       .lean();
+
+//     // Group child replies under their root parent ID
+//     const childMap = {};
+//     allChildReplies.forEach((reply) => {
+//       const pId = reply.parentMessage.toString();
+//       if (!childMap[pId]) childMap[pId] = [];
+//       childMap[pId].push(reply);
+//     });
+
+//     const receivedThreads = rootMessages.map((root) => {
+//       return {
+//         ...root,
+//         replies: childMap[root._id.toString()] || [],
+//       };
+//     });
+
+//     // Unread Counts
+//     const unreadStudentCount = await Message.countDocuments({
+//       recipientRole: "Admin",
+//       recipientId: req.user._id,
+//       "sender.role": "Student",
+//       "readBy.userId": { $ne: req.user._id },
+//     });
+
+//     const unreadTeacherCount = await Message.countDocuments({
+//       recipientRole: "Admin",
+//       recipientId: req.user._id,
+//       "sender.role": "Teacher",
+//       "readBy.userId": { $ne: req.user._id },
+//     });
+
+//     // 3-Page Window Array
+//     let startPage = page;
+//     if (startPage + 2 > totalPages) {
+//       startPage = Math.max(1, totalPages - 2);
+//     }
+//     const pageWindow = [];
+//     for (let i = startPage; i <= Math.min(totalPages, startPage + 2); i++) {
+//       pageWindow.push(i);
+//     }
+
+//     res.render("admin/messages/received.ejs", {
+//       receivedThreads,
+//       activeTab,
+//       filterUnread,
+//       unreadStudentCount,
+//       unreadTeacherCount,
+//       currentPage: page,
+//       totalPages,
+//       pageWindow,
+//       req,
+//     });
+//   })
+// );
+
+// // ================= ADMIN — MARK ALL AS READ =================
+// app.post(
+//   "/admin/message/mark-all-read",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const activeTab = getTargetTab(req);
+//     const senderRole = activeTab === "student" ? "Student" : "Teacher";
+
+//     const unreadMsgs = await Message.find({
+//       recipientRole: "Admin",
+//       recipientId: req.user._id,
+//       "sender.role": senderRole,
+//       "readBy.userId": { $ne: req.user._id },
+//     }).select("_id");
+
+//     if (unreadMsgs.length > 0) {
+//       const msgIds = unreadMsgs.map((m) => m._id);
+//       const readReceipt = { userId: req.user._id, role: "Admin", readAt: new Date() };
+
+//       await Message.updateMany(
+//         { _id: { $in: msgIds } },
+//         { $push: { readBy: readReceipt } }
+//       );
+
+//       req.flash("success", `Marked ${msgIds.length} ${activeTab} message(s) as read.`);
+//     } else {
+//       req.flash("info", "No unread messages found in this view.");
+//     }
+
+//     return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//   })
+// );
+
+// // ================= ADMIN — REPLY TO MESSAGE =================
+// app.post(
+//   "/admin/message/:id/reply",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     let { content, tab } = req.body;
+//     const parentMsgId = req.params.id;
+
+//     const targetMsg = await Message.findById(parentMsgId);
+//     const activeTab = tab || (targetMsg && targetMsg.sender.role === "Student" ? "student" : "teacher");
+
+//     if (!content || !content.trim()) {
+//       if (req.xhr || req.headers.accept?.includes("json")) {
+//         return res.status(400).json({ success: false, message: "Reply text cannot be empty." });
+//       }
+//       req.flash("error", "Reply text cannot be empty.");
+//       return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//     }
+
+//     content = content.replace(/\r\n/g, "\n").trim();
+
+//     if (!targetMsg) {
+//       if (req.xhr || req.headers.accept?.includes("json")) {
+//         return res.status(404).json({ success: false, message: "Parent message was deleted or not found." });
+//       }
+//       req.flash("error", "Parent message was deleted or not found.");
+//       return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//     }
+
+//     // Always link to the thread root parent ID
+//     const rootParentId = targetMsg.parentMessage ? targetMsg.parentMessage : targetMsg._id;
+
+//     const replyMessage = new Message({
+//       sender: {
+//         id: req.user._id,
+//         role: "Admin",
+//         name: req.user.name || "Super Admin",
+//       },
+//       recipientRole: targetMsg.sender.role,
+//       audienceType: "individual",
+//       recipientId: targetMsg.sender.id,
+//       content: content,
+//       parentMessage: rootParentId,
+//       isReply: true,
+//       readBy: [{ userId: req.user._id, role: "Admin", readAt: new Date() }],
+//     });
+
+//     await replyMessage.save();
+
+//     // Mark original message read if not read yet
+//     if (!targetMsg.isReadBy(req.user._id)) {
+//       targetMsg.readBy.push({ userId: req.user._id, role: "Admin", readAt: new Date() });
+//       await targetMsg.save();
+//     }
+
+//     if (req.xhr || req.headers.accept?.includes("json")) {
+//       return res.json({ success: true, message: "Reply sent successfully.", reply: replyMessage });
+//     }
+
+//     req.flash("success", "Reply sent successfully.");
+//     return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//   })
+// );
+
+// // ================= ADMIN — HARD DELETE (SINGLE REPLY OR THREAD REPLIES) =================
+// app.post(
+//   "/admin/message/:id/delete",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const activeTab = getTargetTab(req);
+//     const msgId = req.params.id;
+
+//     const targetMsg = await Message.findById(msgId);
+
+//     if (targetMsg) {
+//       const isRootThread = targetMsg.parentMessage === null;
+
+//       if (isRootThread) {
+//         // Hard Delete: Delete ALL nested child replies under this root thread, keep Root Message Safe
+//         const result = await Message.deleteMany({ parentMessage: msgId });
+//         req.flash("success", `Cleared ${result.deletedCount} reply(ies) from thread. Original parent message is retained.`);
+//       } else {
+//         // Hard Delete: Delete specific child reply permanently from database
+//         await Message.deleteOne({ _id: msgId });
+//         req.flash("success", "Selected reply deleted permanently from database.");
+//       }
+//     } else {
+//       req.flash("error", "Message not found.");
+//     }
+
+//     return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//   })
+// );
+
+// // ================= ADMIN — BULK HARD DELETE REPLIES =================
+// app.post(
+//   "/admin/message/bulk-delete",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const activeTab = getTargetTab(req);
+//     let { messageIds } = req.body;
+
+//     if (typeof messageIds === "string") messageIds = [messageIds];
+
+//     if (Array.isArray(messageIds) && messageIds.length > 0) {
+//       // Hard Delete: Remove checked replies permanently from database
+//       const result = await Message.deleteMany({ _id: { $in: messageIds } });
+//       req.flash("success", `Permanently deleted ${result.deletedCount} selected reply(ies) from database.`);
+//     } else {
+//       req.flash("error", "No replies selected for deletion.");
+//     }
+
+//     return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//   })
+// );
+// // ================= ADMIN — MARK ALL AS READ =================
+// app.post(
+//   "/admin/message/mark-all-read",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const activeTab = getTargetTab(req);
+//     const senderRole = activeTab === "student" ? "Student" : "Teacher";
+
+//     const unreadMsgs = await Message.find({
+//       recipientRole: "Admin",
+//       recipientId: req.user._id,
+//       "sender.role": senderRole,
+//       "readBy.userId": { $ne: req.user._id },
+//     }).select("_id");
+
+//     if (unreadMsgs.length > 0) {
+//       const msgIds = unreadMsgs.map((m) => m._id);
+//       const readReceipt = { userId: req.user._id, role: "Admin", readAt: new Date() };
+
+//       await Message.updateMany(
+//         { _id: { $in: msgIds } },
+//         { $push: { readBy: readReceipt } }
+//       );
+
+//       req.flash("success", `Marked ${msgIds.length} ${activeTab} message(s) as read.`);
+//     } else {
+//       req.flash("info", "No unread messages found in this view.");
+//     }
+
+//     return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//   })
+// );
+
+// // ================= ADMIN — REPLY TO MESSAGE (ROOT OR CHILD) =================
+// app.post(
+//   "/admin/message/:id/reply",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     let { content, tab } = req.body;
+//     const parentMsgId = req.params.id;
+
+//     const targetMsg = await Message.findById(parentMsgId);
+//     const activeTab = tab || (targetMsg && targetMsg.sender.role === "Student" ? "student" : "teacher");
+
+//     if (!content || !content.trim()) {
+//       if (req.xhr || req.headers.accept?.includes("json")) {
+//         return res.status(400).json({ success: false, message: "Reply text cannot be empty." });
+//       }
+//       req.flash("error", "Reply text cannot be empty.");
+//       return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//     }
+
+//     content = content.replace(/\r\n/g, "\n").trim();
+
+//     if (!targetMsg) {
+//       if (req.xhr || req.headers.accept?.includes("json")) {
+//         return res.status(404).json({ success: false, message: "Parent message was not found." });
+//       }
+//       req.flash("error", "Parent message was not found.");
+//       return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//     }
+
+//     // Always link to thread root parent ID
+//     const rootParentId = targetMsg.parentMessage ? targetMsg.parentMessage : targetMsg._id;
+
+//     const replyMessage = new Message({
+//       sender: {
+//         id: req.user._id,
+//         role: "Admin",
+//         name: req.user.name || "Admin",
+//       },
+//       recipientRole: targetMsg.sender.role,
+//       audienceType: "individual",
+//       recipientId: targetMsg.sender.id,
+//       content: content,
+//       parentMessage: rootParentId,
+//       isReply: true,
+//       readBy: [{ userId: req.user._id, role: "Admin", readAt: new Date() }],
+//     });
+
+//     await replyMessage.save();
+
+//     // Mark original message read
+//     if (!targetMsg.isReadBy || !targetMsg.isReadBy(req.user._id)) {
+//       targetMsg.readBy.push({ userId: req.user._id, role: "Admin", readAt: new Date() });
+//       await targetMsg.save();
+//     }
+
+//     if (req.xhr || req.headers.accept?.includes("json")) {
+//       return res.json({ success: true, message: "Reply sent successfully.", reply: replyMessage });
+//     }
+
+//     req.flash("success", "Reply sent successfully.");
+//     return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//   })
+// );
+
+
+// // ================= ADMIN — INDIVIDUAL HARD DELETE =================
+// app.post(
+//   "/admin/message/:id/delete",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const activeTab = getTargetTab(req);
+//     const msgId = req.params.id;
+
+//     const targetMsg = await Message.findById(msgId);
+
+//     if (targetMsg) {
+//       await Message.deleteOne({ _id: msgId });
+//       req.flash("success", "Reply permanently deleted.");
+//     } else {
+//       req.flash("error", "Message reply not found.");
+//     }
+
+//     return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//   })
+// );
+
+// // ================= ADMIN — BULK HARD DELETE =================
+// app.post(
+//   "/admin/message/bulk-delete",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const activeTab = getTargetTab(req);
+//     let { messageIds } = req.body;
+
+//     if (typeof messageIds === "string") messageIds = [messageIds];
+
+//     if (Array.isArray(messageIds) && messageIds.length > 0) {
+//       await Message.deleteMany({ _id: { $in: messageIds } });
+//       req.flash("success", `${messageIds.length} selected reply(ies) permanently deleted.`);
+//     } else {
+//       req.flash("error", "No messages selected for deletion.");
+//     }
+
+//     return res.redirect(`/admin/message/received?tab=${activeTab}`);
+//   })
+// );
+
+
+
+
+// Helper function to resolve active tab from query/body
+const getTargetTab = (req) => {
+  if (req.body && req.body.tab && ["student", "teacher"].includes(req.body.tab)) {
+    return req.body.tab;
+  }
+  if (req.query && req.query.tab && ["student", "teacher"].includes(req.query.tab)) {
+    return req.query.tab;
+  }
+  return "teacher";
+};
+
+
+// ================= ADMIN — GET RECEIVED THREADS =================
+app.get(
+  "/admin/message/received",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const activeTab = req.query.tab === "student" ? "student" : "teacher";
+    const filterUnread = req.query.filter === "unread";
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = 30;
+    const skip = (page - 1) * limit;
+
+    const senderRole = activeTab === "student" ? "Student" : "Teacher";
+
+    // Dynamic ref selection for Mongoose populate based on sender.role
+    const studentSelect = "name rollNo class semester section";
+    const teacherSelect = "name department designation email";
+
+    // 1. Find all messages sent BY this senderRole to Admin
+    const targetMessages = await Message.find({
+      recipientRole: "Admin",
+      recipientId: req.user._id,
+      "sender.role": senderRole,
+    }).select("parentMessage _id").lean();
+
+    // Collect Root Parent IDs
+    const rootIds = [
+      ...new Set(
+        targetMessages.map((m) =>
+          m.parentMessage ? m.parentMessage.toString() : m._id.toString()
+        )
+      ),
+    ];
+
+    let rootQuery = { _id: { $in: rootIds } };
+
+    if (filterUnread) {
+      rootQuery["readBy.userId"] = { $ne: req.user._id };
+    }
+
+    const totalThreads = await Message.countDocuments(rootQuery);
+    const totalPages = Math.ceil(totalThreads / limit) || 1;
+
+    // Fetch Root Threads
+    const rootMessages = await Message.find(rootQuery)
+      .populate({
+        path: "sender.id",
+        refPath: "sender.role",
+        select: activeTab === "student" ? studentSelect : teacherSelect,
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Fetch all Child Replies under these root threads with dynamic refs
+    const fetchedRootIds = rootMessages.map((m) => m._id);
+    const allChildReplies = await Message.find({
+      parentMessage: { $in: fetchedRootIds },
+    })
+      .populate({
+        path: "sender.id",
+        refPath: "sender.role",
+        select: `${studentSelect} ${teacherSelect}`,
+      })
+      .populate({
+        path: "recipientId",
+        refPath: "recipientRole",
+        select: `${studentSelect} ${teacherSelect}`,
+      })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    // Group child replies under their root parent ID
+    const childMap = {};
+    allChildReplies.forEach((reply) => {
+      const pId = reply.parentMessage.toString();
+      if (!childMap[pId]) childMap[pId] = [];
+      childMap[pId].push(reply);
+    });
+
+    const receivedThreads = rootMessages.map((root) => {
+      return {
+        ...root,
+        replies: childMap[root._id.toString()] || [],
+      };
+    });
+
+    // Unread Counts
+    const unreadStudentCount = await Message.countDocuments({
+      recipientRole: "Admin",
+      recipientId: req.user._id,
+      "sender.role": "Student",
+      "readBy.userId": { $ne: req.user._id },
+    });
+
+    const unreadTeacherCount = await Message.countDocuments({
+      recipientRole: "Admin",
+      recipientId: req.user._id,
+      "sender.role": "Teacher",
+      "readBy.userId": { $ne: req.user._id },
+    });
+
+    // 3-Page Window Array
+    let startPage = page;
+    if (startPage + 2 > totalPages) {
+      startPage = Math.max(1, totalPages - 2);
+    }
+    const pageWindow = [];
+    for (let i = startPage; i <= Math.min(totalPages, startPage + 2); i++) {
+      pageWindow.push(i);
+    }
+
+    res.render("admin/messages/received.ejs", {
+      receivedThreads,
+      activeTab,
+      filterUnread,
+      unreadStudentCount,
+      unreadTeacherCount,
+      currentPage: page,
+      totalPages,
+      pageWindow,
+      req,
+    });
+  })
+);
+
+// ================= ADMIN — MARK ALL AS READ =================
+app.post(
+  "/admin/message/mark-all-read",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const activeTab = getTargetTab(req);
+    const senderRole = activeTab === "student" ? "Student" : "Teacher";
+
+    const unreadMsgs = await Message.find({
+      recipientRole: "Admin",
+      recipientId: req.user._id,
+      "sender.role": senderRole,
+      "readBy.userId": { $ne: req.user._id },
+    }).select("_id");
+
+    if (unreadMsgs.length > 0) {
+      const msgIds = unreadMsgs.map((m) => m._id);
+      const readReceipt = { userId: req.user._id, role: "Admin", readAt: new Date() };
+
+      await Message.updateMany(
+        { _id: { $in: msgIds } },
+        { $push: { readBy: readReceipt } }
+      );
+
+      req.flash("success", `Marked ${msgIds.length} ${activeTab} message(s) as read.`);
+    } else {
+      req.flash("info", "No unread messages found in this view.");
+    }
+
+    return res.redirect(`/admin/message/received?tab=${activeTab}`);
+  })
+);
+
+// ================= ADMIN — REPLY TO MESSAGE (WITH TRANSACTION & NOTIFICATION) =================
+app.post(
+  "/admin/message/:id/reply",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    let { content, tab } = req.body;
+    const parentMsgId = req.params.id;
+
+    const targetMsg = await Message.findById(parentMsgId);
+    const activeTab = tab || (targetMsg && targetMsg.sender.role === "Student" ? "student" : "teacher");
+
+    if (!content || !content.trim()) {
+      if (req.xhr || req.headers.accept?.includes("json")) {
+        return res.status(400).json({ success: false, message: "Reply text cannot be empty." });
+      }
+      req.flash("error", "Reply text cannot be empty.");
+      return res.redirect(`/admin/message/received?tab=${activeTab}`);
+    }
+
+    content = content.replace(/\r\n/g, "\n").trim();
+
+    if (!targetMsg) {
+      if (req.xhr || req.headers.accept?.includes("json")) {
+        return res.status(404).json({ success: false, message: "Parent message was deleted or not found." });
+      }
+      req.flash("error", "Parent message was deleted or not found.");
+      return res.redirect(`/admin/message/received?tab=${activeTab}`);
+    }
+
+    const rootParentId = targetMsg.parentMessage ? targetMsg.parentMessage : targetMsg._id;
+
+    // MongoDB Session Start for Transaction Safety
+    const session = await Message.startSession();
+    session.startTransaction();
+
+    try {
+      const replyMessage = new Message({
+        sender: {
+          id: req.user._id,
+          role: "Admin",
+          name: req.user.name || "Super Admin",
+        },
+        recipientRole: targetMsg.sender.role,
+        audienceType: "individual",
+        recipientId: targetMsg.sender.id,
+        content: content,
+        parentMessage: rootParentId,
+        isReply: true,
+        readBy: [{ userId: req.user._id, role: "Admin", readAt: new Date() }],
+      });
+
+      await replyMessage.save({ session });
+
+      // Mark original message read if not read yet
+      if (!targetMsg.isReadBy || !targetMsg.isReadBy(req.user._id)) {
+        targetMsg.readBy.push({ userId: req.user._id, role: "Admin", readAt: new Date() });
+        await targetMsg.save({ session });
+      }
+
+      // Dispatch Reply Notification inside transaction
+      await dispatchReplyNotification(replyMessage, targetMsg.sender.role, targetMsg.sender.id, session);
+
+      await session.commitTransaction();
+      session.endSession();
+
+      if (req.xhr || req.headers.accept?.includes("json")) {
+        return res.json({ success: true, message: "Reply sent successfully.", reply: replyMessage });
+      }
+
+      req.flash("success", "Reply sent successfully.");
+      return res.redirect(`/admin/message/received?tab=${activeTab}`);
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      console.error("Error in reply transaction:", error);
+
+      if (req.xhr || req.headers.accept?.includes("json")) {
+        return res.status(500).json({ success: false, message: "Transaction failed. Reply aborted." });
+      }
+      req.flash("error", "Failed to send reply. Changes rolled back.");
+      return res.redirect(`/admin/message/received?tab=${activeTab}`);
+    }
+  })
+);
+
+// ================= ADMIN — HARD DELETE (SINGLE REPLY OR THREAD REPLIES) =================
+app.post(
+  "/admin/message/:id/delete",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const activeTab = getTargetTab(req);
+    const msgId = req.params.id;
+
+    const targetMsg = await Message.findById(msgId);
+
+    if (targetMsg) {
+      const isRootThread = targetMsg.parentMessage === null;
+
+      if (isRootThread) {
+        // Hard Delete: Delete ALL nested child replies under this root thread, keep Root Message Safe
+        const result = await Message.deleteMany({ parentMessage: msgId });
+        req.flash("success", `Cleared ${result.deletedCount} reply(ies) from thread. Original parent message is retained.`);
+      } else {
+        // Hard Delete: Delete specific child reply permanently from database
+        await Message.deleteOne({ _id: msgId });
+        req.flash("success", "Selected reply deleted permanently from database.");
+      }
+    } else {
+      req.flash("error", "Message not found.");
+    }
+
+    return res.redirect(`/admin/message/received?tab=${activeTab}`);
+  })
+);
+
+// ================= ADMIN — BULK HARD DELETE REPLIES =================
+app.post(
+  "/admin/message/bulk-delete",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const activeTab = getTargetTab(req);
+    let { messageIds } = req.body;
+
+    if (typeof messageIds === "string") messageIds = [messageIds];
+
+    if (Array.isArray(messageIds) && messageIds.length > 0) {
+      // Hard Delete: Remove checked replies (Admin + Student + Teacher) permanently
+      const result = await Message.deleteMany({ _id: { $in: messageIds } });
+      req.flash("success", `Permanently deleted ${result.deletedCount} selected reply(ies) from database.`);
+    } else {
+      req.flash("error", "No replies selected for deletion.");
+    }
+
+    return res.redirect(`/admin/message/received?tab=${activeTab}`);
+  })
+);
+
+// // ================= ADMIN — SETTINGS PAGE =================
+ app.get(
+  "/admin/message/settings",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const messagesettings = await MessageSettings.getSettings();
+    res.render("admin/messages/settings.ejs", { messagesettings });
+  })
+);
+
+// ================= ADMIN — SETTINGS 3 SEPARATE TOGGLES =================
+ app.post(
+  "/admin/message/settings/toggle-student-admin-reply",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const settings = await MessageSettings.getSettings();
+    settings.allowStudentToAdminReply = !settings.allowStudentToAdminReply;
+    await settings.save();
+
+    req.flash("success", `Student-to-Admin reply permission ${settings.allowStudentToAdminReply ? "enabled" : "disabled"}.`);
+    return res.redirect("/admin/message/settings");
+  })
+);
+
+ app.post(
+  "/admin/message/settings/toggle-student-teacher-reply",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const settings = await MessageSettings.getSettings();
+    settings.allowStudentToTeacherReply = !settings.allowStudentToTeacherReply;
+    await settings.save();
+
+    req.flash("success", `Student-to-Teacher reply permission ${settings.allowStudentToTeacherReply ? "enabled" : "disabled"}.`);
+    return res.redirect("/admin/message/settings");
+  })
+);
+
+ app.post(
+  "/admin/message/settings/toggle-teacher-admin-reply",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const settings = await MessageSettings.getSettings();
+    settings.allowTeacherToAdminReply = !settings.allowTeacherToAdminReply;
+    await settings.save();
+
+    req.flash("success", `Teacher-to-Admin reply permission ${settings.allowTeacherToAdminReply ? "enabled" : "disabled"}.`);
+    return res.redirect("/admin/message/settings");
+  })
+);
+
+ 
+
+
+
+
+
+
+
+// #########################################################################
+// SECTION D — TEACHER ROUTES  (/teacher/message/...)
+// #########################################################################
+
+// ================= COMPOSE PAGE =================
+app.get(
+  "/teacher/message/student/compose",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    // Sirf teacher ki apni assigned classes (koi global list nahi — permission by design)
+    const classes = [...new Set((req.user.class || []).map((c) => c.className))];
+    res.render("teachers/messages/compose-student.ejs", { classes });
+  })
+);
+
+// ================= TEACHER -> STUDENT (create — apni assigned class ke andar hi) =================
+app.post(
+  "/teacher/message/student",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const { audienceType, class: className, semester, section, studentId, content, subjectId, subjectName } = req.body;
+
+    if (!content || !content.trim()) {
+      req.flash("error", "Message content is required.");
+      return res.redirect("back");
+    }
+
+    let payload = {
+      sender: { id: req.user._id, role: "Teacher", name: req.user.name },
+      recipientRole: "Student",
+      content: content.trim(),
+    };
+
+    if (subjectId && subjectName) {
+      payload.subjectContext = { subjectId, subjectName };
+    }
+
+    if (audienceType === "individual") {
+      const student = await Student.findById(studentId);
+      if (!student) {
+        req.flash("error", "Student not found.");
+        return res.redirect("back");
+      }
+      // 🔒 PERMISSION CHECK
+      if (!teacherHasAccess(req.user, student.class, student.semester, student.section)) {
+        req.flash("error", "You don't have permission to message this student.");
+        return res.redirect("back");
+      }
+      payload.audienceType = "individual";
+      payload.recipientId = student._id;
+    } else if (audienceType === "filter") {
+      if (!className || !semester || !section) {
+        req.flash("error", "Class, semester and section are required.");
+        return res.redirect("back");
+      }
+      // 🔒 PERMISSION CHECK
+      if (!teacherHasAccess(req.user, className, semester, section)) {
+        req.flash("error", "You are not assigned to this class/semester/section.");
+        return res.redirect("back");
+      }
+      payload.audienceType = "filter";
+      payload.filter = { class: className, semester, section };
+    } else {
+      req.flash("error", "Invalid audience type.");
+      return res.redirect("back");
+    }
+
+    const message = await Message.create(payload);
+    await dispatchMessageNotification(message);
+
+    req.flash("success", "Message sent to students successfully.");
+    return res.redirect("/teacher/message/student/sent");
+  })
+);
+
+// ================= TEACHER -> STUDENT (sent list) =================
+app.get(
+  "/teacher/message/student/sent",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const sentMessages = await Message.find({
+      "sender.id": req.user._id,
+      "sender.role": "Teacher",
+      recipientRole: "Student",
+      isDeleted: false,
+    })
+      .populate("recipientId", "name rollNo class semester section")
+      .sort({ createdAt: -1 });
+
+    res.render("teachers/messages/sent-student.ejs", { sentMessages });
+  })
+);
+
+// ================= TEACHER -> STUDENT (edit / delete) =================
+app.put(
+  "/teacher/message/student/:id",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const message = await Message.findById(req.params.id);
+    if (!message || message.isDeleted) {
+      req.flash("error", "Message not found.");
+      return res.redirect("back");
+    }
+    if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Teacher") {
+      req.flash("error", "You can only edit your own messages.");
+      return res.redirect("back");
+    }
+    message.content = (req.body.content || "").trim();
+    if (!message.content) {
+      req.flash("error", "Message cannot be empty.");
+      return res.redirect("back");
+    }
+    message.isEdited = true;
+    message.editedAt = new Date();
+    await message.save();
+
+    req.flash("success", "Message updated.");
+    return res.redirect("back");
+  })
+);
+
+app.delete(
+  "/teacher/message/student/:id",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const message = await Message.findById(req.params.id);
+    if (!message || message.isDeleted) {
+      req.flash("error", "Message not found.");
+      return res.redirect("back");
+    }
+    if (String(message.sender.id) !== String(req.user._id) || message.sender.role !== "Teacher") {
+      req.flash("error", "You can only delete your own messages.");
+      return res.redirect("back");
+    }
+    message.isDeleted = true;
+    message.deletedAt = new Date();
+    await message.save();
+
+    req.flash("success", "Message deleted.");
+    return res.redirect("back");
+  })
+);
+
+// ================= TEACHER — RECEIVED (from Admin + replies from Students) =================
+app.get(
+  "/teacher/message/received",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const receivedMessages = await Message.find({
+      recipientRole: "Teacher",
+      recipientId: req.user._id,
+      isDeleted: false,
+    }).sort({ createdAt: -1 });
+
+    res.render("teachers/messages/received.ejs", { receivedMessages });
+  })
+);
+
+// ================= TEACHER — REPLY (hamesha allowed, admin permission ki zarurat nahi) =================
+app.post(
+  "/teacher/message/:id/reply",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+      req.flash("error", "Reply cannot be empty.");
+      return res.redirect("back");
+    }
+
+    const parent = await Message.findById(req.params.id);
+    if (!parent || parent.isDeleted) {
+      req.flash("error", "Original message not found.");
+      return res.redirect("back");
+    }
+
+    // 🔒 Teacher sirf apne-aap ko bheje gaye message par reply kar sakta hai
+    if (parent.recipientRole !== "Teacher" || String(parent.recipientId) !== String(req.user._id)) {
+      req.flash("error", "You cannot reply to this message.");
+      return res.redirect("back");
+    }
+
+    const reply = await Message.create({
+      sender: { id: req.user._id, role: "Teacher", name: req.user.name },
+      recipientRole: parent.sender.role,
+      audienceType: "individual",
+      recipientId: parent.sender.id,
+      content: content.trim(),
+      parentMessage: parent._id,
+      isReply: true,
+    });
+
+    await dispatchReplyNotification(reply, parent.sender.role, parent.sender.id);
+
+    req.flash("success", "Reply sent.");
+    return res.redirect("back");
+  })
+);
+
+// ================= TEACHER — META (scoped strictly to own assigned classes) =================
+app.get(
+  "/teacher/message/meta/semesters",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const { class: className } = req.query;
+    const cls = (req.user.class || []).find((c) => c.className === className);
+    const semesters = cls ? cls.semesters.map((s) => s.semester) : [];
+    res.json({ semesters });
+  })
+);
+
+app.get(
+  "/teacher/message/meta/sections",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const { class: className, semester } = req.query;
+    const cls = (req.user.class || []).find((c) => c.className === className);
+    const sem = cls ? cls.semesters.find((s) => s.semester === semester) : null;
+    const sections = sem ? sem.sections.map((s) => s.section) : [];
+    res.json({ sections });
+  })
+);
+
+app.get(
+  "/teacher/message/student/search",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const { q } = req.query;
+    if (!q || !q.trim()) return res.json({ students: [] });
+
+    const combos = teacherAssignedCombos(req.user);
+    if (!combos.length) return res.json({ students: [] });
+
+    const query = q.trim();
+    const isNumeric = /^\d+$/.test(query);
+
+    // 🔒 Sirf apni assigned class/sem/section ke students hi search results me aayenge
+    const students = await Student.find({
+      status: "Active",
+      $and: [
+        { $or: combos.map((c) => ({ class: c.class, semester: c.semester, section: c.section })) },
+        { $or: [{ name: { $regex: query, $options: "i" } }, ...(isNumeric ? [{ rollNo: Number(query) }] : [])] },
+      ],
+    })
+      .select("name rollNo class semester section")
+      .limit(15);
+
+    res.json({ students });
+  })
+);
+
+// ================= TEACHER — NOTIFICATIONS =================
+app.get(
+  "/teacher/notifications/unread-count",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    const count = await Notification.countDocuments({
+      recipientId: req.user._id,
+      recipientRole: "Teacher",
+      isRead: false,
+    });
+    res.json({ count });
+  })
+);
+
+app.post(
+  "/teacher/notifications/mark-all-read",
+  verifySession,
+  isLoggedIn,
+  WrapAsync(async (req, res) => {
+    await Notification.updateMany(
+      { recipientId: req.user._id, recipientRole: "Teacher", isRead: false },
+      { $set: { isRead: true } }
+    );
+    res.json({ success: true });
+  })
+);
+
+
+// #########################################################################
+// SECTION E — STUDENT ROUTES  (/student/message/...)
+// #########################################################################
+
+// ================= STUDENT — INBOX (received: broadcast + individual) =================
+app.get(
+  "/student/message",
+  verifySession,
+  isStudentVerified,
+  WrapAsync(async (req, res) => {
+    const student = req.user;
+    const settings = await MessageSettings.getSettings();
+
+    const messages = await Message.find({
+      recipientRole: "Student",
+      isDeleted: false,
+      $or: [
+        { audienceType: "all" },
+        {
+          audienceType: "filter",
+          "filter.class": student.class,
+          "filter.semester": student.semester,
+          "filter.section": student.section,
+        },
+        { audienceType: "individual", recipientId: student._id },
+      ],
+    }).sort({ createdAt: -1 });
+
+    res.render("students/messages/index.ejs", { messages, canReply: settings. allowStudentToAdminReply });
+  })
+);
+
+// ================= STUDENT — REPLY (admin permission se gated) =================
+app.post(
+  "/student/message/:id/reply",
+  verifySession,
+  isStudentVerified,
+  WrapAsync(async (req, res) => {
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+      req.flash("error", "Reply cannot be empty.");
+      return res.redirect("back");
+    }
+
+    // 🔒 ADMIN-CONTROLLED PERMISSION GATE
+    const settings = await MessageSettings.getSettings();
+    if (!settings. allowStudentToAdminReply) {
+      req.flash("error", "Reply is currently disabled by administrator.");
+      return res.redirect("back");
+    }
+
+    const parent = await Message.findById(req.params.id);
+    if (!parent || parent.isDeleted) {
+      req.flash("error", "Original message not found.");
+      return res.redirect("back");
+    }
+
+    // 🔒 Student sirf apne aap ko ya apni class/sem/section ko bheje gaye
+    //     ya "all" broadcast message par hi reply kar sake
+    const isAddressedToThisStudent =
+      (parent.audienceType === "individual" && String(parent.recipientId) === String(req.user._id)) ||
+      parent.audienceType === "all" ||
+      (parent.audienceType === "filter" &&
+        parent.filter.class === req.user.class &&
+        parent.filter.semester === req.user.semester &&
+        parent.filter.section === req.user.section);
+
+    if (!isAddressedToThisStudent) {
+      req.flash("error", "You cannot reply to this message.");
+      return res.redirect("back");
+    }
+
+    const reply = await Message.create({
+      sender: { id: req.user._id, role: "Student", name: req.user.name },
+      recipientRole: parent.sender.role,
+      audienceType: "individual",
+      recipientId: parent.sender.id,
+      content: content.trim(),
+      parentMessage: parent._id,
+      isReply: true,
+    });
+
+    await dispatchReplyNotification(reply, parent.sender.role, parent.sender.id);
+
+    req.flash("success", "Reply sent.");
+    return res.redirect("back");
+  })
+);
+
+// ================= STUDENT — NOTIFICATIONS =================
+app.get(
+  "/student/notifications/unread-count",
+  verifySession,
+  isStudentVerified,
+  WrapAsync(async (req, res) => {
+    const count = await Notification.countDocuments({
+      recipientId: req.user._id,
+      recipientRole: "Student",
+      isRead: false,
+    });
+    res.json({ count });
+  })
+);
+
+app.post(
+  "/student/notifications/mark-all-read",
+  verifySession,
+  isStudentVerified,
+  WrapAsync(async (req, res) => {
+    await Notification.updateMany(
+      { recipientId: req.user._id, recipientRole: "Student", isRead: false },
+      { $set: { isRead: true } }
+    );
+    res.json({ success: true });
+  })
+);
+
+
+// #########################################################################
+// SECTION F — server.listen()  (SABSE NEECHE, file ke end me)
+// #########################################################################
+
+
+
+// ⚠️ Agar tere original file me kahin "app.listen(...)" already likha hai,
+// usse HATA dena — ab sirf "server.listen(...)" chalega, dono nahi.
+
+// // ------------------ WebSockets Real-Time Setup ------------------
+// const onlineUsers = new Map(); // Store active socket user IDs (UserId -> SocketID)
+
+// io.on("connection", (socket) => {
+//   socket.on("registerUser", (userId) => {
+//     if (userId) {
+//       onlineUsers.set(userId.toString(), socket.id);
+//       socket.join(userId.toString());
+//     }
+//   });
+
+//   socket.on("disconnect", () => {
+//     for (let [key, value] of onlineUsers.entries()) {
+//       if (value === socket.id) {
+//         onlineUsers.delete(key);
+//         break;
+//       }
+//     }
+//   });
+// });
+
+// // Helper for sending push real-time notifications
+// const sendSocketNotification = (userIds, eventName, payload) => {
+//   if (Array.isArray(userIds)) {
+//     userIds.forEach((id) => {
+//       io.to(id.toString()).emit(eventName, payload);
+//     });
+//   } else if (userIds) {
+//     io.to(userIds.toString()).emit(eventName, payload);
+//   }
+// };
+
+// // Database Connection
+// async function main() {
+//   await mongoose.connect(dbUrl);
+// }
+// main()
+//   .then(() => console.log("MongoDB Connected Successfully ✔"))
+//   .catch((err) => console.log("MongoDB Error ❌", err));
+
+// // =========================================================================
+// // 👑 1. ADMIN MESSAGING ROUTES & CONTROLLER LOGIC
+// // =========================================================================
+
+// // Render Admin Message Panel
+// app.get(
+//   "/admin/messages",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const students = await Student.find({});
+//     const teachers = await Teacher.find({});
+    
+//     // Dynamic Filter lists for Admin Student Filter
+//     const classes = [...new Set(students.map((s) => s.class))];
+//     const semesters = [...new Set(students.map((s) => s.semester))];
+//     const sections = [...new Set(students.map((s) => s.section))];
+
+//     const messages = await Message.find({ senderRole: "Admin" })
+//       .populate("recipientStudentId")
+//       .populate("recipientTeacherId")
+//       .sort({ createdAt: -1 });
+
+//     let settings = await AdminSettings.findOne();
+//     if (!settings) {
+//       settings = await AdminSettings.create({ studentReplyAllowed: true });
+//     }
+
+//     res.render("admin/messages.ejs", {
+//       students,
+//       teachers,
+//       classes,
+//       semesters,
+//       sections,
+//       messages,
+//       studentReplyAllowed: settings.studentReplyAllowed,
+//     });
+//   })
+// );
+
+// // Toggle Student Global Reply Permission Toggle
+// app.post(
+//   "/admin/messages/toggle-reply",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     let settings = await AdminSettings.findOne();
+//     if (!settings) {
+//       settings = new AdminSettings();
+//     }
+//     settings.studentReplyAllowed = !settings.studentReplyAllowed;
+//     await settings.save();
+    
+//     // Realtime update socket notification to all connected clients
+//     io.emit("permissionUpdated", { studentReplyAllowed: settings.studentReplyAllowed });
+    
+//     req.flash("success", `Student Reply Permission updated to ${settings.studentReplyAllowed ? "ALLOWED" : "DISALLOWED"}`);
+//     res.redirect("/admin/messages");
+//   })
+// );
+
+// // Admin Send Message (Student / Teacher)
+// app.post(
+//   "/admin/messages/send",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { targetGroup, filterClass, filterSem, filterSec, studentId, teacherTargetType, teacherId, messageText } = req.body;
+//     const adminUser = req.user;
+
+//     if (targetGroup === "Student") {
+//       if (studentId && studentId !== "ALL") {
+//         // Individual Student Message
+//         const student = await Student.findById(studentId);
+//         if (!student) throw new ExpressError("Student Not Found", 404);
+
+//         const newMsg = await Message.create({
+//           senderId: adminUser._id,
+//           senderRole: "Admin",
+//           senderName: adminUser.name || "Admin",
+//           recipientType: "Student",
+//           targetType: "Individual",
+//           recipientStudentId: student._id,
+//           studentDetails: {
+//             rollNo: student.rollNo,
+//             name: student.name,
+//             className: student.class,
+//             semester: student.semester,
+//             section: student.section,
+//           },
+//           messageText,
+//         });
+
+//         sendSocketNotification(student._id, "newMessage", {
+//           title: "New Message from Admin",
+//           text: messageText,
+//         });
+//       } else {
+//         // Bulk Student Message
+//         let filter = {};
+//         if (filterClass && filterClass !== "ALL") filter.class = filterClass;
+//         if (filterSem && filterSem !== "ALL") filter.semester = filterSem;
+//         if (filterSec && filterSec !== "ALL") filter.section = filterSec;
+
+//         const targetStudents = await Student.find(filter);
+//         const targetIds = targetStudents.map((s) => s._id);
+
+//         await Message.create({
+//           senderId: adminUser._id,
+//           senderRole: "Admin",
+//           senderName: adminUser.name || "Admin",
+//           recipientType: "Student",
+//           targetType: "Bulk",
+//           className: filterClass || "ALL",
+//           semester: filterSem || "ALL",
+//           section: filterSec || "ALL",
+//           messageText,
+//         });
+
+//         sendSocketNotification(targetIds, "newMessage", {
+//           title: "New Bulk Announcement",
+//           text: messageText,
+//         });
+//       }
+//     } else if (targetGroup === "Teacher") {
+//       if (teacherTargetType === "Individual" && teacherId) {
+//         // Individual Teacher Message
+//         const teacher = await Teacher.findById(teacherId);
+//         const newMsg = await Message.create({
+//           senderId: adminUser._id,
+//           senderRole: "Admin",
+//           senderName: adminUser.name || "Admin",
+//           recipientType: "Teacher",
+//           targetType: "Individual",
+//           recipientTeacherId: teacher._id,
+//           messageText,
+//         });
+
+//         sendSocketNotification(teacher._id, "newMessage", {
+//           title: "New Message from Admin",
+//           text: messageText,
+//         });
+//       } else {
+//         // Bulk Teacher Message: Save individual records for every teacher per business rule
+//         const allTeachers = await Teacher.find({});
+//         const teacherIds = [];
+
+//         for (let teacher of allTeachers) {
+//           teacherIds.push(teacher._id);
+//           await Message.create({
+//             senderId: adminUser._id,
+//             senderRole: "Admin",
+//             senderName: adminUser.name || "Admin",
+//             recipientType: "Teacher",
+//             targetType: "Individual",
+//             recipientTeacherId: teacher._id,
+//             messageText,
+//           });
+//         }
+
+//         sendSocketNotification(teacherIds, "newMessage", {
+//           title: "New Message from Admin",
+//           text: messageText,
+//         });
+//       }
+//     }
+
+//     req.flash("success", "Message dispatched successfully!");
+//     res.redirect("/admin/messages");
+//   })
+// );
+
+// // Admin Edit Message
+// app.put(
+//   "/admin/messages/:id",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { id } = req.params;
+//     const { messageText } = req.body;
+//     await Message.findByIdAndUpdate(id, { messageText });
+//     req.flash("success", "Message updated!");
+//     res.redirect("/admin/messages");
+//   })
+// );
+
+// // Admin Delete Message
+// app.delete(
+//   "/admin/messages/:id",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { id } = req.params;
+//     await Message.findByIdAndDelete(id);
+//     req.flash("success", "Message deleted successfully!");
+//     res.redirect("/admin/messages");
+//   })
+// );
+
+// // Admin Reply Handler
+// app.post(
+//   "/admin/messages/:id/reply",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { id } = req.params;
+//     const { replyText } = req.body;
+//     const msg = await Message.findById(id);
+
+//     msg.replies.push({
+//       senderId: req.user._id,
+//       senderRole: "Admin",
+//       senderName: req.user.name || "Admin",
+//       message: replyText,
+//     });
+//     await msg.save();
+
+//     req.flash("success", "Reply sent!");
+//     res.redirect("/admin/messages");
+//   })
+// );
+
+// // =========================================================================
+// // 👨‍🏫 2. TEACHER MESSAGING ROUTES & CONTROLLER LOGIC
+// // =========================================================================
+
+// app.get(
+//   "/teacher/messages",
+//   verifySession,
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const teacher = req.user;
+
+//     // Filter assigned classes, semesters, sections & subjects from Teacher schema
+//     const assignedClasses = teacher.class || [];
+    
+//     // Received Messages for Teacher (Individual only as per business logic requirement)
+//     const receivedMessages = await Message.find({
+//       recipientType: "Teacher",
+//       recipientTeacherId: teacher._id,
+//     }).sort({ createdAt: -1 });
+
+//     // Messages sent by Teacher
+//     const sentMessages = await Message.find({
+//       senderId: teacher._id,
+//       senderRole: "Teacher",
+//     }).sort({ createdAt: -1 });
+
+//     res.render("teachers/messages.ejs", {
+//       teacher,
+//       assignedClasses,
+//       receivedMessages,
+//       sentMessages,
+//     });
+//   })
+// );
+
+// // Dynamic Helper API to get Students assigned to Teacher Filter
+// app.get(
+//   "/teacher/api/filter-students",
+//   verifySession,
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const { className, semester, section } = req.query;
+//     let query = {};
+//     if (className) query.class = className;
+//     if (semester) query.semester = semester;
+//     if (section) query.section = section;
+
+//     const students = await Student.find(query).select("_id name rollNo class semester section");
+//     res.json({ success: true, students });
+//   })
+// );
+
+// // Teacher Send Message to Students
+// app.post(
+//   "/teacher/messages/send",
+//   verifySession,
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const teacher = req.user;
+//     const { className, semester, section, subjectName, studentId, messageText } = req.body;
+
+//     if (studentId && studentId !== "ALL") {
+//       const student = await Student.findById(studentId);
+//       await Message.create({
+//         senderId: teacher._id,
+//         senderRole: "Teacher",
+//         senderName: teacher.name,
+//         recipientType: "Student",
+//         targetType: "Individual",
+//         recipientStudentId: student._id,
+//         className,
+//         semester,
+//         section,
+//         subjectName,
+//         studentDetails: {
+//           rollNo: student.rollNo,
+//           name: student.name,
+//           className: student.class,
+//           semester: student.semester,
+//           section: student.section,
+//         },
+//         messageText,
+//       });
+
+//       sendSocketNotification(student._id, "newMessage", {
+//         title: `Message from ${teacher.name} (${subjectName})`,
+//         text: messageText,
+//       });
+//     } else {
+//       // Bulk Student send by assigned Class/Sem/Section/Subject
+//       const filter = { class: className, semester, section };
+//       const students = await Student.find(filter);
+//       const studentIds = students.map((s) => s._id);
+
+//       await Message.create({
+//         senderId: teacher._id,
+//         senderRole: "Teacher",
+//         senderName: teacher.name,
+//         recipientType: "Student",
+//         targetType: "Bulk",
+//         className,
+//         semester,
+//         section,
+//         subjectName,
+//         messageText,
+//       });
+
+//       sendSocketNotification(studentIds, "newMessage", {
+//         title: `Announcement from ${teacher.name} (${subjectName})`,
+//         text: messageText,
+//       });
+//     }
+
+//     req.flash("success", "Message sent to students successfully!");
+//     res.redirect("/teacher/messages");
+//   })
+// );
+
+// // Teacher Edit Message
+// app.put(
+//   "/teacher/messages/:id",
+//   verifySession,
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const { id } = req.params;
+//     const { messageText } = req.body;
+//     await Message.findOneAndUpdate({ _id: id, senderId: req.user._id }, { messageText });
+//     req.flash("success", "Message edited!");
+//     res.redirect("/teacher/messages");
+//   })
+// );
+
+// // Teacher Delete Message
+// app.delete(
+//   "/teacher/messages/:id",
+//   verifySession,
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const { id } = req.params;
+//     await Message.findOneAndDelete({ _id: id, senderId: req.user._id });
+//     req.flash("success", "Message deleted!");
+//     res.redirect("/teacher/messages");
+//   })
+// );
+
+// // Teacher Reply Route
+// app.post(
+//   "/teacher/messages/:id/reply",
+//   verifySession,
+//   isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     const { id } = req.params;
+//     const { replyText } = req.body;
+//     const msg = await Message.findById(id);
+
+//     msg.replies.push({
+//       senderId: req.user._id,
+//       senderRole: "Teacher",
+//       senderName: req.user.name,
+//       message: replyText,
+//     });
+//     await msg.save();
+
+//     // Socket notification back to sender
+//     sendSocketNotification(msg.senderId, "newReply", {
+//       title: `Reply from ${req.user.name}`,
+//       text: replyText,
+//     });
+
+//     req.flash("success", "Reply added!");
+//     res.redirect("/teacher/messages");
+//   })
+// );
+
+// // =========================================================================
+// // 🎓 3. STUDENT MESSAGING ROUTES & CONTROLLER LOGIC
+// // =========================================================================
+
+// app.get(
+//   "/student/messages",
+//   verifySession,
+//   isStudentVerified,
+//   WrapAsync(async (req, res) => {
+//     const student = req.user;
+
+//     // Check Global Admin Reply Permission
+//     const settings = await AdminSettings.findOne();
+//     const isReplyAllowed = settings ? settings.studentReplyAllowed : true;
+
+//     // Direct Messages sent to student specifically OR Bulk messages matching Class/Sem/Sec
+//     const messages = await Message.find({
+//       recipientType: "Student",
+//       $or: [
+//         { targetType: "Individual", recipientStudentId: student._id },
+//         {
+//           targetType: "Bulk",
+//           className: { $in: [student.class, "ALL"] },
+//           semester: { $in: [student.semester, "ALL"] },
+//           section: { $in: [student.section, "ALL"] },
+//         },
+//       ],
+//     }).sort({ createdAt: -1 });
+
+//     res.render("students/messages.ejs", {
+//       student,
+//       messages,
+//       isReplyAllowed,
+//     });
+//   })
+// );
+
+// // Student Reply Route (Respects Admin Global Toggle Permission)
+// app.post(
+//   "/student/messages/:id/reply",
+//   verifySession,
+//   isStudentVerified,
+//   WrapAsync(async (req, res) => {
+//     const settings = await AdminSettings.findOne();
+//     if (settings && !settings.studentReplyAllowed) {
+//       req.flash("error", "Replying is currently disabled by Admin!");
+//       return res.redirect("/student/messages");
+//     }
+
+//     const { id } = req.params;
+//     const { replyText } = req.body;
+//     const msg = await Message.findById(id);
+
+//     msg.replies.push({
+//       senderId: req.user._id,
+//       senderRole: "Student",
+//       senderName: req.user.name,
+//       message: replyText,
+//     });
+//     await msg.save();
+
+//     sendSocketNotification(msg.senderId, "newReply", {
+//       title: `Reply from Student ${req.user.name}`,
+//       text: replyText,
+//     });
+
+//     req.flash("success", "Reply sent successfully!");
+//     res.redirect("/student/messages");
+//   })
+// );
+
+// // Error Handling Middlewares
+// app.all("*", (req, res, next) => {
+//   next(new ExpressError("Page Not Found", 404));
+// });
+
+// app.use((err, req, res, next) => {
+//   const { statusCode = 500, message = "Something went wrong" } = err;
+//   res.status(statusCode).render("error.ejs", { err });
+// });
+
+// // Port Execution
+// const PORT = process.env.PORT || 8080;
+// server.listen(PORT, () => {
+//   console.log(`Server is running on port ${PORT} 🚀`);
+// });
+
+
+//////////////////////
 
 function otpVerify(req, res, next) {
   if (req.session.otpVerify) {
@@ -200,10 +4299,12 @@ setInterval(
       console.error("❌ Attendance cleanup error:", err);
     }
   },
-  1 * 60 * 1000,
-); // every 2 minutes
+   30 * 1000 ,
+); 
+
 
 // to remove feed when student is delete
+
 setInterval(
   async () => {
     try {
@@ -234,8 +4335,8 @@ setInterval(
       console.error("❌ Feed cleanup error:", err);
     }
   },
-  1 * 60 * 1000,
-); // every 1 minute
+  30 * 1000 ,
+); 
 
 // to remove  fess transaction when fess ledger is deleted
 
@@ -271,8 +4372,79 @@ setInterval(
       console.error("❌ FeeTransaction cleanup error:", err);
     }
   },
-  1 * 60 * 1000, // Har 2 minute me chalega
+  30 * 1000 // Har 2 minute me chalega
 );
+
+
+
+// 🧹 ClassIncharge Orphan Cleanup Cron Job (Runs every 20 Seconds)
+setInterval(
+  async () => {
+    try {
+      // 🔹 Fetch all existing valid Teacher ObjectIds
+      const teacherIds = await Teacher.distinct("_id");
+
+      // 🔹 Find ClassIncharge records where teacher doesn't exist anymore
+      const orphanIncharges = await ClassIncharge.find({
+        teacher: { $nin: teacherIds },
+      }).select("_id");
+
+      if (orphanIncharges.length === 0) return;
+
+      // 🔹 Extract IDs and Delete orphan records
+      const idsToDelete = orphanIncharges.map((doc) => doc._id);
+
+      const result = await ClassIncharge.deleteMany({
+        _id: { $in: idsToDelete },
+      });
+
+      // console.log(`🧹 Deleted ${result.deletedCount} orphan ClassIncharge records`);
+    } catch (err) {
+      console.error("❌ ClassIncharge cleanup error:", err);
+    }
+  },
+  20 * 1000 // 20 Seconds Interval
+);
+
+// 🧹 Combined ClassIncharge & HOD Cleanup (Runs every 20 Seconds)
+setInterval(
+  async () => {
+    try {
+      // 🔹 Single query for Teacher IDs
+      const teacherIds = await Teacher.distinct("_id");
+
+      // 1. Clean Orphan ClassIncharges
+      const orphanIncharges = await ClassIncharge.find({
+        teacher: { $nin: teacherIds },
+      }).select("_id");
+
+      if (orphanIncharges.length > 0) {
+        await ClassIncharge.deleteMany({
+          _id: { $in: orphanIncharges.map((d) => d._id) },
+        });
+      }
+
+      // 2. Clean Orphan HODs
+      const orphanHods = await Hod.find({
+        teacher: { $nin: teacherIds },
+      }).select("_id");
+
+      if (orphanHods.length > 0) {
+        await Hod.deleteMany({
+          _id: { $in: orphanHods.map((d) => d._id) },
+        });
+      }
+    } catch (err) {
+      console.error("❌ Teacher Incharge/HOD cleanup error:", err);
+    }
+  },
+  20 * 1000
+);
+
+
+
+
+
 
 console.log("Mongo URL:", process.env.ATLASDB_URL);
 
@@ -282,407 +4454,33 @@ app.get("/student/attendance/login", (req, res) => {
   res.render("users/login.ejs");
 });
 
-// app.post(
-//   "/student/attendance/login",
-//   WrapAsync(async (req, res) => {
-//     try {
-//       const { role, username, password } = req.body;
 
-//       // const studentPassword = process.env.STUDENT_PASSWORD;
-//       const adminUsername = process.env.ADMIN_USERNAME;
-//       const adminPassword = process.env.ADMIN_PASSWORD;
-//       const adminRole = process.env.ROLE_1;
-//       const teacherRole = process.env.ROLE_2;
-//       const studentRole = process.env.ROLE_3;
-
-//       req.session.adminVerified = false;
-
-//       // ================= ADMIN LOGIN =================
-//       if (adminRole === role) {
-//         if (adminUsername === username && adminPassword === password) {
-//           req.session.adminVerified = true;
-//           req.flash("success", "Login successfully");
-//           return res.redirect("/admin/student/attendance");
-//         } else {
-//           req.flash("error", "Incorrect password");
-//           return res.redirect("/student/attendance/login");
-//         }
-//       }
-
-//       // ================= TEACHER LOGIN =================
-//       if (teacherRole === role) {
-//         return res.redirect(307, "/login/modal");
-//       }
-
-//       // ================= STUDENT LOGIN =================
-
-//       if (studentRole === role) {
-//         req.session.otpVerified = false;
-
-//         const student = await Student.findOne({
-//           rollNo: parseInt(username),
-//           password: password,
-//         });
-
-//         if (!student) {
-//           req.flash("error", "Incorrect password");
-//           return res.redirect("/student/attendance/login");
-//         }
-
-//         req.session.rollNo = username;
-
-//         // 🔥 FIRST TIME PASSWORD UPDATE CHECK
-//         if (student.check !== "update") {
-//           return res.redirect("/student/update/password");
-//         }
-
-//         req.session.otpVerified = true;
-//         req.flash("success", " Login Successfully");
-//         return res.redirect("/student/attendance");
-//       }
-
-//       // ================= INVALID ROLE =================
-//       req.flash("error", "Role not matched");
-//       return res.redirect("/student/attendance/login");
-//     } catch (err) {
-//       console.error("Login Error:", err);
-//       req.flash("error", "Something went wrong, please try again");
-//       return res.redirect("/student/attendance/login");
-//     }
-//   }),
-// );
-
-// app.post(
-//   "/student/attendance/login",
-//   WrapAsync(async (req, res) => {
-//     const { role, username, password } = req.body || {};
-
-//     const adminRole = process.env.ROLE_1 || "Admin";
-//     const teacherRole = process.env.ROLE_2 || "Teacher";
-//     const studentRole = process.env.ROLE_3 || "Student";
-
-//     // 🔴 1. ROLE VALIDATION & TRIMMING
-//     if (!role || !username || !password) {
-//       req.flash("error", "All fields are required.");
-//       return res.redirect("/student/attendance/login");
-//     }
-
-//     const cleanUsername = String(username).trim();
-//     const cleanPassword = String(password).trim();
-
-//     // =========================================================================
-//     // 👑 1. ADMIN LOGIN
-//     // =========================================================================
-//     if (role === adminRole) {
-//       // Database se Admin find karo (.select("+password") ke sath)
-//       let admin = await Admin.findOne({ username: cleanUsername }).select("+password");
-
-//       // Environment variables fallback check (agar DB me static admin environment se chalta ho)
-//       const envAdminUser = process.env.ADMIN_USERNAME;
-//       const envAdminPass = process.env.ADMIN_PASSWORD;
-
-//       let isMatch = false;
-
-//       // Case A: DB Admin Check (Bcrypt Compare)
-//       if (admin && admin.password) {
-//         // Agar bcrypt hashed password hai
-//         if (admin.password.startsWith("$2a$") || admin.password.startsWith("$2b$")) {
-//           isMatch = await bcrypt.compare(cleanPassword, admin.password);
-//         } else {
-//           // Fallback plain-text check (sirf legacy DB data ke liye)
-//           isMatch = admin.password === cleanPassword;
-//         }
-//       }
-//       // Case B: Env Admin Fallback Check
-//       else if (envAdminUser && envAdminPass && cleanUsername === envAdminUser && cleanPassword === envAdminPass) {
-//         isMatch = true;
-//       }
-
-//       if (!isMatch) {
-//         req.flash("error", "Invalid username or password");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // Check Blocked Status
-//       if (admin && admin.status === "Blocked") {
-//         req.flash("error", "Your account is blocked. Please contact super admin.");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // 🔴 SESSION FIXATION & CLEANUP (Purani Student/Teacher session clean karo)
-//       delete req.session.otpVerified;
-//       delete req.session.rollNo;
-//       delete req.session.studentId;
-
-//       req.session.adminVerified = true;
-//       req.session.userId = admin._id.toString() ,
-//       req.session.role = adminRole;
-//       req.session.loginTime = new Date(); // 👈 MANDATORY FOR MULTI-DEVICE AUTO LOGOUT
-
-//       return req.session.save((err) => {
-//         if (err) console.error("Session Save Error:", err);
-//         req.flash("success", "Login successfully");
-//         return res.redirect("/admin/student/attendance");
-//       });
-//     }
-
-//     // =========================================================================
-//     // 👨‍🏫 2. TEACHER LOGIN
-//     // =========================================================================
-//     if (role === teacherRole) {
-//       // 🔴 Session Cleanup before modal redirect
-//       delete req.session.adminVerified;
-//       delete req.session.otpVerified;
-//       delete req.session.rollNo;
-//       delete req.session.studentId;
-
-//       // 307 Redirect for Modal POST handling
-//       return res.redirect(307, "/login/modal");
-//     }
-
-//     // =========================================================================
-//     // 🎓 3. STUDENT LOGIN
-//     // =========================================================================
-//     if (role === studentRole) {
-//       const rollNoNum = parseInt(cleanUsername, 10);
-//       if (isNaN(rollNoNum)) {
-//         req.flash("error", "Invalid username or password");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // 🔴 DB Query with .select("+password") for safe hash fetching
-//       const student = await Student.findOne({ rollNo: rollNoNum }).select("+password");
-
-//       if (!student) {
-//         req.flash("error", "Invalid username or password");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // 🔴 BCRYPT PASSWORD COMPARISON
-//       let isPasswordValid = false;
-//       if (student.password.startsWith("$2a$") || student.password.startsWith("$2b$")) {
-//         isPasswordValid = await bcrypt.compare(cleanPassword, student.password);
-//       } else {
-//         // Plain text fallback if student is created via legacy script
-//         isPasswordValid = student.password === cleanPassword;
-//       }
-
-//       if (!isPasswordValid) {
-//         req.flash("error", "Invalid username or password");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // 🔴 BLOCKED STATUS CHECK
-//       if (student.status === "Blocked") {
-//         req.flash("error", "Your account is blocked. Please contact admin.");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // 🔴 SESSION CLEANUP (Admin session flag remove karo)
-//       delete req.session.adminVerified;
-
-//       // 🔴 SET STUDENT SESSION DATA WITH _id & loginTime
-//       req.session.userId = student._id.toString(); // 👈 MANDATORY FOR isLoggedIn Middleware
-//       req.session.studentId = student._id.toString(); // Mongo ObjectId (Immutable)
-//       req.session.rollNo = student.rollNo;
-//       req.session.role = studentRole;
-//       req.session.loginTime = new Date(); // 👈 MANDATORY FOR Multi-Device Logout
-
-//       // 🔥 FIRST TIME PASSWORD UPDATE CHECK
-//       if (student.check !== "update") {
-//         req.session.otpVerified = false;
-//         return req.session.save((err) => {
-//           if (err) console.error("Session Save Error:", err);
-//           return res.redirect("/student/update/password");
-//         });
-//       }
-
-//       req.session.otpVerified = true;
-
-//       return req.session.save((err) => {
-//         if (err) console.error("Session Save Error:", err);
-//         req.flash("success", "Login Successfully");
-//         return res.redirect("/student/attendance");
-//       });
-//     }
-
-//     // =========================================================================
-//     // ❌ 4. INVALID ROLE FALLBACK
-//     // =========================================================================
-//     req.flash("error", "Role not matched");
-//     return res.redirect("/student/attendance/login");
-//   })
-// );
-
-// app.post(
-//   "/student/attendance/login",
-//   WrapAsync(async (req, res) => {
-//     const { role, username, password } = req.body || {};
-
-//     const adminRole = process.env.ROLE_1 || "Admin";
-//     const teacherRole = process.env.ROLE_2 || "Teacher";
-//     const studentRole = process.env.ROLE_3 || "Student";
-
-//     // 🔴 1. ROLE VALIDATION & TRIMMING
-//     if (!role || !username || !password) {
-//       req.flash("error", "All fields are required.");
-//       return res.redirect("/student/attendance/login");
-//     }
-
-//     const cleanUsername = String(username).trim();
-//     const cleanPassword = String(password).trim();
-
-//     // =========================================================================
-//     // 👑 1. ADMIN LOGIN
-//     // =========================================================================
-//     if (role === adminRole) {
-//       // Database se Admin find karo
-//       let admin = await Admin.findOne({ username: cleanUsername }).select(
-//         "+password",
-//       );
-
-//       if (!admin) {
-//         req.flash("error", "Invalid username or password");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       let isMatch = false;
-
-//       // 👑 DB Admin Password Check (Bcrypt + Legacy Plain-Text Fallback)
-//       if (admin.password) {
-//         try {
-//           isMatch = await bcrypt.compare(cleanPassword, admin.password);
-//         } catch (bcryptErr) {
-//           isMatch = admin.password === cleanPassword;
-//         }
-//       }
-
-//       if (!isMatch) {
-//         req.flash("error", "Invalid username or password");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // Check Blocked Status
-//       if (admin.status === "Blocked") {
-//         req.flash(
-//           "error",
-//           "Your account is blocked. Please contact super admin.",
-//         );
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // 🔴 SESSION FIXATION & CLEANUP
-//       delete req.session.passport;
-//       delete req.session.otpVerified;
-//       delete req.session.rollNo;
-//       delete req.session.studentId;
-
-//       req.session.adminVerified = true;
-//       req.session.userId = admin._id.toString();
-//       req.session.role = adminRole;
-//       req.session.loginTime = new Date().toISOString(); // 👈 String format prevents MongoStore serialization drop
-
-//       return req.session.save((err) => {
-//         if (err) console.error("Session Save Error:", err);
-//         req.flash("success", "Login successfully");
-//         return res.redirect("/admin/student/attendance");
-//       });
-//     }
-
-//     // =========================================================================
-//     // 👨‍🏫 2. TEACHER LOGIN
-//     // =========================================================================
-//     if (role === teacherRole) {
-//       // 🔴 Session Cleanup before modal redirect
-//       delete req.session.adminVerified;
-//       delete req.session.otpVerified;
-//       delete req.session.rollNo;
-//       delete req.session.studentId;
-//       delete req.session.userId;
-
-//       // 307 Redirect for Modal POST handling
-//       return res.redirect(307, "/login/modal");
-//     }
-
-//     // =========================================================================
-//     // 🎓 3. STUDENT LOGIN
-//     // =========================================================================
-//     if (role === studentRole) {
-//       const rollNoNum = parseInt(cleanUsername, 10);
-//       if (isNaN(rollNoNum)) {
-//         req.flash("error", "Invalid username or password");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // 🔴 DB Query
-//       const student = await Student.findOne({ rollNo: rollNoNum }).select(
-//         "+password",
-//       );
-
-//       if (!student) {
-//         req.flash("error", "Invalid username or password");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // 🔴 BCRYPT & LEGACY PASSWORD COMPARISON
-//       let isPasswordValid = false;
-
-//       try {
-//         isPasswordValid = await bcrypt.compare(cleanPassword, student.password);
-//       } catch (bcryptErr) {
-//         isPasswordValid = student.password === cleanPassword;
-//       }
-
-//       if (!isPasswordValid) {
-//         req.flash("error", "Invalid username or password");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // 🔴 BLOCKED STATUS CHECK
-//       if (student.status === "Blocked") {
-//         req.flash("error", "Your account is blocked. Please contact admin.");
-//         return res.redirect("/student/attendance/login");
-//       }
-
-//       // 🔴 SESSION CLEANUP
-//       delete req.session.passport;
-//       delete req.session.adminVerified;
-
-//       // 🔴 SET STUDENT SESSION DATA
-//       req.session.userId = student._id.toString();
-//       req.session.studentId = student._id.toString();
-//       req.session.rollNo = student.rollNo;
-//       req.session.role = studentRole;
-//       req.session.loginTime = new Date().toISOString(); // 👈 String format avoids session save loss
-
-//       // 🔥 FIRST TIME PASSWORD UPDATE CHECK
-//       if (student.check !== "update") {
-//         req.session.otpVerified = false;
-//         return req.session.save((err) => {
-//           if (err) console.error("Session Save Error:", err);
-//           return res.redirect("/student/update/password");
-//         });
-//       }
-
-//       req.session.otpVerified = true;
-
-//       return req.session.save((err) => {
-//         if (err) console.error("Session Save Error:", err);
-//         req.flash("success", "Login Successfully");
-//         return res.redirect("/student/attendance");
-//       });
-//     }
-
-//     // =========================================================================
-//     // ❌ 4. INVALID ROLE FALLBACK
-//     // =========================================================================
-//     req.flash("error", "Role not matched");
-//     return res.redirect("/student/attendance/login");
-//   }),
-// );
-
-
-
+// =========================================================================
+// 🔄 BULLETPROOF PASSPORT & SESSION PURGE HELPER (SAME BROWSER RESET)
+// =========================================================================
+const purgePreviousSession = (req, callback) => {
+  // 1. Force Passport logout for the current browser session
+  if (typeof req.logout === "function") {
+    req.logout((err) => {
+      if (err) console.error("Passport logout error during session purge:", err);
+
+      // 2. Regenerate Express Session ID to completely destroy old keys in this browser
+      req.session.regenerate((regenErr) => {
+        if (regenErr) console.error("Session Regenerate Error:", regenErr);
+        return callback();
+      });
+    });
+  } else {
+    req.session.regenerate((regenErr) => {
+      if (regenErr) console.error("Session Regenerate Error:", regenErr);
+      return callback();
+    });
+  }
+};
+
+// =========================================================================
+// 🔑 1. MAIN ATTENDANCE LOGIN ROUTE
+// =========================================================================
 app.post(
   "/student/attendance/login",
   WrapAsync(async (req, res) => {
@@ -692,7 +4490,7 @@ app.post(
     const teacherRole = process.env.ROLE_2 || "Teacher";
     const studentRole = process.env.ROLE_3 || "Student";
 
-    // 🔴 1. ROLE VALIDATION & TRIMMING
+    // 🔴 ROLE VALIDATION & TRIMMING
     if (!role || !username || !password) {
       req.flash("error", "All fields are required.");
       return res.redirect("/student/attendance/login");
@@ -700,37 +4498,6 @@ app.post(
 
     const cleanUsername = String(username).trim();
     const cleanPassword = String(password).trim();
-
-    // 🔴 BULLETPROOF PASSPORT & SESSION PURGE HELPER
-    const purgePreviousSession = (req, callback) => {
-      // 1. Force Passport Logout if passport active
-      if (typeof req.logout === "function") {
-        req.logout((err) => {
-          if (err) console.error("Passport logout error during session purge:", err);
-          
-          // Clear All Keys
-          delete req.session.passport;
-          delete req.session.userId;
-          delete req.session.studentId;
-          delete req.session.rollNo;
-          delete req.session.adminVerified;
-          delete req.session.otpVerified;
-          delete req.session.role;
-
-          return callback();
-        });
-      } else {
-        delete req.session.passport;
-        delete req.session.userId;
-        delete req.session.studentId;
-        delete req.session.rollNo;
-        delete req.session.adminVerified;
-        delete req.session.otpVerified;
-        delete req.session.role;
-
-        return callback();
-      }
-    };
 
     // =========================================================================
     // 👑 1. ADMIN LOGIN
@@ -744,12 +4511,11 @@ app.post(
       }
 
       let isMatch = false;
-
       if (admin.password) {
         try {
           isMatch = await bcrypt.compare(cleanPassword, admin.password);
         } catch (bcryptErr) {
-          isMatch = (admin.password === cleanPassword);
+          isMatch = admin.password === cleanPassword;
         }
       }
 
@@ -763,7 +4529,7 @@ app.post(
         return res.redirect("/student/attendance/login");
       }
 
-      // 🔴 PURGE OLD TEACHER/STUDENT SESSION BEFORE CREATING ADMIN SESSION
+      // 🔴 PURGE OLD TEACHER/STUDENT SESSION IN SAME BROWSER BEFORE CREATING ADMIN SESSION
       return purgePreviousSession(req, () => {
         req.session.adminVerified = true;
         req.session.userId = admin._id.toString();
@@ -779,16 +4545,9 @@ app.post(
     }
 
     // =========================================================================
-    // 👨‍🏫 2. TEACHER LOGIN
+    // 👨‍🏫 2. TEACHER LOGIN REDIRECT
     // =========================================================================
     if (role === teacherRole) {
-      // 🔴 PURGE CUSTOM SESSION KEYS BEFORE PASSPORT MODAL REDIRECT
-      delete req.session.adminVerified;
-      delete req.session.otpVerified;
-      delete req.session.rollNo;
-      delete req.session.studentId;
-      delete req.session.userId;
-
       // 307 Redirect for Modal POST handling
       return res.redirect(307, "/login/modal");
     }
@@ -811,11 +4570,10 @@ app.post(
       }
 
       let isPasswordValid = false;
-
       try {
         isPasswordValid = await bcrypt.compare(cleanPassword, student.password);
       } catch (bcryptErr) {
-        isPasswordValid = (student.password === cleanPassword);
+        isPasswordValid = student.password === cleanPassword;
       }
 
       if (!isPasswordValid) {
@@ -828,7 +4586,7 @@ app.post(
         return res.redirect("/student/attendance/login");
       }
 
-      // 🔴 PURGE OLD TEACHER/ADMIN SESSION BEFORE CREATING STUDENT SESSION
+      // 🔴 PURGE OLD TEACHER/ADMIN SESSION IN SAME BROWSER BEFORE CREATING STUDENT SESSION
       return purgePreviousSession(req, () => {
         req.session.userId = student._id.toString();
         req.session.studentId = student._id.toString();
@@ -861,6 +4619,69 @@ app.post(
     return res.redirect("/student/attendance/login");
   })
 );
+
+// =========================================================================
+// 👨‍🏫 2. TEACHER PASSPORT MODAL AUTH ROUTE (BUG 2 FIXED)
+// =========================================================================
+app.post("/login/modal", (req, res, next) => {
+  // 🔴 1. PURGE PREVIOUS PASSPORT AUTH BEFORE ATTEMPTING NEW LOGIN
+  if (typeof req.logout === "function") {
+    req.logout((err) => {
+      if (err) console.error("Logout error in modal purge:", err);
+    });
+  }
+
+  passport.authenticate("local", (err, teacher, info) => {
+    if (err) {
+      console.error("Passport Auth Error:", err);
+      req.flash("error", "Something went wrong during authentication.");
+      return res.redirect("/student/attendance/login");
+    }
+
+    // 🔴 2. INVALID CREDENTIALS
+    if (!teacher) {
+      req.flash("error", info?.message || "Invalid username or password");
+      return res.redirect("/student/attendance/login");
+    }
+
+    // 🔴 3. BLOCKED TEACHER CHECK
+    if (teacher.status === "Blocked") {
+      req.flash("error", "Your account is blocked by administrator. Access denied.");
+      return res.redirect("/student/attendance/login");
+    }
+
+    // 🔴 4. PASSPORT REQ.LOGIN EXECUTION
+    req.logIn(teacher, (loginErr) => {
+      if (loginErr) {
+        console.error("Req Login Error:", loginErr);
+        req.flash("error", "Failed to initialize session.");
+        return res.redirect("/student/attendance/login");
+      }
+
+      const teacherRole = process.env.ROLE_2 || "Teacher";
+
+      // 🔴 5. CLEAN ALL PREVIOUS ROLE KEYS & ASSIGN TEACHER SESSION
+      delete req.session.adminVerified;
+      delete req.session.otpVerified;
+      delete req.session.rollNo;
+      delete req.session.studentId;
+
+      req.session.userId = teacher._id.toString();
+      req.session.role = teacherRole;
+      req.session.loginTime = new Date().toISOString();
+
+      // 🔴 6. SAVE SESSION BEFORE REDIRECT
+      return req.session.save((saveErr) => {
+        if (saveErr) console.error("Session Save Error:", saveErr);
+        req.flash("success", `Welcome back, ${teacher.name}!`);
+        return res.redirect("/teacher/student/attendance");
+      });
+    });
+  })(req, res, next);
+});
+
+
+
 // ================= 1. FORGOT PASSWORD GET & POST =================
 
 app.get(
@@ -2025,6 +5846,33 @@ app.get(
   }),
 );
 
+app.post("/teacher/toggle-status/:id", verifySession , isAdminVerified, WrapAsync( async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Direct ID validation (Mongo CastError se bachne ke liye)
+    const teacher = await Teacher.findById(id);
+
+    if (!teacher) {
+      req.flash("error", "Teacher record not found!");
+      return res.redirect("/show/teacher");
+    }
+
+    // 2. Safe Toggle Logic (Handles undefined / null status gracefully)
+    teacher.status = teacher.status === "Blocked" ? "Active" : "Blocked";
+    await teacher.save();
+
+    req.flash("success", `Teacher (${teacher.name}) status updated to ${teacher.status}!`);
+    return res.redirect("/show/teacher");
+
+  } catch (err) {
+    console.error("Error toggling teacher status:", err);
+    req.flash("error", "Something went wrong while updating teacher status.");
+    return res.redirect("/show/teacher");
+  }
+}));
+
+
 //  show teacher profile
 
 app.get(
@@ -2161,9 +6009,94 @@ app.get(
 //   }),
 // );
 
+// app.put(
+//   "/edit/teacher/:id",
+//   verifySession, isAdminVerified,
+//   upload.single("data[image]"),
+//   validateTeacherEdit,
+//   WrapAsync(async (req, res) => {
+//     const { id } = req.params;
+//     const { name, email, username, mobile, password } = req.body.data || {};
+
+//     let teacher = await Teacher.findById(id);
+
+//     if (!teacher) {
+//       req.flash("error", "Teacher record not found.");
+//       return res.redirect("/show/teacher");
+//     }
+
+//     // Normal fields update (Trimmed for cleanliness)
+//     if (name) teacher.name = name.trim();
+//     if (email) teacher.email = email.trim().toLowerCase();
+//     if (username) teacher.username = username.trim();
+//     if (mobile) teacher.mobile = mobile.trim();
+
+//     // 🔴 1. PASSWORD & TIMESTAMP UPDATE LOGIC
+//     if (password && password.trim() !== "") {
+//       try {
+//         // Passport-Local-Mongoose setPassword method
+//         await teacher.setPassword(password.trim());
+
+//         // 🔴 Explicitly passwordChangedAt timestamp update karna
+//         teacher.passwordChangedAt = new Date();
+//       } catch (passErr) {
+//         console.error("SetPassword Error:", passErr);
+//         req.flash("error", "Failed to update password. Please try again.");
+//         return res.redirect(`/edit/teacher/${id}`);
+//       }
+//     }
+
+//     // 🔴 2. SAFE IMAGE HANDLING
+//     if (req.file) {
+//       teacher.image = {
+//         url: req.file.path,
+//         filename: req.file.filename,
+//       };
+//     }
+
+//     // 🔴 3. SAVE WITH DUPLICATE KEY ERROR CATCHING
+//     try {
+//       await teacher.save();
+//     } catch (saveErr) {
+//       // Catch MongoDB Unique Constraint Errors (Duplicate Username/Email/Mobile)
+//       if (saveErr.code === 11000) {
+//         const field = Object.keys(saveErr.keyValue || {})[0] || "field";
+//         req.flash(
+//           "error",
+//           `Update failed! A teacher with this ${field} already exists.`,
+//         );
+//         return res.redirect(`/edit/teacher/${id}`);
+//       }
+//       throw saveErr; // Re-throw for general WrapAsync handler
+//     }
+
+//     req.flash("success", "Teacher updated successfully!");
+//     return res.redirect(`/teacher/profile/${id}`);
+//   }),
+// );
+
+// // DELETE TEACHER
+
+// app.delete(
+//   "/delete/teacher/:id",
+//    verifySession, isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     let { id } = req.params;
+//     let teacher = await Teacher.findByIdAndDelete(id);
+//     req.flash("success", "Teacher deleted successfully");
+//     res.redirect("/show/teacher");
+//   }),
+// );
+
+const { syncTeacherUpdate, syncTeacherDelete } = require("./utils/syncTeacher"); // Apne correct relative path ke hisab se require karein
+
+// ==========================================
+// 1. EDIT TEACHER ROUTE (WITH TRANSACTION & SYNC)
+// ==========================================
 app.put(
   "/edit/teacher/:id",
-  verifySession, isAdminVerified,
+  verifySession,
+  isAdminVerified,
   upload.single("data[image]"),
   validateTeacherEdit,
   WrapAsync(async (req, res) => {
@@ -2177,67 +6110,135 @@ app.put(
       return res.redirect("/show/teacher");
     }
 
-    // Normal fields update (Trimmed for cleanliness)
-    if (name) teacher.name = name.trim();
-    if (email) teacher.email = email.trim().toLowerCase();
-    if (username) teacher.username = username.trim();
-    if (mobile) teacher.mobile = mobile.trim();
-
-    // 🔴 1. PASSWORD & TIMESTAMP UPDATE LOGIC
-    if (password && password.trim() !== "") {
-      try {
-        // Passport-Local-Mongoose setPassword method
-        await teacher.setPassword(password.trim());
-
-        // 🔴 Explicitly passwordChangedAt timestamp update karna
-        teacher.passwordChangedAt = new Date();
-      } catch (passErr) {
-        console.error("SetPassword Error:", passErr);
-        req.flash("error", "Failed to update password. Please try again.");
-        return res.redirect(`/edit/teacher/${id}`);
-      }
-    }
-
-    // 🔴 2. SAFE IMAGE HANDLING
-    if (req.file) {
-      teacher.image = {
-        url: req.file.path,
-        filename: req.file.filename,
-      };
-    }
-
-    // 🔴 3. SAVE WITH DUPLICATE KEY ERROR CATCHING
+    // Dynamic Mongoose Transaction Session Initialization
+    let session = null;
     try {
-      await teacher.save();
-    } catch (saveErr) {
+      session = await mongoose.startSession();
+      session.startTransaction();
+    } catch (sessionErr) {
+      console.warn("⚠️ MongoDB Standalone Mode: Proceeding without transaction session.");
+      session = null;
+    }
+
+    const queryOptions = session ? { session } : {};
+
+    try {
+      // Normal fields update
+      if (name) teacher.name = name.trim();
+      if (email) teacher.email = email.trim().toLowerCase();
+      if (username) teacher.username = username.trim();
+      if (mobile) teacher.mobile = mobile.trim();
+
+      // Password Update Logic
+      if (password && password.trim() !== "") {
+        await teacher.setPassword(password.trim());
+        teacher.passwordChangedAt = new Date();
+      }
+
+      // Safe Image Handling
+      if (req.file) {
+        teacher.image = {
+          url: req.file.path,
+          filename: req.file.filename,
+        };
+      }
+
+      // Save updated Teacher Document
+      await teacher.save(queryOptions);
+
+      // 🔄 SYNC TEACHER NAME CHANGES ACROSS TIMETABLE, MARKS & ATTENDANCE
+      if (name) {
+        await syncTeacherUpdate(id, { name: teacher.name }, session);
+      }
+
+      // Commit Transaction if active
+      if (session) {
+        await session.commitTransaction();
+        session.endSession();
+      }
+
+      req.flash("success", "Teacher updated successfully!");
+      return res.redirect(`/teacher/profile/${id}`);
+
+    } catch (err) {
+      // Rollback database changes on error
+      if (session) {
+        await session.abortTransaction();
+        session.endSession();
+      }
+
       // Catch MongoDB Unique Constraint Errors (Duplicate Username/Email/Mobile)
-      if (saveErr.code === 11000) {
-        const field = Object.keys(saveErr.keyValue || {})[0] || "field";
+      if (err.code === 11000) {
+        const field = Object.keys(err.keyValue || {})[0] || "field";
         req.flash(
           "error",
-          `Update failed! A teacher with this ${field} already exists.`,
+          `Update failed! A teacher with this ${field} already exists.`
         );
         return res.redirect(`/edit/teacher/${id}`);
       }
-      throw saveErr; // Re-throw for general WrapAsync handler
-    }
 
-    req.flash("success", "Teacher updated successfully!");
-    return res.redirect(`/teacher/profile/${id}`);
-  }),
+      throw err; // Forward general error to WrapAsync
+    }
+  })
 );
 
-// DELETE TEACHER
 
+// ==========================================
+// 2. DELETE TEACHER ROUTE (WITH TRANSACTION & SYNC)
+// ==========================================
 app.delete(
   "/delete/teacher/:id",
-   verifySession, isAdminVerified,
+  verifySession,
+  isAdminVerified,
   WrapAsync(async (req, res) => {
-    let { id } = req.params;
-    let teacher = await Teacher.findByIdAndDelete(id);
-    req.flash("success", "Teacher deleted successfully");
-    res.redirect("/show/teacher");
-  }),
+    const { id } = req.params;
+
+    const teacher = await Teacher.findById(id);
+
+    if (!teacher) {
+      req.flash("error", "Teacher record not found.");
+      return res.redirect("/show/teacher");
+    }
+
+    // Dynamic Mongoose Transaction Session Initialization
+    let session = null;
+    try {
+      session = await mongoose.startSession();
+      session.startTransaction();
+    } catch (sessionErr) {
+      console.warn("⚠️ MongoDB Standalone Mode: Proceeding without transaction session.");
+      session = null;
+    }
+
+    const queryOptions = session ? { session } : {};
+
+    try {
+      // 🔄 1. Sync Cleanup in TimeTable & Marks
+      await syncTeacherDelete(id, session);
+
+      // 🗑️ 2. Delete Teacher Document
+      await Teacher.findByIdAndDelete(id, queryOptions);
+
+      // Commit Transaction if active
+      if (session) {
+        await session.commitTransaction();
+        session.endSession();
+      }
+
+      req.flash("success", "Teacher deleted successfully");
+      return res.redirect("/show/teacher");
+
+    } catch (err) {
+      // Rollback database changes on error
+      if (session) {
+        await session.abortTransaction();
+        session.endSession();
+      }
+      console.error("❌ Error deleting teacher:", err);
+      req.flash("error", "Failed to delete teacher. Please try again.");
+      return res.redirect("/show/teacher");
+    }
+  })
 );
 
 // student/
@@ -2336,6 +6337,32 @@ app.get(
   }),
 );
 
+app.post("/student/toggle-status/:id", verifySession , isAdminVerified, WrapAsync( async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Direct ID validation (Mongo CastError se bachne ke liye)
+    const student = await Student.findById(id);
+
+    if (!student) {
+      req.flash("error", "Student record not found!");
+      return res.redirect("/show/student");
+    }
+
+    // 2. Safe Toggle Logic (Handles undefined / null status gracefully)
+    student.status = student.status === "Blocked" ? "Active" : "Blocked";
+    await student.save();
+
+    req.flash("success", `Student (${student.name}) status updated to ${student.status}!`);
+    return res.redirect("/show/student");
+
+  } catch (err) {
+    console.error("Error toggling student status:", err);
+    req.flash("error", "Something went wrong while updating student status.");
+    return res.redirect("/show/student");
+  }
+}));
+
 // student profile
 
 app.get(
@@ -2432,9 +6459,71 @@ app.get(
 //   })
 // );
 
+// app.put(
+//   "/edit/student/:id",
+//    verifySession, isAdminVerified,
+//   upload.single("data[image]"),
+//   validateStudent,
+//   WrapAsync(async (req, res) => {
+//     const { id } = req.params;
+//     let { data } = req.body || {};
+
+//     // 1. Fetch Existing Student from DB
+//     let student = await Student.findById(id);
+
+//     if (!student) {
+//       req.flash("error", "Student record not found!");
+//       return res.redirect("/student/list");
+//     }
+
+//     // 🔴 1. IMAGE OVERWRITE PROTECTION
+//     delete data.image; // Raw image object delete kiya taaki Object.assign image corrupt na kare
+
+//     if (req.file) {
+//       student.image = {
+//         url: req.file.path,
+//         filename: req.file.filename,
+//       };
+//     }
+
+//     // 🔴 2. SAFE PASSWORD HANDLING
+//     if (data.password && data.password.trim() !== "") {
+//       student.password = data.password.trim();
+//     }
+//     // Empty/null password string delete kiya taaki old hashed password safe rahe
+//     delete data.password;
+
+//     Object.assign(student, data);
+
+//     try {
+//       await student.save();
+//     } catch (saveErr) {
+//       if (
+//         saveErr.code === 11000 &&
+//         saveErr.keyValue &&
+//         saveErr.keyValue.rollNo !== undefined
+//       ) {
+//         req.flash(
+//           "error",
+//           `Update failed! Admin Number (${saveErr.keyValue.rollNo}) is already assigned to another student.`,
+//         );
+//         return res.redirect(`/edit/student/${id}`);
+//       }
+
+//       throw saveErr;
+//     }
+
+//     req.flash("success", "Student details updated successfully!");
+//     return res.redirect(`/student/profile/${id}`);
+//   }),
+// );
+
+
+ 
 app.put(
   "/edit/student/:id",
-   verifySession, isAdminVerified,
+  verifySession,
+  isAdminVerified,
   upload.single("data[image]"),
   validateStudent,
   WrapAsync(async (req, res) => {
@@ -2446,7 +6535,7 @@ app.put(
 
     if (!student) {
       req.flash("error", "Student record not found!");
-      return res.redirect("/student/list");
+      return res.redirect("/show/student");
     }
 
     // 🔴 1. IMAGE OVERWRITE PROTECTION
@@ -2463,14 +6552,44 @@ app.put(
     if (data.password && data.password.trim() !== "") {
       student.password = data.password.trim();
     }
-    // Empty/null password string delete kiya taaki old hashed password safe rahe
     delete data.password;
 
     Object.assign(student, data);
 
+    // 🔴 3. TRANSACTIONAL SAVE & SYNC
+    let session = null;
+    let isTransactionActive = false;
+
     try {
-      await student.save();
+      session = await mongoose.startSession();
+      session.startTransaction();
+      isTransactionActive = true;
+    } catch (sessionErr) {
+      console.warn("⚠️ Standalone MongoDB detected. Running without transaction session.");
+      session = null;
+      isTransactionActive = false;
+    }
+
+    const saveOptions = session ? { session } : {};
+
+    try {
+      // Save updated student in session/db
+      await student.save(saveOptions);
+
+      // Sync across Marks, Fee, and Transaction collections
+      await syncStudentDetails(student, session);
+
+      if (isTransactionActive && session) {
+        await session.commitTransaction();
+        session.endSession();
+      }
     } catch (saveErr) {
+      if (isTransactionActive && session) {
+        await session.abortTransaction();
+        session.endSession();
+      }
+
+      // Rollback error check for Duplicate Roll Number
       if (
         saveErr.code === 11000 &&
         saveErr.keyValue &&
@@ -2478,7 +6597,7 @@ app.put(
       ) {
         req.flash(
           "error",
-          `Update failed! Admin Number (${saveErr.keyValue.rollNo}) is already assigned to another student.`,
+          `Update failed! Admin Number  (${saveErr.keyValue.rollNo}) is already assigned to another student.`
         );
         return res.redirect(`/edit/student/${id}`);
       }
@@ -2488,8 +6607,9 @@ app.put(
 
     req.flash("success", "Student details updated successfully!");
     return res.redirect(`/student/profile/${id}`);
-  }),
+  })
 );
+
 
 // DELETE student
 
@@ -2806,33 +6926,149 @@ app.get(
   }),
 );
 
+
+
+
+const { syncSubjectUpdate, syncSubjectDelete } = require("./utils/synSubject.js");
+
+// EDIT SUBJECT ROUTE
 app.put(
   "/edit/subject/:subjectId",
-   verifySession, isAdminVerified,
+  verifySession,
+  isAdminVerified,
   validateSubject,
   WrapAsync(async (req, res) => {
-    let subjectId = req.params.subjectId;
-    let subject = await Subject.findByIdAndUpdate(subjectId, {
-      ...req.body.data,
-    });
-    await subject.save();
-    req.flash("success", "Subject edit successfully");
-    res.redirect("/show/subject");
-  }),
+    const { subjectId } = req.params;
+    const updateData = req.body.data;
+
+    let session = null;
+    try {
+      session = await mongoose.startSession();
+      session.startTransaction();
+    } catch (e) {
+      session = null; // Standalone Mongo Fallback
+    }
+
+    const queryOptions = session ? { session } : {};
+
+    try {
+      // 1. Update Subject Master Record
+      const updatedSubject = await Subject.findByIdAndUpdate(
+        subjectId,
+        { $set: updateData },
+        { new: true, runValidators: true, ...queryOptions }
+      );
+
+      if (!updatedSubject) {
+        if (session) {
+          await session.abortTransaction();
+          session.endSession();
+        }
+        req.flash("error", "Subject not found");
+        return res.redirect("/show/subject");
+      }
+
+      // 2. Cascade Sync across Student and Teacher collections using subjectId
+      // (External session pass hone par helper transaction commit/end nahi karega)
+      await syncSubjectUpdate(subjectId, updateData, session);
+
+      // 3. Commit Transaction centrally in Route
+      if (session) {
+        await session.commitTransaction();
+        session.endSession();
+      }
+
+      req.flash("success", "Subject edited and synced successfully");
+      res.redirect("/show/subject");
+    } catch (err) {
+      if (session) {
+        await session.abortTransaction();
+        session.endSession();
+      }
+      throw err;
+    }
+  })
 );
 
-// delete subject
-
+// DELETE SUBJECT ROUTE
 app.delete(
   "/delete/subject/:id",
-  verifySession, isAdminVerified,
+  verifySession,
+  isAdminVerified,
   WrapAsync(async (req, res) => {
-    let { id } = req.params;
-    let subject = await Subject.findByIdAndDelete(id);
-    req.flash("success", "Subject deleted successfully");
-    res.redirect("/show/subject");
-  }),
+    const { id } = req.params;
+
+    let session = null;
+    try {
+      session = await mongoose.startSession();
+      session.startTransaction();
+    } catch (e) {
+      session = null; // Standalone Mongo Fallback
+    }
+
+    const queryOptions = session ? { session } : {};
+
+    try {
+      // 1. Delete Master Subject
+      const deletedSubject = await Subject.findByIdAndDelete(id, queryOptions);
+
+      if (!deletedSubject) {
+        if (session) {
+          await session.abortTransaction();
+          session.endSession();
+        }
+        req.flash("error", "Subject not found");
+        return res.redirect("/show/subject");
+      }
+
+      // 2. Cascade Delete across Student and Teacher collections using subjectId
+      await syncSubjectDelete(id, session);
+
+      // 3. Commit Transaction centrally in Route
+      if (session) {
+        await session.commitTransaction();
+        session.endSession();
+      }
+
+      req.flash("success", "Subject deleted and cleaned up successfully");
+      res.redirect("/show/subject");
+    } catch (err) {
+      if (session) {
+        await session.abortTransaction();
+        session.endSession();
+      }
+      throw err;
+    }
+  })
 );
+
+// app.put(
+//   "/edit/subject/:subjectId",
+//    verifySession, isAdminVerified,
+//   validateSubject,
+//   WrapAsync(async (req, res) => {
+//     let subjectId = req.params.subjectId;
+//     let subject = await Subject.findByIdAndUpdate(subjectId, {
+//       ...req.body.data,
+//     });
+//     await subject.save();
+//     req.flash("success", "Subject edit successfully");
+//     res.redirect("/show/subject");
+//   }),
+// );
+
+// // delete subject
+
+// app.delete(
+//   "/delete/subject/:id",
+//   verifySession, isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     let { id } = req.params;
+//     let subject = await Subject.findByIdAndDelete(id);
+//     req.flash("success", "Subject deleted successfully");
+//     res.redirect("/show/subject");
+//   }),
+// );
 
 // search page for subject
 
@@ -3099,7 +7335,8 @@ function timeToMinutes(timeString) {
 
 app.post(
   "/assign/teacher/subject/bulk-day",
-  verifySession, isAdminVerified,
+  verifySession,
+  isAdminVerified,
   WrapAsync(async (req, res) => {
     const session = await Teacher.startSession();
     try {
@@ -3253,6 +7490,14 @@ app.post(
           )
             continue;
 
+          // 🛠️ BUG FIX 1: CastError Safe Parsing
+          const safeSlotSubjectId =
+            slot.subject_id &&
+            slot.subject_id.trim() !== "" &&
+            mongoose.Types.ObjectId.isValid(slot.subject_id)
+              ? slot.subject_id
+              : null;
+
           const teacherObj = await Teacher.findOne({
             username: slot.username,
           }).session(session);
@@ -3273,7 +7518,14 @@ app.post(
               if (
                 secObj &&
                 secObj.temporarySubjects &&
-                secObj.temporarySubjects.includes(slot.subject)
+                // 🛠️ BUG FIX 2: Strict Truthy Safe Comparison
+                secObj.temporarySubjects.some(
+                  (ts) =>
+                    ts.subjectName === slot.subject ||
+                    (safeSlotSubjectId &&
+                      ts.subjectId &&
+                      String(ts.subjectId) === String(safeSlotSubjectId)),
+                )
               ) {
                 throw new Error(
                   `⚠️ Cannot assign '${slot.subject}' to ${teacherObj.name}. This subject is currently assigned as a temporary subject. Please remove it from temporary assignments first.`,
@@ -3316,8 +7568,23 @@ app.post(
         for (let slot of slots) {
           if (!slot) continue;
 
-          let { lecture_number, start_time, end_time, subject, username } =
-            slot;
+          let {
+            lecture_number,
+            start_time,
+            end_time,
+            subject,
+            subject_id,
+            username,
+          } = slot;
+
+          // 🛠️ BUG FIX 1: CastError Protection for Insert
+          const safeSubjectId =
+            subject_id &&
+            subject_id.trim() !== "" &&
+            mongoose.Types.ObjectId.isValid(subject_id)
+              ? subject_id
+              : null;
+
           const isLunch = lecture_number === "LUNCH";
 
           const formattedStartTime =
@@ -3383,6 +7650,7 @@ app.post(
             section,
             teacher_id: teacherObj._id,
             teacher_name: teacherObj.name,
+            subject_id: safeSubjectId,
             subject_name: subject,
           });
           await newSlot.save({ session });
@@ -3412,15 +7680,35 @@ app.post(
           if (!sectionObj) {
             sectionObj = { section, subjects: [] };
             semesterObj.sections.push(sectionObj);
-            sectionObj = semesterObj.sections[semesterObj.sections.length - 1];
+            sectionObj = semesterObj.sections[
+              semesterObj.sections.length - 1
+            ];
           }
 
+          // 🛠️ BUG FIX 2: Strict Truthy Check
           const isAlreadyTemp =
             sectionObj.temporarySubjects &&
-            sectionObj.temporarySubjects.includes(subject);
+            sectionObj.temporarySubjects.some(
+              (ts) =>
+                ts.subjectName === subject ||
+                (safeSubjectId &&
+                  ts.subjectId &&
+                  String(ts.subjectId) === String(safeSubjectId)),
+            );
 
-          if (!sectionObj.subjects.includes(subject) && !isAlreadyTemp) {
-            sectionObj.subjects.push(subject);
+          const isAlreadyAssigned = sectionObj.subjects.some(
+            (sub) =>
+              sub.subjectName === subject ||
+              (safeSubjectId &&
+                sub.subjectId &&
+                String(sub.subjectId) === String(safeSubjectId)),
+          );
+
+          if (!isAlreadyAssigned && !isAlreadyTemp) {
+            sectionObj.subjects.push({
+              subjectName: subject,
+              subjectId: safeSubjectId,
+            });
           }
 
           teacherObj.markModified("class");
@@ -3442,12 +7730,10 @@ app.post(
               await Teacher.findById(oldTeacherId).session(session);
             if (!targetTeacherDoc) continue;
 
-            // 1. Check karo regular week schedule me hai ya nahi
             const stillAssignedSomewhere = currentWeekSchedule.some(
               (s) => s.teacher_id && s.teacher_id.toString() === oldTeacherId,
             );
 
-            // 2. Safe Helper: Find existing teacher subdoc section
             let classIdx = targetTeacherDoc.class.findIndex(
               (c) => c.className === className,
             );
@@ -3472,7 +7758,6 @@ app.post(
                 ].temporarySubjects || [];
             }
 
-            // 🔥 FIX: Agar Na Regular Lecture Bacha Hoga AUR Na hi Koi Temporary Subject -> TABHI PRUNE KARO
             if (!stillAssignedSomewhere && existingTempSubs.length === 0) {
               if (classIdx !== -1 && semIdx !== -1) {
                 let targetSem =
@@ -3481,16 +7766,17 @@ app.post(
                   (sec) => sec.section !== section,
                 );
 
-                // Parent Array Cascade Prune
                 if (targetSem.sections.length === 0) {
-                  targetTeacherDoc.class[classIdx].semesters.splice(semIdx, 1);
+                  targetTeacherDoc.class[classIdx].semesters.splice(
+                    semIdx,
+                    1,
+                  );
                 }
                 if (targetTeacherDoc.class[classIdx].semesters.length === 0) {
                   targetTeacherDoc.class.splice(classIdx, 1);
                 }
               }
             } else {
-              // 🛡️ Teacher regular me ho YA temporary subject bacha ho -> Dynamic Sync
               const activeSubjectsInWeek = currentWeekSchedule
                 .filter(
                   (s) =>
@@ -3498,7 +7784,10 @@ app.post(
                     s.teacher_id.toString() === oldTeacherId &&
                     s.subject_name,
                 )
-                .map((s) => s.subject_name);
+                .map((s) => ({
+                  subjectName: s.subject_name,
+                  subjectId: s.subject_id || null,
+                }));
 
               if (secIdx !== -1) {
                 const secRef =
@@ -3507,12 +7796,20 @@ app.post(
                   ];
                 const tempSubs = secRef.temporarySubjects || [];
 
-                // Final Active List = Timetable Subjects + Temporary Subjects
-                const finalSubjectsList = [
-                  ...new Set([...activeSubjectsInWeek, ...tempSubs]),
-                ];
+                const combinedList = [...activeSubjectsInWeek, ...tempSubs];
+                const uniqueSubjectsMap = new Map();
 
-                secRef.subjects = finalSubjectsList;
+                // 🛠️ BUG FIX 3: Legacy Subject Fallback
+                combinedList.forEach((item) => {
+                  const mapKey = item.subjectId
+                    ? String(item.subjectId)
+                    : item.subjectName;
+                  if (mapKey) {
+                    uniqueSubjectsMap.set(mapKey, item);
+                  }
+                });
+
+                secRef.subjects = Array.from(uniqueSubjectsMap.values());
               }
             }
 
@@ -3575,509 +7872,6 @@ app.post(
   }),
 );
 
-// POST  ROUTE  TIME TABLE OR TEACHER ASSIGN KE LIYE
-
-// app.post(
-//   "/assign/teacher/subject/bulk-day",
-//   verifiedAny,
-//   WrapAsync(async (req, res) => {
-//     const session = await Teacher.startSession();
-//     try {
-//       const baseData = req.body.baseData || {};
-//       const slotsObj = req.body.slots || {};
-//       // Frontend se hidden input me aayega isEdit
-//       const isEdit = req.body.isEdit === "true" || req.body.isEdit === true;
-//       const { className, semester, section, day_of_week } = baseData;
-
-//       let slots = Array.isArray(slotsObj) ? slotsObj : Object.values(slotsObj);
-
-//       if (
-//         !className ||
-//         !semester ||
-//         !section ||
-//         !day_of_week ||
-//         !slots ||
-//         slots.length === 0
-//       ) {
-//         req.flash(
-//           "error",
-//           "⚠️ Invalid dataset or missing mandatory class coordinates.",
-//         );
-//         return res.redirect("/assign/teacher/subject/class");
-//       }
-
-//       // =================================================================
-//       // 🔥 BLOCKER LOGIC: DIRECT SAVE SE SAFETY
-//       // =================================================================
-//       if (!isEdit) {
-//         const checkExisting = await TimeTable.findOne({
-//           className,
-//           semester,
-//           section,
-//           day_of_week,
-//         });
-//         if (checkExisting) {
-//           req.flash(
-//             "error",
-//             `⚠️ Schedule Already Exists: The schedule for ${day_of_week} has already been saved. Please click 'Edit' on the Dashboard to modify it.`,
-//           );
-//           return res.redirect("/assign/teacher/subject/class");
-//         }
-//       }
-
-//       // 🛡️ BACKEND SECURE AUTO-SYNC: Monday template fallback for other days
-//       if (day_of_week !== "Mon") {
-//         const mondayLayout = await TimeTable.find({
-//           className,
-//           semester,
-//           section,
-//           day_of_week: "Mon",
-//         }).sort({ _id: 1 });
-
-//         if (!mondayLayout || mondayLayout.length === 0) {
-//           req.flash(
-//             "error",
-//             "⚠️ Operation Aborted: Please configure Monday's schedule first to freeze the timetable timings.",
-//           );
-//           return res.redirect("/assign/teacher/subject/class");
-//         }
-
-//         slots = slots.map((slot, index) => {
-//           const masterRow = mondayLayout[index];
-//           if (masterRow) {
-//             return {
-//               ...slot,
-//               lecture_number: masterRow.lecture_number,
-//               start_time: masterRow.start_time,
-//               end_time: masterRow.end_time,
-//             };
-//           }
-//           return slot;
-//         });
-//       }
-
-//       const lunchSlotsCount = slots.filter(
-//         (s) => s && s.lecture_number === "LUNCH",
-//       ).length;
-//       if (lunchSlotsCount === 0) {
-//         req.flash("error", "⚠️ Server Denied: Lunch break is compulsory.");
-//         return res.redirect("/assign/teacher/subject/class");
-//       }
-
-//       await session.withTransaction(async () => {
-//         // =================================================================
-//         // 🛑 CRITICAL STAGE 1: MONDAY TIMING CASCADE PRE-CHECK INTERCEPTOR
-//         // =================================================================
-//         if (isEdit && day_of_week === "Mon") {
-//           for (let slot of slots) {
-//             if (
-//               !slot ||
-//               slot.lecture_number === "LUNCH" ||
-//               !slot.username ||
-//               !slot.subject
-//             )
-//               continue;
-
-//             const targetNewStart = convertTo12HourFormat(slot.start_time);
-//             const targetNewEnd = convertTo12HourFormat(slot.end_time);
-//             const newStartMins = timeToMinutes(targetNewStart);
-//             const newEndMins = timeToMinutes(targetNewEnd);
-
-//             // Baaki saare dino (Tue-Sat) me jo is lecture number ke records hain unke teachers check karo
-//             const cascadeTargets = await TimeTable.find({
-//               className,
-//               semester,
-//               section,
-//               lecture_number: slot.lecture_number,
-//               day_of_week: { $ne: "Mon" },
-//             }).session(session);
-
-//             for (let target of cascadeTargets) {
-//               if (!target.teacher_id) continue;
-
-//               // Check karo ki is target teacher ka us partcular day par doosri classes me koi clash toh nahi ho raha?
-//               const potentialClashes = await TimeTable.find({
-//                 day_of_week: target.day_of_week,
-//                 teacher_id: target.teacher_id,
-//                 // Apni current class ko chhod kar baaki jagah check karo
-//                 $or: [
-//                   { className: { $ne: className } },
-//                   { semester: { $ne: semester } },
-//                   { section: { $ne: section } },
-//                 ],
-//               }).session(session);
-
-//               for (let clash of potentialClashes) {
-//                 const existingStartMins = timeToMinutes(clash.start_time);
-//                 const existingEndMins = timeToMinutes(clash.end_time);
-
-//                 if (
-//                   newStartMins < existingEndMins &&
-//                   newEndMins > existingStartMins
-//                 ) {
-//                   throw new Error(
-//                     `⚠️ Schedule Conflict: If you change Monday's timing, ${target.day_of_week}'s timing will also change. This will create a timing conflict for ${target.teacher_name}, who is already assigned to another class [${clash.className} ${clash.section}] from ${clash.start_time} to ${clash.end_time}.`,
-//                   );
-//                 }
-//               }
-//             }
-//           }
-//         }
-
-//         // =================================================================
-//         // 🎯 STAGE 2: BACKUP TARGET DAY SLOTS & REWRITE TIMETABLE GRID
-//         // =================================================================
-//         let oldSlots = [];
-//         let historicTeachersList = [];
-
-//         if (isEdit) {
-//           oldSlots = await TimeTable.find({
-//             className,
-//             semester,
-//             section,
-//             day_of_week,
-//           }).session(session);
-//           // Purane saare genuine teacher IDs ki unique list track kar lo calculation ke liye
-//           historicTeachersList = [
-//             ...new Set(
-//               oldSlots
-//                 .map((s) => (s.teacher_id ? s.teacher_id.toString() : null))
-//                 .filter(Boolean),
-//             ),
-//           ];
-//         }
-
-//         // Target day ka schema data delete karo taaki fresh insert ho sake
-//         await TimeTable.deleteMany({
-//           className,
-//           semester,
-//           section,
-//           day_of_week,
-//         }).session(session);
-
-//         // Naye entries ko map aur save karne ka system loop
-//         for (let slot of slots) {
-//           if (!slot) continue;
-
-//           let { lecture_number, start_time, end_time, subject, username } =
-//             slot;
-//           const isLunch = lecture_number === "LUNCH";
-
-//           const formattedStartTime =
-//             day_of_week === "Mon"
-//               ? convertTo12HourFormat(start_time)
-//               : start_time;
-//           const formattedEndTime =
-//             day_of_week === "Mon" ? convertTo12HourFormat(end_time) : end_time;
-
-//           if (isLunch) {
-//             const lunchSlot = new TimeTable({
-//               day_of_week,
-//               lecture_number: "LUNCH",
-//               start_time: formattedStartTime,
-//               end_time: formattedEndTime,
-//               className,
-//               semester,
-//               section,
-//               teacher_name: "N/A",
-//               subject_name: "🍔 LUNCH BREAK",
-//             });
-//             await lunchSlot.save({ session });
-//             continue;
-//           }
-
-//           if (!subject || !username) continue;
-
-//           const teacherObj = await Teacher.findOne({ username }).session(
-//             session,
-//           );
-//           if (!teacherObj)
-//             throw new Error(`Faculty matching '${username}' not found.`);
-
-//           // Direct insertion time clash check
-//           const newStartMins = timeToMinutes(formattedStartTime);
-//           const newEndMins = timeToMinutes(formattedEndTime);
-
-//           const teacherAllAssignments = await TimeTable.find({
-//             day_of_week,
-//             teacher_id: teacherObj._id,
-//           }).session(session);
-
-//           for (let assignment of teacherAllAssignments) {
-//             const existingStartMins = timeToMinutes(assignment.start_time);
-//             const existingEndMins = timeToMinutes(assignment.end_time);
-
-//             if (
-//               newStartMins < existingEndMins &&
-//               newEndMins > existingStartMins
-//             ) {
-//               throw new Error(
-//                 `Timing Conflict! ${teacherObj.name} is already busy in Class [${assignment.className} ${assignment.section}] from ${assignment.start_time} to ${assignment.end_time}.`,
-//               );
-//             }
-//           }
-
-//           // Fresh timetable row allocation
-//           const newSlot = new TimeTable({
-//             day_of_week,
-//             lecture_number,
-//             start_time: formattedStartTime,
-//             end_time: formattedEndTime,
-//             className,
-//             semester,
-//             section,
-//             teacher_id: teacherObj._id,
-//             teacher_name: teacherObj.name,
-//             subject_name: subject,
-//           });
-//           await newSlot.save({ session });
-
-//           // Sync Assignments inside current teacher document matrix safely
-//           let classObj = teacherObj.class.find(
-//             (cls) => cls.className === className,
-//           );
-//           if (!classObj) {
-//             classObj = { className, semesters: [] };
-//             teacherObj.class.push(classObj);
-//             classObj = teacherObj.class[teacherObj.class.length - 1];
-//           }
-
-//           let semesterObj = classObj.semesters.find(
-//             (sem) => sem.semester == semester,
-//           );
-//           if (!semesterObj) {
-//             semesterObj = { semester: semester, sections: [] };
-//             classObj.semesters.push(semesterObj);
-//             semesterObj = classObj.semesters[classObj.semesters.length - 1];
-//           }
-
-//           let sectionObj = semesterObj.sections.find(
-//             (sec) => sec.section === section,
-//           );
-//           if (!sectionObj) {
-//             sectionObj = { section, subjects: [] };
-//             semesterObj.sections.push(sectionObj);
-//             sectionObj = semesterObj.sections[semesterObj.sections.length - 1];
-//           }
-
-//           if (!sectionObj.subjects.includes(subject)) {
-//             sectionObj.subjects.push(subject);
-//           }
-
-//           teacherObj.markModified("class");
-//           await teacherObj.save({ session });
-//         }
-
-//         // =================================================================
-//         // 🛡️ STAGE 3: SMART GLOBAL AUDIT FOR PROFILE SYNCHRONIZATION
-//         // =================================================================
-//         if (isEdit && historicTeachersList.length > 0) {
-//           // Poore hafte (Mon-Sat) ka absolutely update status database se pull karo
-//           const currentWeekSchedule = await TimeTable.find({
-//             className,
-//             semester,
-//             section,
-//           }).session(session);
-
-//           for (let oldTeacherId of historicTeachersList) {
-//             // Check karo ki kya yeh teacher pure hafte me kahi zinda hai is section me?
-//             const stillAssignedSomewhere = currentWeekSchedule.some(
-//               (s) => s.teacher_id && s.teacher_id.toString() === oldTeacherId,
-//             );
-
-//             const targetTeacherDoc =
-//               await Teacher.findById(oldTeacherId).session(session);
-//             if (!targetTeacherDoc) continue;
-
-//             if (!stillAssignedSomewhere) {
-//               // Case A: Agar teacher ka poore hafte is section se namo-nishan mit chuka hai -> Purge Section entry completely
-//               let classIdx = targetTeacherDoc.class.findIndex(
-//                 (c) => c.className === className,
-//               );
-//               if (classIdx !== -1) {
-//                 let semIdx = targetTeacherDoc.class[
-//                   classIdx
-//                 ].semesters.findIndex((s) => s.semester == semester);
-//                 if (semIdx !== -1) {
-//                   targetTeacherDoc.class[classIdx].semesters[semIdx].sections =
-//                     targetTeacherDoc.class[classIdx].semesters[
-//                       semIdx
-//                     ].sections.filter((sec) => sec.section !== section);
-//                 }
-//               }
-//             } else {
-//               // Case B: Agar teacher abhi bhi assigned hai (chahe doosre lecture me ya doosre din)
-//               // Toh hum nikalenge ki is specific section me use ab active subjects konse assigned hain poore hafte me
-//               const activeSubjectsInWeek = currentWeekSchedule
-//                 .filter(
-//                   (s) =>
-//                     s.teacher_id &&
-//                     s.teacher_id.toString() === oldTeacherId &&
-//                     s.subject_name,
-//                 )
-//                 .map((s) => s.subject_name);
-
-//               let classIdx = targetTeacherDoc.class.findIndex(
-//                 (c) => c.className === className,
-//               );
-//               if (classIdx !== -1) {
-//                 let semIdx = targetTeacherDoc.class[
-//                   classIdx
-//                 ].semesters.findIndex((s) => s.semester == semester);
-//                 if (semIdx !== -1) {
-//                   let secIdx = targetTeacherDoc.class[classIdx].semesters[
-//                     semIdx
-//                   ].sections.findIndex((s) => s.section === section);
-//                   if (secIdx !== -1) {
-//                     // Ghost subjects saaf ho jayenge par active dynamic subjects bache rahenge safely!
-//                     targetTeacherDoc.class[classIdx].semesters[semIdx].sections[
-//                       secIdx
-//                     ].subjects = [...new Set(activeSubjectsInWeek)];
-//                   }
-//                 }
-//               }
-//             }
-//             targetTeacherDoc.markModified("class");
-//             await targetTeacherDoc.save({ session });
-//           }
-//         }
-
-//         // =================================================================
-//         // ⏱️ STAGE 4: MONDAY CASCADE EXECUTION (Post validation success)
-//         // =================================================================
-//         if (isEdit && day_of_week === "Mon") {
-//           for (let slot of slots) {
-//             if (!slot) continue;
-//             const formattedStartTime = convertTo12HourFormat(slot.start_time);
-//             const formattedEndTime = convertTo12HourFormat(slot.end_time);
-
-//             await TimeTable.updateMany(
-//               {
-//                 className,
-//                 semester,
-//                 section,
-//                 lecture_number: slot.lecture_number,
-//                 day_of_week: { $ne: "Mon" },
-//               },
-//               {
-//                 $set: {
-//                   start_time: formattedStartTime,
-//                   end_time: formattedEndTime,
-//                 },
-//               },
-//               { session },
-//             );
-//           }
-//         }
-//       });
-
-//       req.flash(
-//         "success",
-//         isEdit
-//           ? "Timetable layout updated with Master Monday cascades successfully! 🚀"
-//           : "Full day grid configuration saved successfully! 🚀",
-//       );
-//       res.redirect(`/timetable/dashboard?className=${className}`);
-//     } catch (err) {
-//       console.error(
-//         "🔥 Timetable Clash Interceptor Block triggered:",
-//         err.message,
-//       );
-//       req.flash("error", `Transaction Failed: ${err.message}`);
-//       res.redirect("/assign/teacher/subject/class");
-//     } finally {
-//       await session.endSession();
-//     }
-//   }),
-// );
-
-// DELETE TIME TABLE  AND ASSIGN CLASSES
-
-// app.post(
-//   "/timetable/delete-section",
-//   verifiedAny,
-//   WrapAsync(async (req, res) => {
-//     const session = await Teacher.startSession();
-//     try {
-//       const { className, semester, section } = req.body;
-
-//       if (!className || !semester || !section) {
-//         req.flash(
-//           "error",
-//           "⚠️ Operation Failed: Missing core parameters to delete section.",
-//         );
-//         return res.redirect("/timetable/dashboard");
-//       }
-
-//       await session.withTransaction(async () => {
-//         // 1. Is poore section ke saare dino (Mon-Sat) ke saare slots nikal lo
-//         const allSectionSlots = await TimeTable.find({
-//           className,
-//           semester,
-//           section,
-//         }).session(session);
-
-//         if (allSectionSlots.length === 0) {
-//           throw new Error(
-//             "Nothing to delete. No schedule data was found for this section.",
-//           );
-//         }
-
-//         const uniqueTeacherIds = [
-//           ...new Set(
-//             allSectionSlots
-//               .map((slot) => slot.teacher_id && slot.teacher_id.toString())
-//               .filter(Boolean),
-//           ),
-//         ];
-
-//         for (let teacherId of uniqueTeacherIds) {
-//           const teacherObj = await Teacher.findById(teacherId).session(session);
-
-//           if (teacherObj) {
-//             // Teacher ke profiles array me se is pure section/semester ka object dhoodho aur usko clean karo
-//             let classIdx = teacherObj.class.findIndex(
-//               (c) => c.className === className,
-//             );
-//             if (classIdx !== -1) {
-//               let semIdx = teacherObj.class[classIdx].semesters.findIndex(
-//                 (s) => s.semester == semester,
-//               );
-//               if (semIdx !== -1) {
-//                 // Direct is section ko hi array se baahar uda do (pull out the entire section matching target)
-//                 teacherObj.class[classIdx].semesters[semIdx].sections =
-//                   teacherObj.class[classIdx].semesters[semIdx].sections.filter(
-//                     (sec) => sec.section !== section,
-//                   );
-//               }
-//             }
-
-//             teacherObj.markModified("class");
-//             await teacherObj.save({ session });
-//           }
-//         }
-
-//         await TimeTable.deleteMany({ className, semester, section }).session(
-//           session,
-//         );
-//       });
-
-//       req.flash(
-//         "success",
-//         `🗑️ Section Deleted: The complete schedule for [${className} - Sem ${semester} - Sec ${section}] and all associated teacher assignments have been successfully removed.`,
-//       );
-//       res.redirect(
-//         `/timetable/dashboard?className=${encodeURIComponent(className)}`,
-//       );
-//     } catch (err) {
-//       console.error("🔥 Bulk Section Delete Error:", err.message);
-//       req.flash("error", `Master Deletion Failed: ${err.message}`);
-//       res.redirect("/timetable/dashboard");
-//     } finally {
-//       await session.endSession();
-//     }
-//   }),
-// );
 
 app.post(
   "/timetable/delete-section",
@@ -4268,7 +8062,7 @@ app.get(
         groupedTimetable[sem][sec].timetableMap[slot.day_of_week][
           slot.lecture_number
         ] = {
-          subject: slot.subject_name || "🍔 LUNCH BREAK",
+          subject: slot.subject_name || "-",
           teacher: slot.teacher_name || "N/A",
         };
 
@@ -4385,236 +8179,161 @@ app.get(
   }),
 );
 
-// app.post(
-//   "/temporary/assign/teacher/subject/class",
-//   verifiedAny,
-//   WrapAsync(async (req, res) => {
-//     // 1. Transaction session start karo safety ke liye
-//     const session = await Teacher.startSession();
-
-//     try {
-//       let { className, semester, section, usernames, subjects } = req.body.data;
-
-//       // Sanitization: Agar single checkbox select kiya ho toh use array banao
-//       if (!usernames) usernames = [];
-//       if (!subjects) subjects = [];
-//       if (!Array.isArray(usernames)) usernames = [usernames];
-//       if (!Array.isArray(subjects)) subjects = [subjects];
-
-//       // Pehle validation check kar lo
-//       if (usernames.length === 0 || subjects.length === 0 || !className || !semester || !section) {
-//         req.flash("error", "All fields, at least one teacher and one subject must be selected!");
-//         return res.redirect("/temporary/assign/teacher/subject/class");
-//       }
-
-//       // 2. Start the isolated safe transaction
-//       await session.withTransaction(async () => {
-
-//         // Har select kiye huye teacher par loop chalao
-//         const teacherPromises = usernames.map(async (username) => {
-//           const teacher = await Teacher.findOne({ username }).session(session);
-//           if (!teacher) return;
-
-//           // Step A: Find or Create Class Level
-//           let classObj = teacher.class.find((cls) => cls.className === className);
-//           if (!classObj) {
-//             classObj = { className, semesters: [] };
-//             teacher.class.push(classObj);
-//             classObj = teacher.class[teacher.class.length - 1]; // get reference
-//           }
-
-//           // Step B: Find or Create Semester Level
-//           let semesterObj = classObj.semesters.find((sem) => sem.semester == semester);
-//           if (!semesterObj) {
-//             semesterObj = { semester: Number(semester), sections: [] };
-//             classObj.semesters.push(semesterObj);
-//             semesterObj = classObj.semesters[classObj.semesters.length - 1];
-//           }
-
-//           // Step C: Find or Create Section Level
-//           let sectionObj = semesterObj.sections.find((sec) => sec.section === section);
-//           if (!sectionObj) {
-//             // New section create karte waqt temporarySubjects bhi initialize kar rahe hain
-//             sectionObj = { section, subjects: [], temporarySubjects: [] };
-//             semesterObj.sections.push(sectionObj);
-//             sectionObj = semesterObj.sections[semesterObj.sections.length - 1];
-//           }
-
-//           // Make sure temporarySubjects array exists on old documents
-//           if (!sectionObj.temporarySubjects) {
-//             sectionObj.temporarySubjects = [];
-//           }
-
-//           // Step D: Bulk Push Selected Subjects (Duplicates se bach kar)
-//           subjects.forEach((subName) => {
-//             // 1. Attendance System ke liye: Main subjects array mein exact string push karo
-//             if (!sectionObj.subjects.includes(subName)) {
-//               sectionObj.subjects.push(subName);
-//             }
-
-//             // 2. Tracking/Filter ke liye: Parallel temporarySubjects array mein push karo
-//             if (!sectionObj.temporarySubjects.includes(subName)) {
-//               sectionObj.temporarySubjects.push(subName);
-//             }
-//           });
-
-//           // Mongoose sub-document validation warning reset
-//           teacher.markModified('class');
-//           return teacher.save({ session });
-//         });
-
-//         // Saare teachers ka data parallelly process hoga safely
-//         await Promise.all(teacherPromises);
-//       });
-
-//       // 3. Agar sab sahi raha toh final success flash
-//       req.flash("success", `Successfully temporary assigned ${subjects.length} subjects to ${usernames.length} teachers! 🚀`);
-//       res.redirect("/temporary/assign/teacher/subject/class");
-
-//     } catch (err) {
-//       // 4. Rollback execution if any single loop crashes
-//       console.error("🔥 Bulk Assignment Failed. Changes Rolled back:", err);
-//       req.flash("error", "Transaction failed! No changes were saved to the database.");
-//       res.redirect("/temporary/assign/teacher/subject/class");
-//     } finally {
-//       await session.endSession(); // Session wrap-up
-//     }
-//   }),
-// );
-
 app.post(
   "/temporary/assign/teacher/subject/class",
-   verifySession, isAdminVerified,
+  verifySession,
+  isAdminVerified,
   WrapAsync(async (req, res) => {
-    // 1. Transaction session start karo safety ke liye
     const session = await Teacher.startSession();
 
     try {
       let { className, semester, section, usernames, subjects } = req.body.data;
 
-      // Sanitization: Agar single checkbox select kiya ho toh use array banao
+      // 1. Array Normalization & Unique Filter (Prevents duplicate requests)
       if (!usernames) usernames = [];
       if (!subjects) subjects = [];
       if (!Array.isArray(usernames)) usernames = [usernames];
       if (!Array.isArray(subjects)) subjects = [subjects];
 
-      // Pehle validation check kar lo
+      usernames = [...new Set(usernames)]; // Duplicate usernames remove kiye
+
+      // 2. Safe JSON Parsing & Validation
+      const parsedSubjects = [];
+      for (let sub of subjects) {
+        try {
+          let parsed = typeof sub === "string" ? JSON.parse(sub) : sub;
+          if (
+            parsed &&
+            parsed.subjectId &&
+            parsed.subjectName &&
+            mongoose.Types.ObjectId.isValid(parsed.subjectId)
+          ) {
+            parsedSubjects.push({
+              subjectId: new mongoose.Types.ObjectId(parsed.subjectId),
+              subjectName: parsed.subjectName.trim(),
+            });
+          }
+        } catch (e) {
+          console.error("Invalid Subject Data JSON:", sub);
+        }
+      }
+
       if (
         usernames.length === 0 ||
-        subjects.length === 0 ||
+        parsedSubjects.length === 0 ||
         !className ||
         !semester ||
         !section
       ) {
         req.flash(
           "error",
-          "All fields, at least one teacher and one subject must be selected!",
+          "All fields, valid subject options and at least one teacher must be selected!"
         );
         return res.redirect("/temporary/assign/teacher/subject/class");
       }
 
-      // 2. Start the isolated safe transaction
+      // 3. Optimized Transaction
       await session.withTransaction(async () => {
-        // =================================================================
-        // 🛑 PRE-CHECK INTERCEPTOR: REGULAR TIMETABLE CONFLICT CHECK
-        // =================================================================
-        for (let username of usernames) {
-          const teacher = await Teacher.findOne({ username }).session(session);
-          if (!teacher) continue;
+        // 🔥 OPTIMIZATION 1: Ek hi query mein saare Teachers fetch kar liye
+        const teachers = await Teacher.find({ username: { $in: usernames } }).session(session);
+        if (teachers.length === 0) return;
 
-          for (let subName of subjects) {
-            // Check if this teacher is already assigned this subject in TimeTable for this class/sem/sec
-            const existingTimetableSlot = await TimeTable.findOne({
-              className,
-              semester,
-              section,
-              teacher_id: teacher._id,
-              subject_name: subName,
-            }).session(session);
+        const teacherIds = teachers.map((t) => t._id);
+        const subjectNames = parsedSubjects.map((s) => s.subjectName);
 
-            if (existingTimetableSlot) {
-              throw new Error(
-                `⚠️ Cannot assign temporary subject: '${subName}' is already assigned to ${teacher.name} via the regular timetable!`,
-              );
-            }
-          }
+        // 🔥 OPTIMIZATION 2: Single query se regular timetable conflict check
+        const conflictSlot = await TimeTable.findOne({
+          className,
+          semester,
+          section,
+          teacher_id: { $in: teacherIds },
+          subject_name: { $in: subjectNames },
+        }).session(session);
+
+        if (conflictSlot) {
+          const matchedTeacher = teachers.find(
+            (t) => t._id.toString() === conflictSlot.teacher_id.toString()
+          );
+          throw new Error(
+            `⚠️ Cannot assign temporary subject: '${conflictSlot.subject_name}' is already assigned to ${matchedTeacher ? matchedTeacher.name : 'a teacher'} via regular timetable!`
+          );
         }
 
-        // Har select kiye huye teacher par loop chalao
-        const teacherPromises = usernames.map(async (username) => {
-          const teacher = await Teacher.findOne({ username }).session(session);
-          if (!teacher) return;
-
-          // Step A: Find or Create Class Level
-          let classObj = teacher.class.find(
-            (cls) => cls.className === className,
-          );
+        // 🔥 OPTIMIZATION 3: Sequential Processing (Avoids DB Lock Delay)
+        for (let teacher of teachers) {
+          // Step A: Class Level
+          let classObj = teacher.class.find((cls) => cls.className === className);
           if (!classObj) {
-            classObj = { className, semesters: [] };
-            teacher.class.push(classObj);
-            classObj = teacher.class[teacher.class.length - 1]; // get reference
+            teacher.class.push({ className, semesters: [] });
+            classObj = teacher.class[teacher.class.length - 1];
           }
 
-          // Step B: Find or Create Semester Level
+          // Step B: Semester Level
           let semesterObj = classObj.semesters.find(
-            (sem) => sem.semester == semester,
+            (sem) => sem.semester == semester
           );
           if (!semesterObj) {
-            semesterObj = { semester: Number(semester), sections: [] };
-            classObj.semesters.push(semesterObj);
+            classObj.semesters.push({ semester: Number(semester), sections: [] });
             semesterObj = classObj.semesters[classObj.semesters.length - 1];
           }
 
-          // Step C: Find or Create Section Level
+          // Step C: Section Level
           let sectionObj = semesterObj.sections.find(
-            (sec) => sec.section === section,
+            (sec) => sec.section === section
           );
           if (!sectionObj) {
-            // New section create karte waqt temporarySubjects bhi initialize kar rahe hain
-            sectionObj = { section, subjects: [], temporarySubjects: [] };
-            semesterObj.sections.push(sectionObj);
+            semesterObj.sections.push({
+              section,
+              subjects: [],
+              temporarySubjects: [],
+            });
             sectionObj = semesterObj.sections[semesterObj.sections.length - 1];
           }
 
-          // Make sure temporarySubjects array exists on old documents
-          if (!sectionObj.temporarySubjects) {
-            sectionObj.temporarySubjects = [];
-          }
+          if (!sectionObj.temporarySubjects) sectionObj.temporarySubjects = [];
+          if (!sectionObj.subjects) sectionObj.subjects = [];
 
-          // Step D: Bulk Push Selected Subjects (Duplicates se bach kar)
-          subjects.forEach((subName) => {
-            // 1. Attendance System ke liye: Main subjects array mein exact string push karo
-            if (!sectionObj.subjects.includes(subName)) {
-              sectionObj.subjects.push(subName);
+          // Step D: Bulk Push
+          parsedSubjects.forEach((subObj) => {
+            const targetIdStr = subObj.subjectId.toString();
+
+            const existsInSubjects = sectionObj.subjects.some((s) => {
+              if (typeof s === "string") return s === subObj.subjectName;
+              return s?.subjectId?.toString() === targetIdStr;
+            });
+
+            if (!existsInSubjects) {
+              sectionObj.subjects.push({
+                subjectId: subObj.subjectId,
+                subjectName: subObj.subjectName,
+              });
             }
 
-            // 2. Tracking/Filter ke liye: Parallel temporarySubjects array mein push karo
-            if (!sectionObj.temporarySubjects.includes(subName)) {
-              sectionObj.temporarySubjects.push(subName);
+            const existsInTemp = sectionObj.temporarySubjects.some((s) => {
+              if (typeof s === "string") return s === subObj.subjectName;
+              return s?.subjectId?.toString() === targetIdStr;
+            });
+
+            if (!existsInTemp) {
+              sectionObj.temporarySubjects.push({
+                subjectId: subObj.subjectId,
+                subjectName: subObj.subjectName,
+              });
             }
           });
 
-          // Mongoose sub-document validation warning reset
           teacher.markModified("class");
-          return teacher.save({ session });
-        });
-
-        // Saare teachers ka data parallelly process hoga safely
-        await Promise.all(teacherPromises);
+          await teacher.save({ session });
+        }
       });
 
-      // 3. Agar sab sahi raha toh final success flash
       req.flash(
         "success",
-        `Successfully temporary assigned ${subjects.length} subjects to ${usernames.length} teachers! 🚀`,
+        `Successfully temporary assigned ${parsedSubjects.length} subjects to ${usernames.length} teachers! 🚀`
       );
       res.redirect("/temporary/assign/teacher/subject/class");
     } catch (err) {
-      // 4. Rollback execution if any single loop crashes or validation fails
-      console.error(
-        "🔥 Bulk Assignment Failed. Changes Rolled back:",
-        err.message,
-      );
+      console.error("🔥 Bulk Assignment Failed:", err.message);
 
       const userMessage = err.message.startsWith("⚠️")
         ? err.message
@@ -4623,137 +8342,17 @@ app.post(
       req.flash("error", userMessage);
       res.redirect("/temporary/assign/teacher/subject/class");
     } finally {
-      await session.endSession(); // Session wrap-up
+      await session.endSession();
     }
-  }),
+  })
 );
 
-// 🔹 1. SHOW TEMPORARY ASSIGNMENTS
-// app.get(
-//   "/show-temporary-teachers-assignments",
-//   verifiedAny,
-//   WrapAsync(async (req, res) => {
-//     // Query simplification: Fetch teachers having non-empty temporarySubjects
-//     const teachers = await Teacher.find({
-//       "class.semesters.sections.temporarySubjects.0": { $exists: true }
-//     }).lean();
-
-//     let tableRows = [];
-
-//     teachers.forEach((teacher) => {
-//       teacher.class?.forEach((cls) => {
-//         cls.semesters?.forEach((sem) => {
-//           sem.sections?.forEach((sec) => {
-//             // Check if array exists and has at least one item
-//             if (Array.isArray(sec.temporarySubjects) && sec.temporarySubjects.length > 0) {
-//               // Filter out any blank/empty strings if any
-//               const cleanTempSubjects = sec.temporarySubjects
-//                 .map(s => String(s).trim())
-//                 .filter(s => s.length > 0);
-
-//               if (cleanTempSubjects.length > 0) {
-//                 tableRows.push({
-//                   teacherId: teacher._id.toString(),
-//                   teacherName: teacher.name || "Unknown",
-//                   username: teacher.username || "N/A",
-//                   classId: cls._id ? cls._id.toString() : "",
-//                   className: cls.className || "N/A",
-//                   semesterId: sem._id ? sem._id.toString() : "",
-//                   semester: sem.semester || "N/A",
-//                   sectionId: sec._id ? sec._id.toString() : "",
-//                   section: sec.section || "N/A",
-//                   subjects: cleanTempSubjects,
-//                 });
-//               }
-//             }
-//           });
-//         });
-//       });
-//     });
-
-//     res.render("admin/showTemporaryAssign.ejs", { tableRows });
-//   })
-// );
-// // 🔹 2. DELETE TEMPORARY ASSIGNMENT
-// app.delete(
-//   "/delete/temporary/teacher/:teacherId/class/:classId/semester/:semesterId/section/:sectionId",
-//   verifiedAny,
-//   WrapAsync(async (req, res) => {
-//     const { teacherId, classId, semesterId, sectionId } = req.params;
-
-//     const session = await Teacher.startSession();
-//     session.startTransaction();
-
-//     try {
-//       const teacher = await Teacher.findById(teacherId).session(session);
-
-//       if (!teacher) {
-//         await session.abortTransaction();
-//         session.endSession();
-//         req.flash("error", "Teacher record not found!");
-//         return res.redirect("/show-temporary-teachers-assignments");
-//       }
-
-//       // Safe access using Mongoose .id() helper
-//       const targetClass = teacher.class?.id(classId);
-//       const targetSem = targetClass?.semesters?.id(semesterId);
-//       const targetSec = targetSem?.sections?.id(sectionId);
-
-//       if (!targetSec) {
-//         await session.abortTransaction();
-//         session.endSession();
-//         req.flash("error", "Section not found or already removed!");
-//         return res.redirect("/show-temporary-teachers-assignments");
-//       }
-
-//       const tempSubsStrings = (targetSec.temporarySubjects || []).map(s => String(s));
-
-//       if (tempSubsStrings.length > 0) {
-//         // Step A: Clear Temporary Subjects array
-//         targetSec.temporarySubjects = [];
-
-//         // Step B: Filter out temporary subjects safely using String conversion
-//         targetSec.subjects = (targetSec.subjects || []).filter(
-//           (sub) => !tempSubsStrings.includes(String(sub))
-//         );
-
-//         // Step C: Cascading Clean-up (If section becomes empty)
-//         if (targetSec.subjects.length === 0 && targetSec.temporarySubjects.length === 0) {
-//           targetSem.sections.pull({ _id: sectionId });
-//         }
-
-//         if (targetSem.sections.length === 0) {
-//           targetClass.semesters.pull({ _id: semesterId });
-//         }
-
-//         if (targetClass.semesters.length === 0) {
-//           teacher.class.pull({ _id: classId });
-//         }
-
-//         // Mark nested structure as modified for Mongoose tracking
-//         teacher.markModified("class");
-//         await teacher.save({ session });
-//       }
-
-//       await session.commitTransaction();
-//       session.endSession();
-
-//       req.flash("success", "Temporary assignment deleted successfully!");
-//       res.redirect("/show-temporary-teachers-assignments");
-//     } catch (error) {
-//       await session.abortTransaction();
-//       session.endSession();
-//       console.error("🔥 Error deleting temporary assignment:", error);
-//       req.flash("error", "Something went wrong! Action safely rolled back.");
-//       res.redirect("/show-temporary-teachers-assignments");
-//     }
-//   })
-// );
 
 // 🔹 1. SHOW TEMPORARY TEACHERS ASSIGNMENTS
 app.get(
   "/show-temporary-teachers-assignments",
-   verifySession, isAdminVerified,
+  verifySession,
+  isAdminVerified,
   WrapAsync(async (req, res) => {
     // Fetch teachers having non-empty temporarySubjects
     const teachers = await Teacher.find({
@@ -4770,9 +8369,20 @@ app.get(
               Array.isArray(sec.temporarySubjects) &&
               sec.temporarySubjects.length > 0
             ) {
+              // FIX: Safely map objects as well as raw strings
               const cleanTempSubjects = sec.temporarySubjects
-                .map((s) => String(s).trim())
-                .filter((s) => s.length > 0);
+                .map((s) => {
+                  if (typeof s === "string") {
+                    return { subjectName: s.trim() };
+                  } else if (s && typeof s === "object") {
+                    return {
+                      subjectId: s.subjectId || null,
+                      subjectName: s.subjectName ? s.subjectName.trim() : "",
+                    };
+                  }
+                  return null;
+                })
+                .filter((s) => s && s.subjectName.length > 0);
 
               if (cleanTempSubjects.length > 0) {
                 tableRows.push({
@@ -4795,13 +8405,15 @@ app.get(
     });
 
     res.render("admin/showTemporaryAssign.ejs", { tableRows });
-  }),
+  })
 );
-
 // 🔹 2. DELETE TEMPORARY ASSIGNMENT (BUG-FIXED & TIMETABLE-SAFE)
+
+
 app.delete(
   "/delete/temporary/teacher/:teacherId/class/:classId/semester/:semesterId/section/:sectionId",
-   verifySession, isAdminVerified,
+  verifySession,
+  isAdminVerified,
   WrapAsync(async (req, res) => {
     const { teacherId, classId, semesterId, sectionId } = req.params;
 
@@ -4841,16 +8453,26 @@ app.delete(
         teacher_id: teacher._id,
       }).session(session);
 
-      const regularSubjectsList = [
-        ...new Set(
-          activeTimetableSlots
-            .map((s) => s.subject_name)
-            .filter((sub) => sub && sub !== "🍔 LUNCH BREAK"),
-        ),
-      ];
+      // Step 3: FIX - Reconstruct array as Objects to match Mongoose Subdocument Schema
+      const uniqueSubjectsMap = new Map();
 
-      // Step 3: Update `subjects` array -> Keep ONLY regular timetable subjects
-      targetSec.subjects = regularSubjectsList;
+      activeTimetableSlots.forEach((slot) => {
+        if (slot.subject_name && slot.subject_name !== "🍔 LUNCH BREAK") {
+          const key = slot.subject_id 
+            ? slot.subject_id.toString() 
+            : slot.subject_name.trim();
+
+          if (!uniqueSubjectsMap.has(key)) {
+            uniqueSubjectsMap.set(key, {
+              subjectId: slot.subject_id || null,
+              subjectName: slot.subject_name.trim(),
+            });
+          }
+        }
+      });
+
+      // Valid Subdocument Objects ka Array Set kar rahe hain
+      targetSec.subjects = Array.from(uniqueSubjectsMap.values());
 
       // Step 4: SAFE Cascading Clean-up
       // Class/Sem/Sec TABHI delete honge jab Regular Timetable me BHI koi subject na ho!
@@ -4875,7 +8497,7 @@ app.delete(
 
       req.flash(
         "success",
-        "Temporary assignment deleted successfully without affecting regular timetable!",
+        "Temporary assignment deleted successfully without affecting regular timetable!"
       );
       res.redirect("/show-temporary-teachers-assignments");
     } catch (error) {
@@ -4885,7 +8507,7 @@ app.delete(
       req.flash("error", "Something went wrong! Action safely rolled back.");
       res.redirect("/show-temporary-teachers-assignments");
     }
-  }),
+  })
 );
 
 // GET: Reset Academic Session Page Render
@@ -4978,15 +8600,22 @@ app.get(
   }),
 );
 
+
 // app.post(
 //   "/assign/student/subject",
-//   verifiedAny,
+//   verifySession, isAdminVerified,
 //   validateAssignStudent,
 //   WrapAsync(async (req, res) => {
+//     // 1. Transaction Session Start Karo
+//     const session = await mongoose.startSession();
+//     session.startTransaction();
+
 //     try {
-//       let { students, subjects } = req.body.data;
+//       let { students, subjects } = req.body.data || {};
 
 //       if (!students || !subjects) {
+//         await session.abortTransaction();
+//         session.endSession();
 //         req.flash("error", "Students and subjects are missing!");
 //         return res.redirect("/assign/student/subject");
 //       }
@@ -4994,41 +8623,55 @@ app.get(
 //       if (!Array.isArray(students)) students = [students];
 //       if (!Array.isArray(subjects)) subjects = [subjects];
 
-//       // ✅ decode + parse
-//       subjects = subjects.map((s) =>
-//         typeof s === "string" ? JSON.parse(decodeURIComponent(s)) : s,
-//       );
+//       // ✅ Safe JSON Parsing with try-catch
+//       try {
+//         subjects = subjects.map((s) =>
+//           typeof s === "string" ? JSON.parse(decodeURIComponent(s)) : s,
+//         );
+//       } catch (parseErr) {
+//         throw new Error("Invalid subject payload format!");
+//       }
 
-//       // 🔥 Har student ke liye individual check aur update chalao
+//       // 2. Pure Batch Ke Students Ko Ek Hi Query Mein Fetch Karo (Session Context)
+//       const existingStudents = await Student.find(
+//         { _id: { $in: students } },
+//         "subject",
+//       ).session(session);
+
+//       const bulkOps = [];
 //       let totalAssignedCount = 0;
 
-//       const updatePromises = students.map(async (studentId) => {
-//         // 1. Pehle us student ke current subjects nikaalo
-//         const student = await Student.findById(studentId).select("subject");
-//         if (!student) return;
-
-//         // 2. Is specific student ke paas jo codes hain unka set banao
+//       // 3. In-Memory Duplication Filter (Super Fast)
+//       for (const student of existingStudents) {
 //         const studentExistingCodes = new Set(
-//           student.subject.map((s) => s.code),
+//           (student.subject || []).map((s) => s.code),
 //         );
 
-//         // 3. Sirf wahi subjects filter karo jo IS student ke paas nahi hain
-//         const uniqueNewSubjectsForThisStudent = subjects.filter(
-//           (sub) => !studentExistingCodes.has(sub.code),
+//         const uniqueNewSubjects = subjects.filter(
+//           (sub) => sub && sub.code && !studentExistingCodes.has(sub.code),
 //         );
 
-//         // 4. Agar naye subjects hain, toh isi student ke document mein push karo
-//         if (uniqueNewSubjectsForThisStudent.length > 0) {
-//           totalAssignedCount += uniqueNewSubjectsForThisStudent.length;
-//           return Student.updateOne(
-//             { _id: studentId },
-//             { $push: { subject: { $each: uniqueNewSubjectsForThisStudent } } },
-//           );
+//         if (uniqueNewSubjects.length > 0) {
+//           totalAssignedCount += uniqueNewSubjects.length;
+
+//           // Bulk Write Operation Prepare Karo
+//           bulkOps.push({
+//             updateOne: {
+//               filter: { _id: student._id },
+//               update: { $push: { subject: { $each: uniqueNewSubjects } } },
+//             },
+//           });
 //         }
-//       });
+//       }
 
-//       // Saare updates ek sath parallelly execute honge (High Performance)
-//       await Promise.all(updatePromises);
+//       // 4. Agar Operations Hain Toh Write Commit Karo
+//       if (bulkOps.length > 0) {
+//         await Student.bulkWrite(bulkOps, { session });
+//       }
+
+//       // ✅ SAARE UPDATES SUCCESSFUL! NOW COMMIT TRANSACTION
+//       await session.commitTransaction();
+//       session.endSession();
 
 //       if (totalAssignedCount === 0) {
 //         req.flash(
@@ -5039,109 +8682,161 @@ app.get(
 //         req.flash("success", "Subjects assigned successfully ✅");
 //       }
 
-//       res.redirect("/assign/student/subject");
+//       return res.redirect("/assign/student/subject");
 //     } catch (err) {
-//       console.error("🔥 Assign Subject Error:", err);
-//       req.flash("error", "Something went wrong!");
-//       res.redirect("/assign/student/subject");
+//       // 🚨 KOI BHI ERROR AAYA TOH TRANSACTION ROLLBACK HAR CHEEZ WAPAS PEHLE JAISI
+//       await session.abortTransaction();
+//       session.endSession();
+
+//       console.error("🔥 Assign Subject Rollback Triggered Error:", err);
+//       req.flash("error", `Failed to assign subjects: ${err.message}`);
+//       return res.redirect("/assign/student/subject");
 //     }
 //   }),
 // );
 
+
+
 app.post(
   "/assign/student/subject",
-  verifySession, isAdminVerified,
+  verifySession,
+  isAdminVerified,
   validateAssignStudent,
   WrapAsync(async (req, res) => {
-    // 1. Transaction Session Start Karo
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    let { students, subjects } = req.body.data || {};
 
-    try {
-      let { students, subjects } = req.body.data || {};
-
-      if (!students || !subjects) {
-        await session.abortTransaction();
-        session.endSession();
-        req.flash("error", "Students and subjects are missing!");
-        return res.redirect("/assign/student/subject");
-      }
-
-      if (!Array.isArray(students)) students = [students];
-      if (!Array.isArray(subjects)) subjects = [subjects];
-
-      // ✅ Safe JSON Parsing with try-catch
-      try {
-        subjects = subjects.map((s) =>
-          typeof s === "string" ? JSON.parse(decodeURIComponent(s)) : s,
-        );
-      } catch (parseErr) {
-        throw new Error("Invalid subject payload format!");
-      }
-
-      // 2. Pure Batch Ke Students Ko Ek Hi Query Mein Fetch Karo (Session Context)
-      const existingStudents = await Student.find(
-        { _id: { $in: students } },
-        "subject",
-      ).session(session);
-
-      const bulkOps = [];
-      let totalAssignedCount = 0;
-
-      // 3. In-Memory Duplication Filter (Super Fast)
-      for (const student of existingStudents) {
-        const studentExistingCodes = new Set(
-          (student.subject || []).map((s) => s.code),
-        );
-
-        const uniqueNewSubjects = subjects.filter(
-          (sub) => sub && sub.code && !studentExistingCodes.has(sub.code),
-        );
-
-        if (uniqueNewSubjects.length > 0) {
-          totalAssignedCount += uniqueNewSubjects.length;
-
-          // Bulk Write Operation Prepare Karo
-          bulkOps.push({
-            updateOne: {
-              filter: { _id: student._id },
-              update: { $push: { subject: { $each: uniqueNewSubjects } } },
-            },
-          });
-        }
-      }
-
-      // 4. Agar Operations Hain Toh Write Commit Karo
-      if (bulkOps.length > 0) {
-        await Student.bulkWrite(bulkOps, { session });
-      }
-
-      // ✅ SAARE UPDATES SUCCESSFUL! NOW COMMIT TRANSACTION
-      await session.commitTransaction();
-      session.endSession();
-
-      if (totalAssignedCount === 0) {
-        req.flash(
-          "info",
-          "All selected subjects were already assigned to these students 😄",
-        );
-      } else {
-        req.flash("success", "Subjects assigned successfully ✅");
-      }
-
-      return res.redirect("/assign/student/subject");
-    } catch (err) {
-      // 🚨 KOI BHI ERROR AAYA TOH TRANSACTION ROLLBACK HAR CHEEZ WAPAS PEHLE JAISI
-      await session.abortTransaction();
-      session.endSession();
-
-      console.error("🔥 Assign Subject Rollback Triggered Error:", err);
-      req.flash("error", `Failed to assign subjects: ${err.message}`);
+    // 1. Array Normalization & Validation
+    if (!students || !subjects) {
+      req.flash("error", "Students and subjects are required!");
       return res.redirect("/assign/student/subject");
     }
-  }),
-);
 
+    if (!Array.isArray(students)) students = [students];
+    if (!Array.isArray(subjects)) subjects = [subjects];
+
+    // Remove falsy values & filter valid Mongo ObjectIds for students
+    students = students.filter(
+      (id) => id && mongoose.Types.ObjectId.isValid(id)
+    );
+    subjects = subjects.filter(Boolean);
+
+    if (students.length === 0 || subjects.length === 0) {
+      req.flash("error", "Please select at least one valid student and subject!");
+      return res.redirect("/assign/student/subject");
+    }
+
+    // 2. Safe Payload Sanitization & ObjectId Conversion
+    let sanitizedSubjects = [];
+    try {
+      sanitizedSubjects = subjects.map((s) => {
+        let parsed = s;
+
+        if (typeof s === "string") {
+          try {
+            parsed = JSON.parse(decodeURIComponent(s));
+          } catch (_) {
+            parsed = JSON.parse(s);
+          }
+        }
+
+        const rawId = parsed.subjectId || parsed._id;
+        if (!rawId || !mongoose.Types.ObjectId.isValid(rawId)) {
+          throw new Error("Invalid Subject ID detected!");
+        }
+
+        return {
+          subjectId: new mongoose.Types.ObjectId(rawId),
+          name: String(parsed.name || "").trim(),
+          code: String(parsed.code || "").trim(),
+          maxMarks: Number(parsed.maxMarks) || 0,
+          minMarks: Number(parsed.minMarks) || 0,
+          subjectType: String(parsed.subjectType || "").trim(),
+        };
+      });
+    } catch (parseErr) {
+      req.flash("error", "Invalid subject payload format!");
+      return res.redirect("/assign/student/subject");
+    }
+
+    // 3. Payload Deduplication (In-Memory Request Level)
+    const seenPayloadIds = new Set();
+    const seenPayloadCodes = new Set();
+
+    sanitizedSubjects = sanitizedSubjects.filter((sub) => {
+      const idStr = String(sub.subjectId);
+      const codeStr = sub.code.toLowerCase();
+
+      if (seenPayloadIds.has(idStr) || (codeStr && seenPayloadCodes.has(codeStr))) {
+        return false;
+      }
+
+      seenPayloadIds.add(idStr);
+      if (codeStr) seenPayloadCodes.add(codeStr);
+      return true;
+    });
+
+    // 4. DB Query for Selected Students
+    const existingStudents = await Student.find(
+      { _id: { $in: students } },
+      "_id subject"
+    );
+
+    const bulkOps = [];
+    let totalAssignedCount = 0;
+
+    // 5. DB Level Duplication Check
+    for (const student of existingStudents) {
+      const existingSubjectIds = new Set();
+      const existingCodes = new Set();
+
+      (student.subject || []).forEach((sub) => {
+        if (sub.subjectId) existingSubjectIds.add(String(sub.subjectId));
+        if (sub.code) existingCodes.add(String(sub.code).toLowerCase());
+      });
+
+      const uniqueNewSubjects = sanitizedSubjects.filter((sub) => {
+        const subIdStr = String(sub.subjectId);
+        const subCodeStr = sub.code.toLowerCase();
+
+        const isIdExist = existingSubjectIds.has(subIdStr);
+        const isCodeExist = subCodeStr && existingCodes.has(subCodeStr);
+
+        return !isIdExist && !isCodeExist;
+      });
+
+      if (uniqueNewSubjects.length > 0) {
+        totalAssignedCount += uniqueNewSubjects.length;
+
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: student._id },
+            update: { $push: { subject: { $each: uniqueNewSubjects } } },
+          },
+        });
+      }
+    }
+
+    // 6. Fast Bulk Execution
+    if (bulkOps.length > 0) {
+      await Student.bulkWrite(bulkOps);
+    }
+
+    // 7. Flash & Redirect (PRG Compliant)
+    if (totalAssignedCount === 0) {
+      req.flash(
+        "info",
+        "All selected subjects were already assigned to these students 😄"
+      );
+    } else {
+      req.flash(
+        "success",
+        `Subjects assigned successfully to ${bulkOps.length} student(s) ✅`
+      );
+    }
+
+    return res.redirect("/assign/student/subject");
+  })
+);
 //------------------------------------- Admin Attendance status ----------------------------------------------//
 
 //  check today attendance record
@@ -6213,7 +9908,7 @@ app.get(
     const feedsRaw = await Feed.find(feedFilter)
       .populate({
         path: "studentId",
-        select: "name class semester",
+        select: "name class semester fatherName session",
         match: studentMatch,
       })
       .sort({ _id: -1 })
@@ -6286,7 +9981,7 @@ app.get(
   }),
 );
 
-app.post("/student/update/class/semester", verifiedAny, async (req, res) => {
+app.post("/student/update/class/semester",  verifySession, isAdminVerified,WrapAsync(async (req, res) => {
   const { currentClass, currentSemester, newClass, newSemester } =
     req.body.data;
 
@@ -6321,7 +10016,7 @@ app.post("/student/update/class/semester", verifiedAny, async (req, res) => {
   );
 
   res.redirect("/student/update/class/semester");
-});
+}));
 
 // delete student subject
 
@@ -6420,6 +10115,871 @@ app.post(
     res.redirect("/student/bulk-delete");
   }),
 );
+
+
+
+
+
+//----------------------------------- ADD  COURSE HOD & CLASS INCHARGE --------------------------------------
+
+
+
+const ClassIncharge = require("./models/classIncharge.js");
+const Hod = require("./models/hodSchema.js");
+
+const {
+  validateClassIncharge,
+  validateHod,
+} = require("./schema/classIncharge.js");
+
+
+// ======================================================
+// HELPER FUNCTIONS FOR STRING SANITIZATION
+// ======================================================
+const cleanString = (value) => {
+  if (value === undefined || value === null) return "";
+  return value.toString().trim().replace(/\s+/g, " ").toUpperCase();
+};
+
+const cleanCourseForHod = (courseName) => {
+  let course = cleanString(courseName);
+  if (!course) return "";
+
+  course = course
+    .replace(/\s*[-_]?\s*(?:1ST|2ND|3RD|4TH|5TH|6TH|7TH|8TH)\s*(?:YEAR)?\s*$/i, "")
+    .replace(/\s*[-_]?\s*(?:YEAR|SEM|SEMESTER)\s*\d+\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return course;
+};
+
+// ======================================================
+// 1. GET ASSIGNMENT PAGE
+// ======================================================
+app.get(
+  "/admin/add/class/incharge",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const [classData, section, teacher, assignedIncharges, assignedHods] =
+      await Promise.all([
+        Class.find({}).sort({ class: 1 }).lean(),
+        Section.find({}).sort({ name: 1 }).lean(),
+        Teacher.find({}).sort({ name: 1 }).lean(),
+        ClassIncharge.find({})
+          .populate("teacher", "name department")
+          .sort({ createdAt: -1 })
+          .lean(),
+        Hod.find({})
+          .populate("teacher", "name department")
+          .sort({ courseName: 1 })
+          .lean(),
+      ]);
+
+    // const semesters = ["1", "2", "3", "4", "5", "6", "7", "8"];
+
+    return res.render("admin/addIncharge", {
+      classData,
+      section,
+      teacher,
+      // semesters,
+      assignedIncharges,
+      assignedHods,
+    });
+  })
+);
+
+// ======================================================
+// 2. SAVE CLASS INCHARGE
+// ======================================================
+app.post(
+  "/admin/save/class-incharge",
+  verifySession,
+  isAdminVerified,
+  validateClassIncharge,
+  WrapAsync(async (req, res) => {
+    const { className, semester, sectionName, teacherId } = req.body;
+
+    const cleanClass = cleanString(className);
+    const cleanSem = cleanString(semester);
+    const cleanSec = cleanString(sectionName);
+
+    if (!cleanClass || !cleanSem || !cleanSec || !teacherId) {
+      req.flash("error", "Class, Semester, Section and Teacher are required.");
+      return res.redirect("/admin/add/class/incharge");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+      req.flash("error", "Invalid Teacher selected.");
+      return res.redirect("/admin/add/class/incharge");
+    }
+
+    const teacherObj = await Teacher.findById(teacherId).lean();
+    if (!teacherObj) {
+      req.flash("error", "Selected teacher does not exist.");
+      return res.redirect("/admin/add/class/incharge");
+    }
+
+    const teacherAssignment = await ClassIncharge.findOne({
+      teacher: teacherObj._id,
+    }).lean();
+
+    if (teacherAssignment) {
+      const sameSlot =
+        teacherAssignment.className === cleanClass &&
+        teacherAssignment.semester === cleanSem &&
+        teacherAssignment.sectionName === cleanSec;
+
+      if (!sameSlot) {
+        req.flash(
+          "error",
+          `Teacher "${teacherObj.name}" is already Class Incharge of ${teacherAssignment.className} - Sem ${teacherAssignment.semester} - Sec ${teacherAssignment.sectionName}.`
+        );
+        return res.redirect("/admin/add/class/incharge");
+      }
+    }
+
+    try {
+      await ClassIncharge.findOneAndUpdate(
+        { className: cleanClass, semester: cleanSem, sectionName: cleanSec },
+        {
+          $set: {
+            className: cleanClass,
+            semester: cleanSem,
+            sectionName: cleanSec,
+            teacher: teacherObj._id,
+          },
+        },
+        { upsert: true, runValidators: true }
+      );
+
+      req.flash("success", `Class Incharge updated successfully.`);
+      return res.redirect("/admin/add/class/incharge");
+    } catch (error) {
+      if (error.code === 11000) {
+        req.flash(
+          "error",
+          "This teacher is already assigned to another Class Incharge slot."
+        );
+        return res.redirect("/admin/add/class/incharge");
+      }
+      throw error;
+    }
+  })
+);
+
+// ======================================================
+// 3. SAVE HOD
+// ======================================================
+app.post(
+  "/admin/save/hod",
+  verifySession,
+  isAdminVerified,
+  validateHod,
+  WrapAsync(async (req, res) => {
+    const { courseName, teacherId } = req.body;
+    const cleanedCourse = cleanCourseForHod(courseName);
+
+    if (!cleanedCourse || !teacherId) {
+      req.flash("error", "Course/Department and Teacher are required.");
+      return res.redirect("/admin/add/class/incharge");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+      req.flash("error", "Invalid Teacher selected.");
+      return res.redirect("/admin/add/class/incharge");
+    }
+
+    const teacherObj = await Teacher.findById(teacherId).lean();
+    if (!teacherObj) {
+      req.flash("error", "Selected teacher does not exist.");
+      return res.redirect("/admin/add/class/incharge");
+    }
+
+    const teacherHod = await Hod.findOne({ teacher: teacherObj._id }).lean();
+    if (teacherHod) {
+      const sameCourse =
+        cleanString(teacherHod.courseName) === cleanString(cleanedCourse);
+
+      if (!sameCourse) {
+        req.flash(
+          "error",
+          `Teacher "${teacherObj.name}" is already HOD of "${teacherHod.courseName}".`
+        );
+        return res.redirect("/admin/add/class/incharge");
+      }
+    }
+
+    try {
+      await Hod.findOneAndUpdate(
+        { courseName: cleanedCourse },
+        { $set: { courseName: cleanedCourse, teacher: teacherObj._id } },
+        { upsert: true, runValidators: true }
+      );
+
+      req.flash("success", `Department HOD updated successfully.`);
+      return res.redirect("/admin/add/class/incharge");
+    } catch (error) {
+      if (error.code === 11000) {
+        req.flash(
+          "error",
+          "This teacher is already assigned as HOD of another course."
+        );
+        return res.redirect("/admin/add/class/incharge");
+      }
+      throw error;
+    }
+  })
+);
+
+// ======================================================
+// 4. DELETE CLASS INCHARGE
+// ======================================================
+app.post(
+  "/admin/delete/class-incharge/:id",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      req.flash("error", "Invalid Class Incharge ID.");
+      return res.redirect("/admin/add/class/incharge");
+    }
+
+    const deleted = await ClassIncharge.findByIdAndDelete(id);
+    if (!deleted) {
+      req.flash("error", "Class Incharge assignment not found.");
+      return res.redirect("/admin/add/class/incharge");
+    }
+
+    req.flash("success", "Class Incharge removed successfully.");
+    return res.redirect("/admin/add/class/incharge");
+  })
+);
+
+// ======================================================
+// 5. DELETE HOD
+// ======================================================
+app.post(
+  "/admin/delete/hod/:id",
+  verifySession,
+  isAdminVerified,
+  WrapAsync(async (req, res) => {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      req.flash("error", "Invalid HOD ID.");
+      return res.redirect("/admin/add/class/incharge");
+    }
+
+    const deleted = await Hod.findByIdAndDelete(id);
+    if (!deleted) {
+      req.flash("error", "HOD assignment not found.");
+      return res.redirect("/admin/add/class/incharge");
+    }
+
+    req.flash("success", "Department HOD removed successfully.");
+    return res.redirect("/admin/add/class/incharge");
+  })
+);
+
+
+// ======================================================
+// 6. API TO SHOW CLASS INCHARGE ON TIME TABLE PAGE
+// ======================================================
+app.get('/api/get-class-incharge', verifySession,isAdminVerified, WrapAsync( async (req, res) => {
+  try {
+    const { className } = req.query;
+
+    if (!className) {
+      return res.status(400).json({
+        success: false,
+        message: "className query parameter is required"
+      });
+    }
+
+    // Selected course ke saare sections/semesters ke incharges find karein
+    // Aur teacher reference ki name details populate karein
+    const incharges = await ClassIncharge.find({ className: className })
+      .populate('teacher', 'name') // Jo teacher fields chahiye
+      .exec();
+
+    return res.status(200).json({
+      success: true,
+      count: incharges.length,
+      incharges: incharges
+    });
+
+  } catch (error) {
+    console.error("Error fetching class incharges:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error while fetching incharges",
+      error: error.message
+    });
+  }
+}));
+
+// ======================================================
+//  6. API TO SHOW COURSE HOD ON TIME TABLE PAGE
+// ======================================================
+app.get(
+  "/api/get-hod",
+  verifySession,isAdminVerified, WrapAsync(async (req, res) => {
+    const { courseName } = req.query;
+
+    // Existing cleanCourseForHod helper function ka use
+    const cleanedCourse = cleanCourseForHod(courseName);
+
+    if (!cleanedCourse) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid courseName parameter is required.",
+      });
+    }
+
+    const hod = await Hod.findOne({ courseName: cleanedCourse })
+      .populate("teacher", "name")
+      .lean();
+
+    if (!hod) {
+      return res.status(200).json({
+        success: true,
+        hod: null,
+        message: "No HOD found for this department.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      hod,
+    });
+  })
+);
+// // ======================================================
+// // GENERAL STRING CLEANER
+// // ======================================================
+// const cleanString = (value) => {
+//   if (value === undefined || value === null) {
+//     return "";
+//   }
+
+//   return value
+//     .toString()
+//     .replace(/\s+/g, " ")
+//     .trim()
+//     .toUpperCase();
+// };
+
+// // ======================================================
+// // HOD COURSE CLEANER
+// //
+// // Examples:
+// //
+// // BCA
+// // BCA 1ST YEAR
+// // BCA 2ND YEAR
+// // BCA 3RD YEAR
+// // BCA 4TH YEAR
+// //
+// //       ↓
+// //
+// // BCA
+// //
+// // B.TECH CSE 1ST YEAR
+// // B.TECH CSE 2ND YEAR
+// //
+// //       ↓
+// //
+// // B.TECH CSE
+// // ======================================================
+// const cleanCourseForHod = (courseName) => {
+//   let course = cleanString(courseName);
+
+//   if (!course) {
+//     return "";
+//   }
+
+//   // Remove year / semester suffix
+//   course = course
+//     .replace(
+//       /\s*[-_]?\s*(?:1ST|2ND|3RD|4TH|5TH|6TH|7TH|8TH)\s*(?:YEAR)?\s*$/i,
+//       ""
+//     )
+//     .replace(
+//       /\s*[-_]?\s*(?:YEAR|SEM|SEMESTER)\s*\d+\s*$/i,
+//       ""
+//     )
+//     .replace(/\s+/g, " ")
+//     .trim();
+
+//   return course;
+// };
+
+// // ======================================================
+// // GET ASSIGNMENT PAGE
+// // ======================================================
+// app.get(
+//   "/admin/add/class/incharge",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const [
+//       classData,
+//       section,
+//       teacher,
+//       assignedIncharges,
+//       assignedHods,
+//     ] = await Promise.all([
+//       Class.find({}).sort({ class: 1 }).lean(),
+
+//       Section.find({}).sort({ name: 1 }).lean(),
+
+//       Teacher.find({}).sort({ name: 1 }).lean(),
+
+//       ClassIncharge.find({})
+//         .populate("teacher", "name department")
+//         .sort({ createdAt: -1 })
+//         .lean(),
+
+//       Hod.find({})
+//         .populate("teacher", "name department")
+//         .sort({ courseName: 1 })
+//         .lean(),
+//     ]);
+
+//     const semesters = ["1", "2", "3", "4", "5", "6", "7", "8"];
+
+//     return res.render("admin/addIncharge", {
+//       classData,
+//       section,
+//       teacher,
+//       semesters,
+//       assignedIncharges,
+//       assignedHods,
+//     });
+//   })
+// );
+
+// // ======================================================
+// // SAVE / REPLACE CLASS INCHARGE
+// // ======================================================
+// app.post(
+//   "/admin/save/class-incharge",
+//   verifySession,
+//   isAdminVerified,
+//   validateClassIncharge,
+//   WrapAsync(async (req, res) => {
+//     const {
+//       className,
+//       semester,
+//       sectionName,
+//       teacherId,
+//     } = req.body;
+
+//     const cleanClass = cleanString(className);
+//     const cleanSem = cleanString(semester);
+//     const cleanSec = cleanString(sectionName);
+
+//     // --------------------------------------------------
+//     // BASIC VALIDATION
+//     // --------------------------------------------------
+//     if (!cleanClass || !cleanSem || !cleanSec || !teacherId) {
+//       req.flash(
+//         "error",
+//         "Class, Semester, Section and Teacher are required."
+//       );
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     // --------------------------------------------------
+//     // OBJECT ID CHECK
+//     // --------------------------------------------------
+//     if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+//       req.flash("error", "Invalid Teacher selected.");
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     // --------------------------------------------------
+//     // FIND TEACHER
+//     // --------------------------------------------------
+//     const teacherObj = await Teacher.findById(teacherId).lean();
+
+//     if (!teacherObj) {
+//       req.flash("error", "Selected teacher does not exist.");
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     // --------------------------------------------------
+//     // STEP 1
+//     //
+//     // Check whether THIS TEACHER is already assigned
+//     // somewhere else.
+//     //
+//     // If same slot -> allowed.
+//     // If different slot -> reject.
+//     // --------------------------------------------------
+//     const teacherAssignment = await ClassIncharge.findOne({
+//       teacher: teacherObj._id,
+//     }).lean();
+
+//     if (teacherAssignment) {
+//       const sameSlot =
+//         teacherAssignment.className === cleanClass &&
+//         teacherAssignment.semester === cleanSem &&
+//         teacherAssignment.sectionName === cleanSec;
+
+//       if (!sameSlot) {
+//         req.flash(
+//           "error",
+//           `Teacher "${teacherObj.name}" is already Class Incharge of ${teacherAssignment.className} - Sem ${teacherAssignment.semester} - Section ${teacherAssignment.sectionName}.`
+//         );
+
+//         return res.redirect("/admin/add/class/incharge");
+//       }
+//     }
+
+//     // --------------------------------------------------
+//     // STEP 2
+//     //
+//     // Find current teacher of THIS slot.
+//     // --------------------------------------------------
+//     const currentSlot = await ClassIncharge.findOne({
+//       className: cleanClass,
+//       semester: cleanSem,
+//       sectionName: cleanSec,
+//     }).lean();
+
+//     // --------------------------------------------------
+//     // SAME TEACHER + SAME SLOT
+//     // Nothing wrong. Update it safely.
+//     // --------------------------------------------------
+//     if (
+//       currentSlot &&
+//       currentSlot.teacher.toString() === teacherObj._id.toString()
+//     ) {
+//       req.flash(
+//         "success",
+//         `Teacher "${teacherObj.name}" is already assigned to this Class Incharge slot.`
+//       );
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     // --------------------------------------------------
+//     // DIFFERENT TEACHER ALREADY EXISTS
+//     //
+//     // REPLACE OLD TEACHER
+//     // --------------------------------------------------
+//     if (currentSlot) {
+//       try {
+//         await ClassIncharge.updateOne(
+//           { _id: currentSlot._id },
+//           {
+//             $set: {
+//               className: cleanClass,
+//               semester: cleanSem,
+//               sectionName: cleanSec,
+//               teacher: teacherObj._id,
+//             },
+//           },
+//           {
+//             runValidators: true,
+//           }
+//         );
+
+//         req.flash(
+//           "success",
+//           `Class Incharge updated. "${teacherObj.name}" is now Incharge of ${cleanClass} - Sem ${cleanSem} - Section ${cleanSec}.`
+//         );
+
+//         return res.redirect("/admin/add/class/incharge");
+//       } catch (error) {
+//         // ------------------------------------------------
+//         // DUPLICATE KEY SAFETY
+//         // ------------------------------------------------
+//         if (error.code === 11000) {
+//           req.flash(
+//             "error",
+//             "This teacher is already assigned to another Class Incharge."
+//           );
+
+//           return res.redirect("/admin/add/class/incharge");
+//         }
+
+//         throw error;
+//       }
+//     }
+
+//     // --------------------------------------------------
+//     // NO CURRENT SLOT
+//     // CREATE NEW ASSIGNMENT
+//     // --------------------------------------------------
+//     try {
+//       await ClassIncharge.create({
+//         className: cleanClass,
+//         semester: cleanSem,
+//         sectionName: cleanSec,
+//         teacher: teacherObj._id,
+//       });
+
+//       req.flash(
+//         "success",
+//         `Class Incharge "${teacherObj.name}" assigned successfully.`
+//       );
+
+//       return res.redirect("/admin/add/class/incharge");
+//     } catch (error) {
+//       if (error.code === 11000) {
+//         req.flash(
+//           "error",
+//           "This teacher is already assigned as a Class Incharge elsewhere."
+//         );
+
+//         return res.redirect("/admin/add/class/incharge");
+//       }
+
+//       throw error;
+//     }
+//   })
+// );
+
+// // ======================================================
+// // SAVE / REPLACE HOD
+// // ======================================================
+// app.post(
+//   "/admin/save/hod",
+//   verifySession,
+//   isAdminVerified,
+//   validateHod,
+//   WrapAsync(async (req, res) => {
+//     const { courseName, teacherId } = req.body;
+
+//     // --------------------------------------------------
+//     // CLEAN COURSE
+//     // --------------------------------------------------
+//     const cleanedCourse = cleanCourseForHod(courseName);
+
+//     if (!cleanedCourse || !teacherId) {
+//       req.flash(
+//         "error",
+//         "Course/Department and Teacher are required."
+//       );
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     // --------------------------------------------------
+//     // OBJECT ID CHECK
+//     // --------------------------------------------------
+//     if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+//       req.flash("error", "Invalid Teacher selected.");
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     // --------------------------------------------------
+//     // FIND TEACHER
+//     // --------------------------------------------------
+//     const teacherObj = await Teacher.findById(teacherId).lean();
+
+//     if (!teacherObj) {
+//       req.flash("error", "Selected teacher does not exist.");
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     // --------------------------------------------------
+//     // STEP 1
+//     //
+//     // Check if teacher is already HOD somewhere else.
+//     //
+//     // Same course -> allowed.
+//     // Different course -> reject.
+//     // --------------------------------------------------
+//     const teacherHod = await Hod.findOne({
+//       teacher: teacherObj._id,
+//     }).lean();
+
+//     if (teacherHod) {
+//       const sameCourse =
+//         cleanString(teacherHod.courseName) ===
+//         cleanString(cleanedCourse);
+
+//       if (!sameCourse) {
+//         req.flash(
+//           "error",
+//           `Teacher "${teacherObj.name}" is already HOD of "${teacherHod.courseName}".`
+//         );
+
+//         return res.redirect("/admin/add/class/incharge");
+//       }
+//     }
+
+//     // --------------------------------------------------
+//     // STEP 2
+//     //
+//     // Find current HOD of this course.
+//     // --------------------------------------------------
+//     const currentHod = await Hod.findOne({
+//       courseName: cleanedCourse,
+//     }).lean();
+
+//     // --------------------------------------------------
+//     // SAME TEACHER + SAME COURSE
+//     // --------------------------------------------------
+//     if (
+//       currentHod &&
+//       currentHod.teacher.toString() === teacherObj._id.toString()
+//     ) {
+//       req.flash(
+//         "success",
+//         `Teacher "${teacherObj.name}" is already HOD of "${cleanedCourse}".`
+//       );
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     // --------------------------------------------------
+//     // DIFFERENT TEACHER
+//     //
+//     // REPLACE OLD HOD
+//     // --------------------------------------------------
+//     if (currentHod) {
+//       try {
+//         await Hod.updateOne(
+//           { _id: currentHod._id },
+//           {
+//             $set: {
+//               courseName: cleanedCourse,
+//               teacher: teacherObj._id,
+//             },
+//           },
+//           {
+//             runValidators: true,
+//           }
+//         );
+
+//         req.flash(
+//           "success",
+//           `"${cleanedCourse}" HOD successfully changed to "${teacherObj.name}".`
+//         );
+
+//         return res.redirect("/admin/add/class/incharge");
+//       } catch (error) {
+//         if (error.code === 11000) {
+//           req.flash(
+//             "error",
+//             "This teacher is already assigned as HOD of another course."
+//           );
+
+//           return res.redirect("/admin/add/class/incharge");
+//         }
+
+//         throw error;
+//       }
+//     }
+
+//     // --------------------------------------------------
+//     // NO HOD FOR COURSE
+//     //
+//     // CREATE NEW
+//     // --------------------------------------------------
+//     try {
+//       await Hod.create({
+//         courseName: cleanedCourse,
+//         teacher: teacherObj._id,
+//       });
+
+//       req.flash(
+//         "success",
+//         `"${cleanedCourse}" HOD assigned successfully to "${teacherObj.name}".`
+//       );
+
+//       return res.redirect("/admin/add/class/incharge");
+//     } catch (error) {
+//       if (error.code === 11000) {
+//         req.flash(
+//           "error",
+//           "This teacher is already assigned as HOD of another course."
+//         );
+
+//         return res.redirect("/admin/add/class/incharge");
+//       }
+
+//       throw error;
+//     }
+//   })
+// );
+
+// // ======================================================
+// // DELETE CLASS INCHARGE
+// // ======================================================
+// app.post(
+//   "/admin/delete/class-incharge/:id",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { id } = req.params;
+
+//     if (!mongoose.Types.ObjectId.isValid(id)) {
+//       req.flash("error", "Invalid Class Incharge ID.");
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     const deleted = await ClassIncharge.findByIdAndDelete(id);
+
+//     if (!deleted) {
+//       req.flash("error", "Class Incharge assignment not found.");
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     req.flash(
+//       "success",
+//       "Class Incharge removed successfully."
+//     );
+
+//     return res.redirect("/admin/add/class/incharge");
+//   })
+// );
+
+// // ======================================================
+// // DELETE HOD
+// // ======================================================
+// app.post(
+//   "/admin/delete/hod/:id",
+//   verifySession,
+//   isAdminVerified,
+//   WrapAsync(async (req, res) => {
+//     const { id } = req.params;
+
+//     if (!mongoose.Types.ObjectId.isValid(id)) {
+//       req.flash("error", "Invalid HOD ID.");
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     const deleted = await Hod.findByIdAndDelete(id);
+
+//     if (!deleted) {
+//       req.flash("error", "HOD assignment not found.");
+
+//       return res.redirect("/admin/add/class/incharge");
+//     }
+
+//     req.flash(
+//       "success",
+//       "Department HOD removed successfully."
+//     );
+
+//     return res.redirect("/admin/add/class/incharge");
+//   })
+// );
 
 //--------------------------------------  Marks MANAGEMENT------------------------------------------------
 
@@ -9469,19 +14029,41 @@ app.post(
   }),
 );
 
+// --------------------------------------MESSAGING START-------------------------------------------------------
 
 
-app.get("/admin/logout",  verifySession, isAdminVerified,(req, res) => {
-  // Clear ALL Admin Session Variables
-  delete req.session.userId;
-  delete req.session.adminVerified;
-  delete req.session.role;
-  delete req.session.loginTime;
+//---------------------------------------MESSAGING COLSE--------------------------------------------------------
 
-  req.session.save((err) => {
-    if (err) console.error("Admin Logout Session Save Error:", err);
+// app.get("/admin/logout",  verifySession, isAdminVerified,(req, res) => {
+//   // Clear ALL Admin Session Variables
+//   delete req.session.userId;
+//   delete req.session.adminVerified;
+//   delete req.session.role;
+//   delete req.session.loginTime;
+
+//   req.session.save((err) => {
+//     if (err) console.error("Admin Logout Session Save Error:", err);
+//     req.flash("success", "Logged out successfully!");
+//     return res.redirect("/student/attendance/login");
+//   });
+// });
+
+app.get("/admin/logout", verifySession, isAdminVerified, (req, res) => {
+  // 1. Session ID regenerate karein taaki purani Admin Session Keys completely destroy ho jayein
+  req.session.regenerate((err) => {
+    if (err) {
+      console.error("Admin Logout Session Regenerate Error:", err);
+      return res.redirect("/student/attendance/login");
+    }
+
+    // 2. Fresh & Clean Session mein Flash Message set karein
     req.flash("success", "Logged out successfully!");
-    return res.redirect("/student/attendance/login");
+
+    // 3. Save and Redirect
+    req.session.save((saveErr) => {
+      if (saveErr) console.error("Admin Logout Session Save Error:", saveErr);
+      return res.redirect("/student/attendance/login");
+    });
   });
 });
 
@@ -9504,59 +14086,62 @@ app.get("/admin/logout",  verifySession, isAdminVerified,(req, res) => {
 //   },
 // );
 
-app.post("/login/modal", (req, res, next) => {
-  passport.authenticate("local", (err, teacher, info) => {
-    if (err) {
-      console.error("Passport Auth Error:", err);
-      req.flash("error", "Something went wrong during authentication.");
-      return res.redirect("/student/attendance/login");
-    }
 
-    // 🔴 1. INVALID CREDENTIALS
-    if (!teacher) {
-      req.flash("error", info?.message || "Invalid username or password");
-      return res.redirect("/student/attendance/login");
-    }
 
-    // 🔴 2. BLOCKED TEACHER CHECK
-    if (teacher.status === "Blocked") {
-      req.flash(
-        "error",
-        "Your account is blocked by administrator. Access denied.",
-      );
-      return res.redirect("/student/attendance/login");
-    }
 
-    // 🔴 3. PASSPORT REQ.LOGIN EXECUTION
-    req.logIn(teacher, (loginErr) => {
-      if (loginErr) {
-        console.error("Req Login Error:", loginErr);
-        req.flash("error", "Failed to initialize session.");
-        return res.redirect("/student/attendance/login");
-      }
+// app.post("/login/modal", (req, res, next) => {
+//   passport.authenticate("local", (err, teacher, info) => {
+//     if (err) {
+//       console.error("Passport Auth Error:", err);
+//       req.flash("error", "Something went wrong during authentication.");
+//       return res.redirect("/student/attendance/login");
+//     }
 
-      const teacherRole = process.env.ROLE_2 || "Teacher";
+//     // 🔴 1. INVALID CREDENTIALS
+//     if (!teacher) {
+//       req.flash("error", info?.message || "Invalid username or password");
+//       return res.redirect("/student/attendance/login");
+//     }
 
-      // 🔴 4. SESSION CLEANUP (Admin/Student Variables Remove Karo)
-      delete req.session.adminVerified;
-      delete req.session.otpVerified;
-      delete req.session.rollNo;
-      delete req.session.studentId;
+//     // 🔴 2. BLOCKED TEACHER CHECK
+//     if (teacher.status === "Blocked") {
+//       req.flash(
+//         "error",
+//         "Your account is blocked by administrator. Access denied.",
+//       );
+//       return res.redirect("/student/attendance/login");
+//     }
 
-      // 🔴 5. MANDATORY SESSION VARIABLES FOR ISLOGGEDIN MIDDLEWARE & MULTI-DEVICE LOGOUT
-      req.session.userId = teacher._id.toString(); // 👈 Compulsory for isLoggedIn
-      req.session.role = teacherRole;
-      req.session.loginTime = req.session.loginTime = new Date().toISOString(); // 👈 Compulsory for passwordChangedAt comparison
+//     // 🔴 3. PASSPORT REQ.LOGIN EXECUTION
+//     req.logIn(teacher, (loginErr) => {
+//       if (loginErr) {
+//         console.error("Req Login Error:", loginErr);
+//         req.flash("error", "Failed to initialize session.");
+//         return res.redirect("/student/attendance/login");
+//       }
 
-      // 🔴 6. FORCE SAVE SESSION BEFORE REDIRECT
-      return req.session.save((saveErr) => {
-        if (saveErr) console.error("Session Save Error:", saveErr);
-        req.flash("success", `Welcome back, ${teacher.name}!`);
-        return res.redirect("/teacher/student/attendance");
-      });
-    });
-  })(req, res, next);
-});
+//       const teacherRole = process.env.ROLE_2 || "Teacher";
+
+//       // 🔴 4. SESSION CLEANUP (Admin/Student Variables Remove Karo)
+//       delete req.session.adminVerified;
+//       delete req.session.otpVerified;
+//       delete req.session.rollNo;
+//       delete req.session.studentId;
+
+//       // 🔴 5. MANDATORY SESSION VARIABLES FOR ISLOGGEDIN MIDDLEWARE & MULTI-DEVICE LOGOUT
+//       req.session.userId = teacher._id.toString(); // 👈 Compulsory for isLoggedIn
+//       req.session.role = teacherRole;
+//       req.session.loginTime = req.session.loginTime = new Date().toISOString(); // 👈 Compulsory for passwordChangedAt comparison
+
+//       // 🔴 6. FORCE SAVE SESSION BEFORE REDIRECT
+//       return req.session.save((saveErr) => {
+//         if (saveErr) console.error("Session Save Error:", saveErr);
+//         req.flash("success", `Welcome back, ${teacher.name}!`);
+//         return res.redirect("/teacher/student/attendance");
+//       });
+//     });
+//   })(req, res, next);
+// });
 
 // teacher profile
 
@@ -10075,6 +14660,7 @@ app.post(
       subject,
       examName,
     });
+    console.log(subject);
 
     if (existingDoc) {
       req.flash(
@@ -10099,13 +14685,28 @@ app.post(
     const semObj = classObj?.semesters?.find(
       (s) => String(s.semester) === String(semester),
     );
-    const secObj = semObj?.sections?.find((s) => s.section === section);
+    // const secObj = semObj?.sections?.find((s) => s.section === section);
 
-    if (!secObj || !(secObj.subjects || []).includes(subject)) {
-      req.flash("error", "Unauthorized access or subject not assigned to you.");
+    // if (!secObj || !(secObj.subjects || []).includes(subject)) {
+    //   req.flash("error", "Unauthorized access or subject not assigned to you.");
+    //   return req.session.save(() => res.redirect("/add/student-mark"));
+    // }
+
+const secObj = semObj?.sections?.find((s) => s.section === section);
+
+    // FIX: Naye Schema [ { subjectId, subjectName } ] aur Purane Schema [ "Maths" ] dono ko safely match karega
+    const teacherSubjects =
+      secObj?.subjects?.map((sub) =>
+        typeof sub === "string" ? sub.trim() : sub?.subjectName?.trim() || ""
+      ) || [];
+
+    if (!secObj || !teacherSubjects.includes(subject.trim())) {
+      req.flash(
+        "error",
+        "Unauthorized access or subject not assigned to you."
+      );
       return req.session.save(() => res.redirect("/add/student-mark"));
     }
-
     // Fetch Enrolled Students
     const students = await Student.find({
       class: className,
@@ -10305,31 +14906,109 @@ app.get(
   }),
 );
 
-// GET Unique Academic Years for Logged-in Teacher
+// // GET Unique Academic Years for Logged-in Teacher
+
+// Get Academic Years dynamically from the Marks collection
 app.get(
   "/get-teacher-academic-years",
-    verifySession, isLoggedIn,
+  verifySession,
+  isLoggedIn,
   WrapAsync(async (req, res) => {
+    try {
+      const { class: className, semester, section } = req.query;
+
+      if (!className || !semester || !section) {
+        return res.status(400).json([]);
+      }
+
+      const parsedSemester = parseInt(semester, 10);
+      if (isNaN(parsedSemester)) return res.json([]);
+
+      // Fetch distinct academic years from the 'Marks' database model
+      const years = await Marks.find({
+        className: makeCaseInsensitiveRegex(className),
+        semester: parsedSemester,
+        section: makeCaseInsensitiveRegex(section),
+      }).distinct("academicYear");
+
+      const sortedYears = (years || [])
+        .filter(Boolean)
+        .map((y) => String(y).trim());
+
+      // Sort descending (e.g., 2026-2027, 2025-2026 or 2026, 2025)
+      sortedYears.sort((a, b) =>
+        b.localeCompare(a, undefined, { numeric: true })
+      );
+
+      return res.json(sortedYears);
+    } catch (err) {
+      console.error("Bug Safeguard [/get-teacher-academic-years]:", err);
+      return res.status(500).json([]);
+    }
+  })
+);
+// app.get(
+//   "/get-teacher-academic-years",
+//     verifySession, isLoggedIn,
+//   WrapAsync(async (req, res) => {
+//     if (!req.user || !req.user._id) {
+//       req.flash("error", "Session expired. Please login again.");
+//       return res.redirect("/student/attendance/login");
+//     }
+//     // Is teacher ne jitne bhi unique academicYears me entries ki hain, unhe fetch karo
+//     const years = await Marks.distinct("academicYear", {
+//       teacherId: req.user._id,
+//     });
+
+//     //     years.sort((a, b) => b - a);
+
+//     //     res.json(years);
+//     //   })
+//     // );
+
+//     const validYears = years.filter(Boolean).map((y) => String(y).trim());
+//     validYears.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+
+//     res.json(validYears);
+//   }),
+// );
+
+app.get("/get/marks-subjects",   verifySession, isLoggedIn, WrapAsync(async (req, res) => {
+  try {
+    const { class: className, semester, section } = req.query;
+
     if (!req.user || !req.user._id) {
       req.flash("error", "Session expired. Please login again.");
       return res.redirect("/student/attendance/login");
     }
-    // Is teacher ne jitne bhi unique academicYears me entries ki hain, unhe fetch karo
-    const years = await Marks.distinct("academicYear", {
-      teacherId: req.user._id,
-    });
 
-    //     years.sort((a, b) => b - a);
+    const teacher = await Teacher.findById(req.user._id);
+    if (!teacher) return res.json([]);
 
-    //     res.json(years);
-    //   })
-    // );
+    const cls = teacher.class.find((c) => c.className === className);
+    if (!cls) return res.json([]);
 
-    const validYears = years.filter(Boolean).map((y) => String(y).trim());
-    validYears.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    const sem = cls.semesters.find((s) => s.semester === semester);
+    if (!sem) return res.json([]);
 
-    res.json(validYears);
-  }),
+    const sec = sem.sections.find((sec) => sec.section === section);
+    if (!sec) return res.json([]);
+
+   // 👇 FIX: Naye Object schema [{ subjectId, subjectName }] aur Purane String schema dono ko parse karega
+      const rawSubjects = sec.subjects || [];
+      const subjects = rawSubjects
+        .map((sub) => {
+          if (typeof sub === "string") return sub.trim();
+          return sub?.subjectName?.trim() || sub?.name?.trim() || "";
+        })
+        .filter(Boolean); // Blank strings filtering
+
+      res.json(subjects);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json([]);
+    }
+  })
 );
 
 // 1️⃣ VIEW STUDENT MARKS
@@ -10722,12 +15401,30 @@ app.post(
       return res.redirect("/add/student/attendance");
     }
 
-    const teacherSubjects = secObj.subjects || [];
-    if (!teacherSubjects.includes(selectedSubject)) {
+    // const teacherSubjects = secObj.subjects || [];
+    // if (!teacherSubjects.includes(selectedSubject)) {
+    //   req.flash(
+    //     "error",
+    //     "This subject is not assigned to you for this section.",
+    //   );
+    //   return res.redirect("/add/student/attendance");
+    // }
+
+ const teacherSubjects = secObj.subjects || [];
+
+   
+
+    const subjectAssigned = teacherSubjects.some(
+      (subject) =>
+        subject.subjectName === selectedSubject
+    );
+
+    if (!subjectAssigned) {
       req.flash(
         "error",
-        "This subject is not assigned to you for this section.",
+        "This subject is not assigned to you for this section."
       );
+
       return res.redirect("/add/student/attendance");
     }
 
@@ -10852,6 +15549,7 @@ app.post(
           description,
           subject,
           teacherName,
+          teacherId: req.user?._id || "N/A",
         });
 
         // Duplicate Document Entry
@@ -11104,315 +15802,7 @@ app.get("/get-subjects",   verifySession, isLoggedIn, WrapAsync(async (req, res)
   }
 }));
 
-// app.post(
-//   "/update/student/attendance",
-//   isLoggedIn,
-//   WrapAsync(async (req, res) => {
-//     const { data } = req.body;
-//     const { class: className, semester, section, subject,teacherName } = data;
 
-//     // 🔥 Normalizer (future proof)
-//     const normalize = (str) =>
-//       str?.toString().trim().toLowerCase().replace(/\s+/g, " ");
-
-//     const cleanClass = className.trim();
-//     const cleanSemester = semester.trim();
-//     const cleanSection = section.trim();
-//     const cleanSubject = subject.trim();
-
-//     // ===== Save session (cleaned) =====
-//     // req.session.class = cleanClass;
-//     // req.session.semester = cleanSemester;
-//     // req.session.section = cleanSection;
-//     // req.session.subject = cleanSubject;
-
-//     // ===== Teacher check =====
-//     const teacher = await Teacher.findById(req.user._id);
-//     if (!teacher) {
-//       req.flash("error", "Teacher not found");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     const classObj = teacher.class?.find(
-//       (c) => normalize(c.className) === normalize(cleanClass),
-//     );
-//     const semObj = classObj?.semesters?.find(
-//       (s) => normalize(s.semester) === normalize(cleanSemester),
-//     );
-//     const secObj = semObj?.sections?.find(
-//       (s) => normalize(s.section) === normalize(cleanSection),
-//     );
-
-//     if (!classObj || !semObj || !secObj) {
-//       req.flash("error", "Class / Semester / Section not assigned to you");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     // ===== Find attendance records =====
-//     const records = await AttendenceDuplicate.find({
-//       attendance: {
-//         $elemMatch: {
-//           teacherId: req.user._id,
-//           class: cleanClass,
-//           semester: cleanSemester,
-//           section: cleanSection,
-//           subject: cleanSubject,
-//         },
-//       },
-//     });
-
-//     if (!records.length) {
-//       req.flash("error", "No attendance found for update");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     // ===== Filter valid (within 24 hours) =====
-//     const now = new Date();
-
-//     const validAttendances = records.flatMap((r) =>
-//       r.attendance.filter((att) => {
-//         const hoursDiff = (now - new Date(att.date)) / (1000 * 60 * 60);
-
-//         return (
-//           att.teacherId.toString() === req.user._id.toString() &&
-//           normalize(att.class) === normalize(cleanClass) &&
-//           normalize(att.semester) === normalize(cleanSemester) &&
-//           normalize(att.section) === normalize(cleanSection) &&
-//           normalize(att.subject) === normalize(cleanSubject) &&
-//           hoursDiff <= 24
-//         );
-//       }),
-//     );
-
-//     if (!validAttendances.length) {
-//       req.flash("error", "Update allowed only within 24 hours");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     // ===== Latest attendance =====
-//     const latest = validAttendances.sort(
-//       (a, b) => new Date(b.date) - new Date(a.date),
-//     )[0];
-
-//     const currentAttendance = {
-//       periods: latest.periods,
-//       unit: latest.unit,
-//       description: latest.description,
-//       date: latest.date,
-//     };
-
-//     // ===== Fetch students =====
-//     const students = await Student.find({
-//       class: cleanClass,
-//       semester: cleanSemester,
-//       section: cleanSection,
-//     });
-
-//     if (!students.length) {
-//       req.flash("error", "No students found");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     // ===== Build status map =====
-//     const statusMap = {};
-
-//     for (const record of records) {
-//       const att = record.attendance.find(
-//         (a) =>
-//           a.teacherId.toString() === req.user._id.toString() &&
-//           normalize(a.class) === normalize(cleanClass) &&
-//           normalize(a.semester) === normalize(cleanSemester) &&
-//           normalize(a.section) === normalize(cleanSection) &&
-//           normalize(a.subject) === normalize(cleanSubject),
-//       );
-
-//       if (att) {
-//         statusMap[record.studentId.toString()] = att.status || "Not marked";
-//       }
-//     }
-
-//     const studentsWithStatus = students.map((stu) => ({
-//       ...stu.toObject(),
-//       attendanceToday: statusMap[stu._id.toString()] || "Not marked",
-//     }));
-
-//     // ===== Subject permission =====
-//     const studentSubjects = students.flatMap((s) =>
-//       s.subject.map((sub) =>
-//         typeof sub === "string" ? sub.trim() : sub.name.trim(),
-//       ),
-//     );
-
-//     const teacherSubjects = secObj.subjects?.map((sub) => sub.trim()) || [];
-
-//     const commonSubjects = teacherSubjects.filter((sub) =>
-//       studentSubjects.includes(sub),
-//     );
-
-//     if (!commonSubjects.includes(cleanSubject)) {
-//       req.flash("error", "You are not allowed for this subject");
-//       return res.redirect("/update/student/attendance");
-//     }
-
-//     // ===== Render =====
-//     res.render("teachers/updateAttenPage.ejs", {
-//       students: studentsWithStatus,
-//       subject: cleanSubject,
-//       cleanClass,
-//       cleanSection,
-//       cleanSemester,
-//       teacherName,
-//       commonSubjects,
-//       currentAttendance,
-//     });
-//   }),
-// );
-
-// app.post(
-//   "/attendance/updateAll",
-//   WrapAsync(async (req, res) => {
-//     const { students, period, unit, description, subject,className,semester,section,teacherName } = req.body;
-
-//     // const section = req.session.section;
-//     // const classes = req.session.class;
-//     // const semester = req.session.semester;
-//     // const teacherName = req.session.teacherName;
-//     console.log(period, unit, description, subject,className,semester,section,teacherName );
-//     const now = new Date();
-
-//     try {
-//       const todayStart = new Date();
-//       todayStart.setHours(0, 0, 0, 0);
-//       console.log(todayStart);
-
-//       const todayEnd = new Date();
-//       todayEnd.setHours(23, 59, 59, 999);
-
-//       let updatedCount = 0;
-
-//       for (const [id, status] of Object.entries(students)) {
-//         /* =========================================================
-//            🔹 1️⃣ ATTENDENCE DUPLICATE CHECK
-//         ========================================================== */
-
-//         const duplicateDoc = await AttendenceDuplicate.findOne({
-//           studentId: id,
-//         });
-
-//         if (duplicateDoc) {
-//           const existingEntry = duplicateDoc.attendance.find(
-//             (a) =>
-//               a.periods == period &&
-//               a.class === className &&
-//               a.section === section &&
-//               a.semester === semester &&
-//               a.subject === subject,
-//           );
-
-//           if (existingEntry) {
-//             // 🔄 Update existing
-//             existingEntry.status = status;
-//             existingEntry.unit = unit;
-//             existingEntry.description = description;
-//             existingEntry.updatedAt = now;
-//           } else {
-//             // ➕ Create new entry inside attendance array
-//             duplicateDoc.attendance.push({
-//               periods: period,
-//               class: className,
-//               section,
-//               semester,
-//               subject,
-//               status,
-//               unit,
-//               description,
-//               teacherId: req.user._id,
-//               teacherName: teacherName,
-//               createdAt: now,
-//               updatedAt: now,
-//             });
-//           }
-
-//           await duplicateDoc.save();
-//         } else {
-//           // 🆕 Create whole document
-//           await AttendenceDuplicate.create({
-//             studentId: id,
-//             attendance: [
-//               {
-//                 periods: period,
-//                 class: className,
-//                 section,
-//                 semester,
-//                 subject,
-//                 status,
-//                 unit,
-//                 description,
-//                 teacherId: req.user._id,
-//                 teacherName: teacherName,
-//                 createdAt: now,
-//                 updatedAt: now,
-//               },
-//             ],
-//           });
-//         }
-
-//         /* =========================================================
-//            🔹 2️⃣ ATTENDANCE COLLECTION CHECK
-//         ========================================================== */
-
-//         const attendanceDoc = await Attendance.findOne({
-//           studentId: id,
-//           period: period,
-//           subject: subject,
-//           date: { $gte: todayStart, $lte: todayEnd },
-//         });
-
-//         if (attendanceDoc) {
-//           attendanceDoc.status = status;
-//           attendanceDoc.unit = unit;
-//           attendanceDoc.description = description;
-//           attendanceDoc.updatedAt = now;
-//           await attendanceDoc.save();
-//         } else {
-//           await Attendance.create({
-//             studentId: id,
-//             period,
-//             subject,
-//             status,
-//             unit,
-//             description,
-//             teacherName: teacherName,
-//             date: now,
-//             createdAt: now,
-//             updatedAt: now,
-//           });
-//         }
-
-//         updatedCount++;
-//       }
-
-//       req.flash(
-//         "success",
-//         `✅ ${updatedCount} students processed successfully!`,
-//       );
-//       return res.redirect("/add/student/attendance");
-//     } catch (err) {
-//       console.error("❌ Error updating attendance:", err);
-//       req.flash("error", "Something went wrong!");
-//       return res.redirect("/add/student/attendance");
-//     }
-//   }),
-// );
-
-// // Helper for Date String (Timezone Bug-Free)
-// const getTodayDateString = () => {
-//   const now = new Date();
-//   const year = now.getFullYear();
-//   const month = String(now.getMonth() + 1).padStart(2, '0');
-//   const day = String(now.getDate()).padStart(2, '0');
-//   return `${year}-${month}-${day}`;
-// };
 
 /* =========================================================
    1️⃣ GET/FETCH ATTENDANCE DATA FOR UPDATE PAGE
@@ -11423,6 +15813,7 @@ app.post(
   WrapAsync(async (req, res) => {
     const { data } = req.body;
     const { class: className, semester, section, subject, teacherName } = data;
+    
 
     // Normalizer helper
     const normalize = (str) =>
@@ -11432,6 +15823,7 @@ app.post(
     const cleanSemester = semester.trim();
     const cleanSection = section.trim();
     const cleanSubject = subject.trim();
+    console.log(cleanSubject)
 
     req.session.class = cleanClass;
     req.session.semester = cleanSemester;
@@ -11523,21 +15915,44 @@ app.post(
     }));
 
     // ===== Subject permission check =====
+
     const studentSubjects = students.flatMap((s) =>
-      s.subject.map((sub) =>
-        typeof sub === "string" ? sub.trim() : sub.name.trim(),
-      ),
+      s.subject.map((sub) => {
+        if (typeof sub === "string") return sub.trim();
+        return sub?.name?.trim() || sub?.subjectName?.trim() || "";
+      })
     );
 
-    const teacherSubjects = secObj.subjects?.map((sub) => sub.trim()) || [];
+    // FIX HERE: Objects array [ { subjectId, subjectName } ] aur String array dono ko handle karta hai
+    const teacherSubjects =
+      secObj.subjects?.map((sub) => {
+        if (typeof sub === "string") return sub.trim();
+        return sub?.subjectName?.trim() || sub?.name?.trim() || "";
+      }) || [];
+
     const commonSubjects = teacherSubjects.filter((sub) =>
-      studentSubjects.includes(sub),
+      studentSubjects.includes(sub)
     );
 
     if (!commonSubjects.includes(cleanSubject)) {
       req.flash("error", "You are not allowed for this subject");
       return res.redirect("/update/student/attendance");
     }
+    // const studentSubjects = students.flatMap((s) =>
+    //   s.subject.map((sub) =>
+    //     typeof sub === "string" ? sub.trim() : sub.name.trim(),
+    //   ),
+    // );
+
+    // const teacherSubjects = secObj.subjects?.map((sub) => sub.trim()) || [];
+    // const commonSubjects = teacherSubjects.filter((sub) =>
+    //   studentSubjects.includes(sub),
+    // );
+
+    // if (!commonSubjects.includes(cleanSubject)) {
+    //   req.flash("error", "You are not allowed for this subject");
+    //   return res.redirect("/update/student/attendance");
+    // }
 
     // ===== Render Update Form =====
     res.render("teachers/updateAttenPage.ejs", {
@@ -11629,6 +16044,7 @@ app.post(
                 unit,
                 description,
                 teacherName,
+                teacherId: req.user?._id || "N/A",
                 updatedAt: now,
               },
               $setOnInsert: {
@@ -11656,7 +16072,7 @@ app.post(
         },
         {
           $set: {
-            teacherId: req.user._id,
+              teacherId: req.user?._id || "N/A",
             teacherName: teacherName,
             students: updatedStudentEntries,
             createdAt: now, // Reset TTL lock timer
@@ -11873,8 +16289,34 @@ app.post(
       return res.redirect("/teacher/show/time/table"); // Ya jahan aapka form template located hai
     }
 
-    // Database search based on selected metadata
-    const scheduleData = await TimeTable.find({ className, semester, section });
+   const cleanCourseForHod = (fullCourseName) => {
+      if (!fullCourseName) return "";
+      return fullCourseName
+        .replace(/\s*[-_]?\s*(?:1ST|2ND|3RD|4TH|5TH|6TH|7TH|8TH)\s*(?:YEAR)?\s*$/i, "")
+        .replace(/\s*[-_]?\s*(?:YEAR|SEM|SEMESTER)\s*\d+\s*$/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+
+    const baseCourseName = cleanCourseForHod(className);
+
+    // 2. Parallel Database Queries (Fast Performance)
+    const [scheduleData, classInchargeDoc, hodDoc] = await Promise.all([
+      TimeTable.find({ className, semester, section }),
+      ClassIncharge.findOne({ className, semester, sectionName:section }).populate("teacher", "name"),
+      Hod.findOne({ courseName: baseCourseName }).populate("teacher", "name")
+    ]);
+    
+
+    // 3. Extract Incharge and HOD details safely
+    const classIncharge = classInchargeDoc && classInchargeDoc.teacher 
+      ? classInchargeDoc.teacher.name 
+      : "Not Assigned";
+
+    const hod = hodDoc && hodDoc.teacher 
+      ? hodDoc.teacher.name 
+      : "Not Assigned";
+    // const scheduleData = await TimeTable.find({ className, semester, section });
 
     let groupedTimetable = {};
     let periods = [];
@@ -11885,7 +16327,7 @@ app.post(
       }
 
       groupedTimetable[slot.day_of_week][slot.lecture_number] = {
-        subject: slot.subject_name || "🍔 LUNCH BREAK",
+        subject: slot.subject_name || "-",
         teacher: slot.teacher_name || "N/A",
       };
 
@@ -11958,6 +16400,8 @@ app.post(
       dayNames,
       isComplete,
       messageType,
+      classIncharge, // 👈 Send Incharge Name
+      hod
     });
   }),
 );
@@ -12066,21 +16510,24 @@ app.get(
 //   });
 // });
 
-app.get("/logout",  verifySession, isLoggedIn, (req, res, next) => {
-  // Clear Passport Local Auth Session
+app.get("/logout", verifySession, isLoggedIn, (req, res, next) => {
+  // 1. Passport Auth Clear Karein
   req.logout((err) => {
     if (err) {
       return next(err);
     }
 
-    // Clear Custom Session Variables
-    delete req.session.userId;
-    delete req.session.role;
-    delete req.session.loginTime;
+    // 2. Pure Session Object ko memory/DB se Delete Karein
+    req.session.destroy((destroyErr) => {
+      if (destroyErr) {
+        console.error("Teacher Logout Session Destroy Error:", destroyErr);
+        return next(destroyErr);
+      }
 
-    req.session.save((saveErr) => {
-      if (saveErr) console.error("Teacher Logout Session Save Error:", saveErr);
-      req.flash("success", "Logged out successfully!");
+      // 3. Browser Se Cookie Clear Karein (default name 'connect.sid' hota hai)
+      res.clearCookie("connect.sid");
+
+      // 4. Redirect
       return res.redirect("/student/attendance/login");
     });
   });
@@ -12090,29 +16537,7 @@ app.get("/logout",  verifySession, isLoggedIn, (req, res, next) => {
 
 //////////////////////////// student folder start//////////////////////////////////////////////
 
-//otp
 
-// app.get("/otp", (req, res) => {
-//   const email = req.session.email;
-//   res.render("listings/otp.ejs",{email});
-// });
-
-// app.post(
-//   "/verify-otp",
-//   WrapAsync(async (req, res) => {
-//     const { otp } = req.body;
-//     let otpRecord = await OTP.findOne({ otp: otp });
-
-//     if (otpRecord) {
-//       req.session.otpVerified = true;
-//       req.flash("success", "Login successfully");
-//       return res.redirect("/student/attendance");
-//     } else {
-//       req.flash("error", "Invalid-OTP!");
-//       return res.redirect("/otp");
-//     }
-//   }),
-// );
 
 // update Password
 
@@ -12621,7 +17046,36 @@ app.get(
     const semester = student.semester;
     const section = student.section;
 
-    const scheduleData = await TimeTable.find({ className, semester, section });
+
+     const cleanCourseForHod = (fullCourseName) => {
+      if (!fullCourseName) return "";
+      return fullCourseName
+        .replace(/\s*[-_]?\s*(?:1ST|2ND|3RD|4TH|5TH|6TH|7TH|8TH)\s*(?:YEAR)?\s*$/i, "")
+        .replace(/\s*[-_]?\s*(?:YEAR|SEM|SEMESTER)\s*\d+\s*$/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+
+    const baseCourseName = cleanCourseForHod(className);
+
+    // 2. Parallel Database Queries (Fast Performance)
+    const [scheduleData, classInchargeDoc, hodDoc] = await Promise.all([
+      TimeTable.find({ className, semester, section }),
+      ClassIncharge.findOne({ className, semester, sectionName:section }).populate("teacher", "name"),
+      Hod.findOne({ courseName: baseCourseName }).populate("teacher", "name")
+    ]);
+     
+
+    // 3. Extract Incharge and HOD details safely
+    const classIncharge = classInchargeDoc && classInchargeDoc.teacher 
+      ? classInchargeDoc.teacher.name 
+      : "Not Assigned";
+
+    const hod = hodDoc && hodDoc.teacher 
+      ? hodDoc.teacher.name 
+      : "Not Assigned";
+
+    // const scheduleData = await TimeTable.find({ className, semester, section });
 
     let groupedTimetable = {};
     let periods = [];
@@ -12632,7 +17086,7 @@ app.get(
       }
 
       groupedTimetable[slot.day_of_week][slot.lecture_number] = {
-        subject: slot.subject_name || "🍔 LUNCH BREAK",
+        subject: slot.subject_name || "-",
         teacher: slot.teacher_name || "N/A",
       };
 
@@ -12706,6 +17160,8 @@ app.get(
       dayNames,
       isComplete, // Frontend ko batayega ki table valid hai ya nahi
       messageType, // Kis tarah ka alert show karna hai
+       classIncharge, // 👈 Send Incharge Name
+      hod
     });
   }),
 );
@@ -13062,20 +17518,39 @@ app.get(
 );
 
 
-app.get("/student/logout",  verifySession, isStudentVerified,(req, res) => {
-  // Clear ALL Student Session Variables
-  delete req.session.userId;
-  delete req.session.studentId;
-  delete req.session.rollNo;
-  delete req.session.role;
-  delete req.session.loginTime;
-  delete req.session.otpVerified;
+// app.get("/student/logout",  verifySession, isStudentVerified,(req, res) => {
+//   // Clear ALL Student Session Variables
+//   delete req.session.userId;
+//   delete req.session.studentId;
+//   delete req.session.rollNo;
+//   delete req.session.role;
+//   delete req.session.loginTime;
+//   delete req.session.otpVerified;
 
-  // Force Save Session to ensure Flash Message is retained
-  req.session.save((err) => {
-    if (err) console.error("Student Logout Session Save Error:", err);
+//   // Force Save Session to ensure Flash Message is retained
+//   req.session.save((err) => {
+//     if (err) console.error("Student Logout Session Save Error:", err);
+//     req.flash("success", "Logged out successfully!");
+//     return res.redirect("/student/attendance/login");
+//   });
+// });
+
+app.get("/student/logout", verifySession, isStudentVerified, (req, res) => {
+  // 1. Session ID ko regenerate karein taaki purana Student data destroy ho jaye
+  req.session.regenerate((err) => {
+    if (err) {
+      console.error("Student Logout Session Regenerate Error:", err);
+      return res.redirect("/student/attendance/login");
+    }
+
+    // 2. Naye clean session me Flash set karein
     req.flash("success", "Logged out successfully!");
-    return res.redirect("/student/attendance/login");
+
+    // 3. Save and Redirect
+    req.session.save((saveErr) => {
+      if (saveErr) console.error("Student Logout Session Save Error:", saveErr);
+      return res.redirect("/student/attendance/login");
+    });
   });
 });
 
@@ -13102,8 +17577,33 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(5000, (req, res) => {
-  console.log(`All clear ${5000}`);
+
+// io.use(async (socket, next) => {
+//   try {
+//     const session = socket.request.session;
+
+//     if (!session || !session.userId || !session.role) {
+//       return next(new Error("Unauthorized"));
+//     }
+
+//     socket.userId = String(session.userId);
+//     socket.role = session.role;
+
+//     next();
+//   } catch (err) {
+//     console.error("Socket authentication error:", err);
+//     next(new Error("Unauthorized"));
+//   }
+// });
+
+
+// app.listen(5000, (req, res) => {
+//   console.log(`All clear ${5000}`);
+// });
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`✅ Server + Socket.io running on port ${PORT}`);
 });
 
 ///  working atendance
